@@ -47,14 +47,14 @@ if (!hasPermission('accounts')) {
             <div class="module-description">Remove member accounts and associated data</div>
         </a>
 
-        <a href="members/list.php?filter=loan" class="module-card">
+        <a href="members/accounts.php?filter=loan" class="module-card">
             <div class="module-letter">D</div>
             <div class="module-icon">🏦</div>
             <div class="module-title">Create or Delete a Loan Account</div>
             <div class="module-description">Manage member loan accounts and credit facilities</div>
         </a>
 
-        <a href="members/list.php?filter=share" class="module-card">
+        <a href="members/accounts.php?filter=share" class="module-card">
             <div class="module-letter">E</div>
             <div class="module-icon">💰</div>
             <div class="module-title">Create or Delete a Share Subaccount</div>
@@ -81,8 +81,8 @@ if (!hasPermission('accounts')) {
         'A': 'members/add.php',
         'B': 'members/list.php?action=edit',
         'C': 'members/list.php?action=delete',
-        'D': 'members/list.php?filter=loan',
-        'E': 'members/list.php?filter=share',
+        'D': 'members/accounts.php?filter=loan',
+        'E': 'members/accounts.php?filter=share',
         'F': 'members/add.php?type=company',
         'G': 'members/list.php?filter=company'
     };

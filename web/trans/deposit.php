@@ -181,11 +181,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     function lookupMember() {
         const q = document.getElementById('member_search').value.trim();
         if (!q) return;
-        const url = `../members/list.php?q=${encodeURIComponent(q)}&action=select`;
-        fetch(`../inquiry.php?by=account&q=${encodeURIComponent(q)}`)
-            .then(() => {
-                // Simplified: direct to member list for account selection
-                window.location.href = `deposit.php?type=<?php echo $account_type; ?>&member_search=${encodeURIComponent(q)}`;
+        const type = '<?php echo $account_type; ?>';
+        fetch(`../api/lookup_account.php?q=${encodeURIComponent(q)}&type=${type}`)
+            .then(r => r.json())
+            .then(data => {
+                const sel = document.getElementById('account_id');
+                sel.innerHTML = '<option value="">— Select account —</option>';
+                if (data.length === 0) {
+                    document.getElementById('lookup-result').textContent = 'No matching accounts found';
+                    return;
+                }
+                data.forEach(a => {
+                    const opt = document.createElement('option');
+                    opt.value = a.id;
+                    opt.text  = `${a.account_number} — ${a.name} (#${a.member_number}) Balance: $${a.balance.toFixed(2)}`;
+                    sel.appendChild(opt);
+                });
+                document.getElementById('lookup-result').textContent = data.length + ' account(s) found';
+            })
+            .catch(() => {
+                document.getElementById('lookup-result').textContent = 'Lookup failed — please try again';
             });
     }
     </script>
