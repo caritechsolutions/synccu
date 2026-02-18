@@ -35,16 +35,6 @@ function hasPermission($permission) {
     return $stmt->fetchColumn() > 0;
 }
 
-// Function to redirect if not logged in
-function requireLogin() {
-    if (!isLoggedIn()) {
-        header('Location: login.php');
-        exit();
-    }
-}
-
-// Add this function to config.php after the existing functions
-
 // Function to check if user must change password
 function mustChangePassword() {
     if (!isLoggedIn()) return false;
@@ -63,5 +53,16 @@ function checkForcedPasswordChange() {
         header('Location: forced_password_change.php');
         exit();
     }
+}
+
+// Function to redirect if not logged in
+function requireLogin() {
+    if (!isLoggedIn()) {
+        header('Location: login.php');
+        exit();
+    }
+    
+    // Check if user must change password (except on forced password change page)
+    checkForcedPasswordChange();
 }
 ?>
