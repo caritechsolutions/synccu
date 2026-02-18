@@ -20,7 +20,7 @@ error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
 # ── Defaults (override with --flag=value args) ────────────────
 REPO_URL="https://github.com/caritechsolutions/synccu.git"
-BRANCH="main"
+BRANCH="claude/code-review-6DiRg"
 APP_DIR="/var/www/synccu"
 WEB_ROOT=""                       # derived from APP_DIR below
 DOMAIN="localhost"
