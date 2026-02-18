@@ -75,7 +75,7 @@ INSERT IGNORE INTO role_permissions (role, permission_id)
 INSERT IGNORE INTO users (username, password, full_name, role, must_change_password)
 VALUES (
     'admin',
-    '$2y$12$Q/V3qiTBfnXE4D6ZWt5oEOuNLrKFN1pqBMcVjJbAfL2.YzAqSFdpG',
+    '$2y$12$8L9PGCipe9YkbcCpLWfsruj2xxdeYcg9VrnD1erjjWqvJ8dJ0DGhy',
     'System Administrator',
     'admin',
     1
