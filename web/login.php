@@ -3,7 +3,12 @@ require_once 'config.php';
 
 // If already logged in, redirect to dashboard
 if (isLoggedIn()) {
-    header('Location: index.php');
+    // Check if user must change password
+    if (mustChangePassword()) {
+        header('Location: forced_password_change.php');
+    } else {
+        header('Location: index.php');
+    }
     exit();
 }
 
@@ -15,7 +20,7 @@ if ($_POST) {
     $password = $_POST['password'];
     
     if ($username && $password) {
-        $stmt = $pdo->prepare("SELECT id, username, password, full_name, role FROM users WHERE username = ? AND is_active = 1");
+        $stmt = $pdo->prepare("SELECT id, username, password, full_name, role, must_change_password FROM users WHERE username = ? AND is_active = 1");
         $stmt->execute([$username]);
         $user = $stmt->fetch();
         
@@ -30,7 +35,12 @@ if ($_POST) {
             $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
             $updateStmt->execute([$user['id']]);
             
-            header('Location: index.php');
+            // Check if user must change password
+            if ($user['must_change_password']) {
+                header('Location: forced_password_change.php');
+            } else {
+                header('Location: index.php');
+            }
             exit();
         } else {
             $error = 'Invalid username or password';
