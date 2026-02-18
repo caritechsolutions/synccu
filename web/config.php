@@ -42,4 +42,26 @@ function requireLogin() {
         exit();
     }
 }
+
+// Add this function to config.php after the existing functions
+
+// Function to check if user must change password
+function mustChangePassword() {
+    if (!isLoggedIn()) return false;
+    
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT must_change_password FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $result = $stmt->fetch();
+    
+    return $result && $result['must_change_password'];
+}
+
+// Function to redirect to forced password change if needed
+function checkForcedPasswordChange() {
+    if (mustChangePassword() && basename($_SERVER['PHP_SELF']) !== 'forced_password_change.php') {
+        header('Location: forced_password_change.php');
+        exit();
+    }
+}
 ?>
