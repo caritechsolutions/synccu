@@ -1,139 +1,202 @@
 #!/usr/bin/env bash
 # =============================================================
 # SyncCU Installer
-# Installs Apache, PHP, MySQL and sets up the SyncCU web app.
-# Must be run as root (or via sudo).
-# Usage: sudo bash install.sh
+# Run via curl:
+#   curl -sSL "https://raw.githubusercontent.com/caritechsolutions/synccu/master/install.sh?$(date +%s)" | sudo bash
+#
+# Or with options:
+#   curl -sSL "..." | sudo bash -s -- --domain=mycu.org --db-pass=secret
 # =============================================================
 
 set -euo pipefail
 
 # ── Colours ──────────────────────────────────────────────────
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; BOLD='\033[1m'; NC='\033[0m'
 info()    { echo -e "${GREEN}[INFO]${NC}  $*"; }
+section() { echo -e "\n${BLUE}${BOLD}▶ $*${NC}"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
+error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
-# ── Config (edit these before running) ───────────────────────
-APP_DIR="${APP_DIR:-/var/www/synccu}"
-WEB_ROOT="${WEB_ROOT:-$APP_DIR/web}"
-DOMAIN="${DOMAIN:-localhost}"
-DB_NAME="${DB_NAME:-synccu}"
-DB_USER="${DB_USER:-synccu_app}"
-DB_PASS="${DB_PASS:-$(openssl rand -base64 20)}"
-DB_ROOT_PASS="${DB_ROOT_PASS:-}"   # leave blank to prompt
+# ── Defaults (override with --flag=value args) ────────────────
+REPO_URL="https://github.com/caritechsolutions/synccu.git"
+BRANCH="master"
+APP_DIR="/var/www/synccu"
+WEB_ROOT=""                       # derived from APP_DIR below
+DOMAIN="localhost"
+DB_NAME="synccu"
+DB_USER="synccu_app"
+DB_PASS="$(openssl rand -base64 20 | tr -d '/+=' | head -c 20)"
+DB_ROOT_PASS=""
+INSTALL_OLLAMA=false
 
-# ── OS detection ─────────────────────────────────────────────
-if   [ -f /etc/debian_version ]; then PKG_MGR="apt-get"; DISTRO="debian"
-elif [ -f /etc/redhat-release  ]; then PKG_MGR="yum";     DISTRO="rhel"
-else error "Unsupported OS. Only Debian/Ubuntu and RHEL/CentOS are supported."; fi
+# ── Parse arguments ───────────────────────────────────────────
+for arg in "$@"; do
+    case "$arg" in
+        --branch=*)       BRANCH="${arg#*=}"     ;;
+        --install-dir=*)  APP_DIR="${arg#*=}"    ;;
+        --domain=*)       DOMAIN="${arg#*=}"     ;;
+        --db-name=*)      DB_NAME="${arg#*=}"    ;;
+        --db-user=*)      DB_USER="${arg#*=}"    ;;
+        --db-pass=*)      DB_PASS="${arg#*=}"    ;;
+        --db-root-pass=*) DB_ROOT_PASS="${arg#*=}" ;;
+        *) warn "Unknown argument: $arg" ;;
+    esac
+done
 
-# ── Check root ───────────────────────────────────────────────
-[ "$(id -u)" -eq 0 ] || error "Please run as root: sudo bash install.sh"
+WEB_ROOT="${APP_DIR}/web"
 
-info "Starting SyncCU installation on ${DISTRO}…"
+# ── Root check ───────────────────────────────────────────────
+[[ "$(id -u)" -eq 0 ]] || error "Please run as root:  curl ... | sudo bash"
+
+# ── Already installed? ────────────────────────────────────────
+if [[ -f "${WEB_ROOT}/.env" ]]; then
+    error "SyncCU appears to be already installed at ${APP_DIR}.\nRun update.sh to update it instead."
+fi
+
+# ── Banner ────────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}${BLUE}╔══════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}${BLUE}║         SyncCU Installer                 ║${NC}"
+echo -e "${BOLD}${BLUE}║  Prudential Credit Union Web App         ║${NC}"
+echo -e "${BOLD}${BLUE}╚══════════════════════════════════════════╝${NC}"
+echo ""
+info "Install directory : ${APP_DIR}"
+info "Web root          : ${WEB_ROOT}"
+info "Domain            : ${DOMAIN}"
+info "Database name     : ${DB_NAME}"
+info "Branch            : ${BRANCH}"
 echo ""
 
-# ── 1. Update package lists ──────────────────────────────────
-info "Updating package lists…"
-if [ "$DISTRO" = "debian" ]; then
+# ── OS detection ─────────────────────────────────────────────
+section "Detecting operating system"
+if [[ -f /etc/os-release ]]; then
+    . /etc/os-release
+    OS_ID="${ID}"
+    OS_VERSION="${VERSION_ID:-}"
+else
+    error "Cannot detect OS — /etc/os-release not found."
+fi
+info "Detected: ${PRETTY_NAME:-${OS_ID}}"
+
+case "$OS_ID" in
+    ubuntu|debian|raspbian)
+        PKG_MGR="apt-get"
+        APACHE_SVC="apache2"
+        APACHE_USER="www-data"
+        PHP_EXTRA="libapache2-mod-php"
+        ;;
+    centos|rhel|rocky|almalinux|fedora)
+        PKG_MGR="yum"
+        APACHE_SVC="httpd"
+        APACHE_USER="apache"
+        PHP_EXTRA=""
+        ;;
+    *)
+        error "Unsupported OS: ${OS_ID}. Supported: Ubuntu, Debian, CentOS, RHEL, Rocky, AlmaLinux."
+        ;;
+esac
+
+# ── 1. System packages ────────────────────────────────────────
+section "Installing system packages"
+if [[ "$PKG_MGR" == "apt-get" ]]; then
+    export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
+    apt-get install -y -qq \
+        git curl wget unzip \
+        apache2 \
+        php php-mysql php-mbstring php-json php-xml php-opcache php-curl \
+        libapache2-mod-php \
+        mariadb-server \
+        openssl
+    a2enmod rewrite headers -q
 else
-    yum check-update -q || true
+    yum install -y epel-release
+    yum install -y \
+        git curl wget unzip \
+        httpd \
+        php php-mysqlnd php-mbstring php-json php-xml php-opcache php-curl \
+        mariadb-server \
+        openssl
 fi
+info "Packages installed"
 
-# ── 2. Install Apache ─────────────────────────────────────────
-info "Installing Apache…"
-if [ "$DISTRO" = "debian" ]; then
-    apt-get install -y apache2
-    systemctl enable apache2 --quiet
-    systemctl start  apache2
-    a2enmod rewrite headers --quiet
+# ── 2. Start services ─────────────────────────────────────────
+section "Starting services"
+systemctl enable "$APACHE_SVC" --quiet 2>/dev/null || true
+systemctl start  "$APACHE_SVC" || error "Failed to start Apache"
+
+systemctl enable mariadb --quiet 2>/dev/null || systemctl enable mysqld --quiet 2>/dev/null || true
+systemctl start  mariadb        2>/dev/null || systemctl start  mysqld        || error "Failed to start MariaDB"
+info "Apache and MariaDB running"
+
+# ── 3. Configure database ─────────────────────────────────────
+section "Configuring database"
+
+# Prompt for MySQL root password if not provided
+if [[ -z "$DB_ROOT_PASS" ]]; then
+    # Try passwordless root first (fresh MariaDB install)
+    if mysql -u root -e "SELECT 1;" &>/dev/null; then
+        MYSQL_ROOT="mysql -u root"
+    else
+        read -rsp "Enter MySQL root password: " DB_ROOT_PASS
+        echo ""
+        MYSQL_ROOT="mysql -u root -p${DB_ROOT_PASS}"
+    fi
 else
-    yum install -y httpd
-    systemctl enable httpd --quiet
-    systemctl start  httpd
+    MYSQL_ROOT="mysql -u root -p${DB_ROOT_PASS}"
 fi
 
-# ── 3. Install PHP 8.x ───────────────────────────────────────
-info "Installing PHP and required extensions…"
-PHP_PKGS="php php-mysql php-mbstring php-json php-opcache php-xml"
-if [ "$DISTRO" = "debian" ]; then
-    apt-get install -y $PHP_PKGS libapache2-mod-php
-else
-    yum install -y $PHP_PKGS
-fi
-
-# ── 4. Install MySQL / MariaDB ───────────────────────────────
-info "Installing MariaDB…"
-if [ "$DISTRO" = "debian" ]; then
-    apt-get install -y mariadb-server
-else
-    yum install -y mariadb-server
-fi
-systemctl enable mariadb --quiet 2>/dev/null || systemctl enable mysqld --quiet || true
-systemctl start  mariadb         2>/dev/null || systemctl start  mysqld         || true
-
-# ── 5. Secure MySQL & create DB / user ───────────────────────
-info "Configuring MySQL…"
-if [ -z "$DB_ROOT_PASS" ]; then
-    read -s -p "Enter MySQL root password (press Enter to set one now): " DB_ROOT_PASS
-    echo ""
-fi
-
-MYSQL="mysql -u root"
-[ -n "$DB_ROOT_PASS" ] && MYSQL="mysql -u root -p${DB_ROOT_PASS}"
-
-$MYSQL -e "
+$MYSQL_ROOT -e "
     CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`
         CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
     GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
     FLUSH PRIVILEGES;
-" || error "MySQL configuration failed. Check your root password and try again."
+" || error "Database setup failed"
+info "Database '${DB_NAME}' and user '${DB_USER}' created"
 
-info "Running database schema…"
-$MYSQL "$DB_NAME" < "$(dirname "$0")/db_setup.sql" \
-    || error "Database schema import failed."
+# ── 4. Clone repository ───────────────────────────────────────
+section "Downloading SyncCU from GitHub"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
 
-# ── 6. Deploy application ────────────────────────────────────
-info "Deploying application to ${APP_DIR}…"
+git clone --depth=1 --branch "$BRANCH" "$REPO_URL" "${TMP_DIR}/synccu" \
+    || error "Failed to clone repo. Check network and branch name."
+info "Repository cloned (branch: ${BRANCH})"
+
+# Import DB schema
+info "Importing database schema…"
+$MYSQL_ROOT "${DB_NAME}" < "${TMP_DIR}/synccu/db_setup.sql" \
+    || error "Schema import failed"
+info "Database schema imported"
+
+# ── 5. Deploy application files ───────────────────────────────
+section "Deploying application files"
 mkdir -p "$APP_DIR"
+rsync -a --exclude='.git' "${TMP_DIR}/synccu/" "${APP_DIR}/"
+info "Files deployed to ${APP_DIR}"
 
-# Copy files (when running from the repo directory)
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cp -r "${SCRIPT_DIR}/." "${APP_DIR}/"
-
-# ── 7. Create .env ───────────────────────────────────────────
-ENV_FILE="${WEB_ROOT}/.env"
-if [ -f "$ENV_FILE" ]; then
-    warn ".env already exists — skipping (keeping existing credentials)"
-else
-    info "Creating .env file…"
-    cat > "$ENV_FILE" <<EOF
+# ── 6. Create .env ────────────────────────────────────────────
+section "Creating .env configuration"
+cat > "${WEB_ROOT}/.env" <<EOF
 DB_HOST=localhost
 DB_NAME=${DB_NAME}
 DB_USER=${DB_USER}
 DB_PASS=${DB_PASS}
 EOF
-    chmod 640 "$ENV_FILE"
+chmod 640 "${WEB_ROOT}/.env"
+info ".env created"
+
+# ── 7. Apache virtual host ────────────────────────────────────
+section "Configuring Apache"
+if [[ "$PKG_MGR" == "apt-get" ]]; then
+    VHOST_FILE="/etc/apache2/sites-available/synccu.conf"
+else
+    VHOST_FILE="/etc/httpd/conf.d/synccu.conf"
 fi
 
-# ── 8. Set file permissions ───────────────────────────────────
-info "Setting file permissions…"
-APACHE_USER="www-data"
-command -v httpd &>/dev/null && APACHE_USER="apache"
-
-chown -R "${APACHE_USER}:${APACHE_USER}" "$APP_DIR"
-chmod -R 750 "$WEB_ROOT"
-chmod 640 "$ENV_FILE"
-
-# ── 9. Apache virtual host ───────────────────────────────────
-info "Configuring Apache virtual host…"
-
-if [ "$DISTRO" = "debian" ]; then
-    VHOST_FILE="/etc/apache2/sites-available/synccu.conf"
-    cat > "$VHOST_FILE" <<VHOST
+cat > "$VHOST_FILE" <<VHOST
 <VirtualHost *:80>
     ServerName ${DOMAIN}
     DocumentRoot ${WEB_ROOT}
@@ -144,73 +207,82 @@ if [ "$DISTRO" = "debian" ]; then
         Require all granted
     </Directory>
 
-    # Block access to .env
-    <Files ".env">
+    # Block sensitive files from web access
+    <FilesMatch "^(\.env|config\.php)$">
         Require all denied
-    </Files>
+    </FilesMatch>
 
     ErrorLog  \${APACHE_LOG_DIR}/synccu_error.log
     CustomLog \${APACHE_LOG_DIR}/synccu_access.log combined
 </VirtualHost>
 VHOST
-    a2ensite synccu --quiet
-    a2dissite 000-default --quiet 2>/dev/null || true
-    systemctl reload apache2
-else
-    VHOST_FILE="/etc/httpd/conf.d/synccu.conf"
-    cat > "$VHOST_FILE" <<VHOST
-<VirtualHost *:80>
-    ServerName ${DOMAIN}
-    DocumentRoot ${WEB_ROOT}
 
-    <Directory ${WEB_ROOT}>
-        Options -Indexes +FollowSymLinks
-        AllowOverride All
-        Require all granted
-    </Directory>
-
-    <Files ".env">
-        Require all denied
-    </Files>
-
-    ErrorLog  /var/log/httpd/synccu_error.log
-    CustomLog /var/log/httpd/synccu_access.log combined
-</VirtualHost>
-VHOST
-    systemctl reload httpd
+if [[ "$PKG_MGR" == "apt-get" ]]; then
+    a2ensite synccu -q
+    a2dissite 000-default -q 2>/dev/null || true
 fi
 
-# ── 10. Create .htaccess to block .env ───────────────────────
+# .htaccess for extra security
 cat > "${WEB_ROOT}/.htaccess" <<'HTACCESS'
 Options -Indexes
 
-# Block sensitive files
-<FilesMatch "^\.env|config\.php$">
+<FilesMatch "^(\.env|config\.php)$">
     Require all denied
 </FilesMatch>
-
-# Pretty URLs (optional, for future routing)
-# RewriteEngine On
-# RewriteCond %{REQUEST_FILENAME} !-f
-# RewriteCond %{REQUEST_FILENAME} !-d
-# RewriteRule ^ index.php [L]
 HTACCESS
+
+systemctl reload "$APACHE_SVC" || error "Apache reload failed"
+info "Apache virtual host configured"
+
+# ── 8. Set permissions ────────────────────────────────────────
+section "Setting file permissions"
+chown -R "${APACHE_USER}:${APACHE_USER}" "$APP_DIR"
+chmod -R 750 "$WEB_ROOT"
+chmod 640 "${WEB_ROOT}/.env"
+info "Permissions set"
+
+# ── 9. Save credentials ───────────────────────────────────────
+CREDS_FILE="${APP_DIR}/INSTALL_CREDENTIALS.txt"
+cat > "$CREDS_FILE" <<CREDS
+SyncCU Installation Credentials
+================================
+Installed at : $(date)
+Branch       : ${BRANCH}
+App directory: ${APP_DIR}
+URL          : http://${DOMAIN}/
+
+Database
+--------
+DB Host      : localhost
+DB Name      : ${DB_NAME}
+DB User      : ${DB_USER}
+DB Password  : ${DB_PASS}
+
+Default Login
+-------------
+Username     : admin
+Password     : Admin1234
+             (CHANGE THIS IMMEDIATELY after first login)
+CREDS
+chmod 600 "$CREDS_FILE"
 
 # ── Done ─────────────────────────────────────────────────────
 echo ""
-echo -e "${GREEN}═══════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  SyncCU Installation Complete!${NC}"
-echo -e "${GREEN}═══════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}${BOLD}║        Installation Complete!            ║${NC}"
+echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  URL:           http://${DOMAIN}/"
-echo -e "  App directory: ${APP_DIR}"
-echo -e "  DB Name:       ${DB_NAME}"
-echo -e "  DB User:       ${DB_USER}"
-echo -e "  DB Password:   ${DB_PASS}"
+echo -e "  ${BOLD}URL:${NC}              http://${DOMAIN}/"
+echo -e "  ${BOLD}Default login:${NC}    admin / Admin1234"
 echo ""
-echo -e "${YELLOW}  Default Login:  admin / Admin1234${NC}"
-echo -e "${YELLOW}  IMPORTANT: Change the admin password immediately after first login!${NC}"
+echo -e "  ${BOLD}DB Name:${NC}          ${DB_NAME}"
+echo -e "  ${BOLD}DB User:${NC}          ${DB_USER}"
+echo -e "  ${BOLD}DB Password:${NC}      ${DB_PASS}"
 echo ""
-echo -e "  The .env file is at: ${ENV_FILE}"
-echo -e "  Backup this password — it cannot be recovered."
+echo -e "  ${BOLD}Credentials file:${NC} ${CREDS_FILE}"
+echo ""
+echo -e "${YELLOW}${BOLD}  IMPORTANT: Change the admin password immediately after first login!${NC}"
+echo ""
+echo "  To update later, run:"
+echo "    curl -sSL \"https://raw.githubusercontent.com/caritechsolutions/synccu/${BRANCH}/update.sh?\$(date +%s)\" | sudo bash"
 echo ""

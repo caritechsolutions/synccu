@@ -1,100 +1,132 @@
 #!/usr/bin/env bash
 # =============================================================
 # SyncCU Updater
-# Pulls the latest code from git, runs any new DB migrations,
-# and reloads the web server.
-# Usage: sudo bash update.sh          (from the repo directory)
+# Run via curl:
+#   curl -sSL "https://raw.githubusercontent.com/caritechsolutions/synccu/master/update.sh?$(date +%s)" | sudo bash
+#
+# Or with options:
+#   curl -sSL "..." | sudo bash -s -- --branch=master --install-dir=/var/www/synccu
 # =============================================================
 
 set -euo pipefail
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
-info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
+# ── Colours ──────────────────────────────────────────────────
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; BOLD='\033[1m'; NC='\033[0m'
+info()    { echo -e "${GREEN}[INFO]${NC}  $*"; }
+section() { echo -e "\n${BLUE}${BOLD}▶ $*${NC}"; }
+warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
-# ── Config ────────────────────────────────────────────────────
-APP_DIR="${APP_DIR:-/var/www/synccu}"
-WEB_ROOT="${WEB_ROOT:-$APP_DIR/web}"
-REPO_DIR="$(cd "$(dirname "$0")" && pwd)"   # directory of this script = git repo
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/synccu}"
-BRANCH="${BRANCH:-master}"
+# ── Defaults (override with --flag=value args) ────────────────
+REPO_URL="https://github.com/caritechsolutions/synccu.git"
+BRANCH="master"
+APP_DIR="/var/www/synccu"
+WEB_ROOT=""                       # derived from APP_DIR below
+BACKUP_DIR="/var/backups/synccu"
 
-# ── Check root ───────────────────────────────────────────────
-[ "$(id -u)" -eq 0 ] || error "Please run as root: sudo bash update.sh"
+# ── Parse arguments ───────────────────────────────────────────
+for arg in "$@"; do
+    case "$arg" in
+        --branch=*)      BRANCH="${arg#*=}"    ;;
+        --install-dir=*) APP_DIR="${arg#*=}"   ;;
+        --backup-dir=*)  BACKUP_DIR="${arg#*=}" ;;
+        *) warn "Unknown argument: $arg" ;;
+    esac
+done
 
-# ── Detect web server ────────────────────────────────────────
-if   command -v apache2    &>/dev/null; then WEB_SVC="apache2"
-elif command -v httpd      &>/dev/null; then WEB_SVC="httpd"
-else warn "Web server not detected — you may need to reload manually."; WEB_SVC=""; fi
+WEB_ROOT="${APP_DIR}/web"
 
-APACHE_USER="www-data"
-[ "$WEB_SVC" = "httpd" ] && APACHE_USER="apache"
+# ── Root check ───────────────────────────────────────────────
+[[ "$(id -u)" -eq 0 ]] || error "Please run as root:  curl ... | sudo bash"
 
-# ── Load DB credentials from .env ────────────────────────────
-ENV_FILE="${WEB_ROOT}/.env"
-[ -f "$ENV_FILE" ] || error ".env not found at ${ENV_FILE}. Run install.sh first."
+# ── Check installed ───────────────────────────────────────────
+[[ -f "${WEB_ROOT}/.env" ]] || error "SyncCU does not appear to be installed at ${APP_DIR}.\nRun install.sh first."
 
-DB_HOST="localhost"; DB_NAME="synccu"; DB_USER="root"; DB_PASS=""
+# ── Banner ────────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}${BLUE}╔══════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}${BLUE}║         SyncCU Updater                   ║${NC}"
+echo -e "${BOLD}${BLUE}╚══════════════════════════════════════════╝${NC}"
+echo ""
+info "Install directory : ${APP_DIR}"
+info "Branch            : ${BRANCH}"
+echo ""
+
+# ── Detect web server ─────────────────────────────────────────
+section "Detecting web server"
+if   command -v apache2 &>/dev/null; then APACHE_SVC="apache2"; APACHE_USER="www-data"
+elif command -v httpd   &>/dev/null; then APACHE_SVC="httpd";   APACHE_USER="apache"
+else
+    warn "Web server not detected — you may need to reload it manually."
+    APACHE_SVC=""; APACHE_USER="www-data"
+fi
+[[ -n "$APACHE_SVC" ]] && info "Web server: ${APACHE_SVC}"
+
+# ── Load DB credentials from .env ─────────────────────────────
+section "Loading configuration"
+DB_HOST="localhost"; DB_NAME="synccu"; DB_USER="synccu_app"; DB_PASS=""
 while IFS='=' read -r key value; do
-    [[ "$key" =~ ^# ]] && continue
+    [[ "$key" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "$key" ]] && continue
+    key="${key// /}"
+    value="${value// /}"
     case "$key" in
         DB_HOST) DB_HOST="$value" ;;
         DB_NAME) DB_NAME="$value" ;;
         DB_USER) DB_USER="$value" ;;
         DB_PASS) DB_PASS="$value" ;;
     esac
-done < "$ENV_FILE"
+done < "${WEB_ROOT}/.env"
+info "Database: ${DB_NAME} on ${DB_HOST}"
 
 MYSQL_CMD="mysql -h ${DB_HOST} -u ${DB_USER}"
-[ -n "$DB_PASS" ] && MYSQL_CMD="$MYSQL_CMD -p${DB_PASS}"
+[[ -n "$DB_PASS" ]] && MYSQL_CMD="$MYSQL_CMD -p${DB_PASS}"
 MYSQL_CMD="$MYSQL_CMD ${DB_NAME}"
 
-echo ""
-info "Starting SyncCU update…"
-echo -e "  App dir:  ${APP_DIR}"
-echo -e "  Branch:   ${BRANCH}"
-echo ""
+MYSQLDUMP_CMD="mysqldump -h ${DB_HOST} -u ${DB_USER}"
+[[ -n "$DB_PASS" ]] && MYSQLDUMP_CMD="$MYSQLDUMP_CMD -p${DB_PASS}"
 
 # ── 1. Backup database ────────────────────────────────────────
-info "Backing up database…"
+section "Backing up database"
 mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="${BACKUP_DIR}/synccu_$(date +%Y%m%d_%H%M%S).sql.gz"
-MYSQLDUMP_CMD="mysqldump -h ${DB_HOST} -u ${DB_USER}"
-[ -n "$DB_PASS" ] && MYSQLDUMP_CMD="$MYSQLDUMP_CMD -p${DB_PASS}"
-$MYSQLDUMP_CMD "$DB_NAME" | gzip > "$BACKUP_FILE"
-info "Database backup saved to ${BACKUP_FILE}"
+$MYSQLDUMP_CMD "$DB_NAME" | gzip > "$BACKUP_FILE" \
+    || error "Database backup failed"
+info "Backup saved to ${BACKUP_FILE}"
 
 # Keep only the last 10 backups
 ls -t "${BACKUP_DIR}"/synccu_*.sql.gz 2>/dev/null | tail -n +11 | xargs rm -f || true
 
-# ── 2. Pull latest code ───────────────────────────────────────
-info "Pulling latest code from git…"
-cd "$REPO_DIR"
-git fetch origin "$BRANCH"
-git checkout "$BRANCH"
-git pull origin "$BRANCH"
+# ── 2. Clone latest code ──────────────────────────────────────
+section "Downloading latest SyncCU from GitHub"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
 
-# ── 3. Copy updated files to app dir ─────────────────────────
-info "Deploying updated files…"
-# Preserve the .env file
-cp "${WEB_ROOT}/.env" /tmp/synccu_env_backup
+git clone --depth=1 --branch "$BRANCH" "$REPO_URL" "${TMP_DIR}/synccu" \
+    || error "Failed to clone repo. Check network and branch name."
+info "Repository cloned (branch: ${BRANCH})"
 
-# Sync files (exclude .git and sensitive files)
+# ── 3. Deploy updated files ───────────────────────────────────
+section "Deploying updated files"
+
+# Preserve .env
+cp "${WEB_ROOT}/.env" "${TMP_DIR}/env_backup"
+
+# Sync files (exclude .git; .env excluded via source-side --exclude)
 rsync -a --delete \
     --exclude='.git' \
     --exclude='web/.env' \
-    "${REPO_DIR}/" "${APP_DIR}/"
+    "${TMP_DIR}/synccu/" "${APP_DIR}/"
 
 # Restore .env
-cp /tmp/synccu_env_backup "${WEB_ROOT}/.env"
-rm -f /tmp/synccu_env_backup
+cp "${TMP_DIR}/env_backup" "${WEB_ROOT}/.env"
+info "Files deployed to ${APP_DIR}"
 
-# ── 4. Run any pending migrations ────────────────────────────
-MIGRATIONS_DIR="${REPO_DIR}/migrations"
-if [ -d "$MIGRATIONS_DIR" ]; then
-    info "Checking for database migrations…"
-
+# ── 4. Run pending migrations ─────────────────────────────────
+section "Checking database migrations"
+MIGRATIONS_DIR="${TMP_DIR}/synccu/migrations"
+if [[ -d "$MIGRATIONS_DIR" ]]; then
     # Ensure migrations tracking table exists
     $MYSQL_CMD -e "
         CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -102,44 +134,53 @@ if [ -d "$MIGRATIONS_DIR" ]; then
             filename   VARCHAR(255) NOT NULL UNIQUE,
             applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB;
-    "
+    " || error "Failed to create migrations table"
 
     APPLIED=0
-    for migration in "$MIGRATIONS_DIR"/*.sql; do
-        [ -f "$migration" ] || continue
+    for migration in "${MIGRATIONS_DIR}"/*.sql; do
+        [[ -f "$migration" ]] || continue
         filename="$(basename "$migration")"
-        already_applied=$($MYSQL_CMD -se "SELECT COUNT(*) FROM schema_migrations WHERE filename='${filename}'" 2>/dev/null || echo 0)
-        if [ "$already_applied" -eq 0 ]; then
+        already_applied=$($MYSQL_CMD -se \
+            "SELECT COUNT(*) FROM schema_migrations WHERE filename='${filename}'" \
+            2>/dev/null || echo 0)
+        if [[ "$already_applied" -eq 0 ]]; then
             info "Applying migration: ${filename}"
-            $MYSQL_CMD < "$migration"
+            $MYSQL_CMD < "$migration" || error "Migration failed: ${filename}"
             $MYSQL_CMD -e "INSERT INTO schema_migrations (filename) VALUES ('${filename}')"
             APPLIED=$((APPLIED + 1))
         fi
     done
-    [ "$APPLIED" -eq 0 ] && info "No new migrations to apply" || info "${APPLIED} migration(s) applied"
+    [[ "$APPLIED" -eq 0 ]] \
+        && info "No new migrations to apply" \
+        || info "${APPLIED} migration(s) applied"
 else
     warn "No migrations/ directory found — skipping migrations step"
 fi
 
 # ── 5. Set permissions ────────────────────────────────────────
-info "Setting file permissions…"
+section "Setting file permissions"
 chown -R "${APACHE_USER}:${APACHE_USER}" "$APP_DIR"
 chmod -R 750 "$WEB_ROOT"
 chmod 640 "${WEB_ROOT}/.env"
+info "Permissions set"
 
-# ── 6. Reload web server ─────────────────────────────────────
-if [ -n "$WEB_SVC" ]; then
-    info "Reloading ${WEB_SVC}…"
-    systemctl reload "$WEB_SVC"
+# ── 6. Reload web server ──────────────────────────────────────
+if [[ -n "$APACHE_SVC" ]]; then
+    section "Reloading web server"
+    systemctl reload "$APACHE_SVC" || error "Web server reload failed"
+    info "${APACHE_SVC} reloaded"
 fi
 
-# ── Done ─────────────────────────────────────────────────────
+# ── Done ──────────────────────────────────────────────────────
 echo ""
-echo -e "${GREEN}═══════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  SyncCU update complete!${NC}"
-echo -e "${GREEN}═══════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}${BOLD}║        Update Complete!                  ║${NC}"
+echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  Backup file: ${BACKUP_FILE}"
-echo -e "  Branch:      ${BRANCH}"
-echo -e "  Updated at:  $(date)"
+echo -e "  ${BOLD}Branch:${NC}      ${BRANCH}"
+echo -e "  ${BOLD}Updated at:${NC}  $(date)"
+echo -e "  ${BOLD}Backup:${NC}      ${BACKUP_FILE}"
+echo ""
+echo "  To update again later, run:"
+echo "    curl -sSL \"https://raw.githubusercontent.com/caritechsolutions/synccu/${BRANCH}/update.sh?\$(date +%s)\" | sudo bash"
 echo ""
