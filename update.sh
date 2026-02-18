@@ -2,10 +2,10 @@
 # =============================================================
 # SyncCU Updater
 # Run via curl:
-#   curl -sSL "https://raw.githubusercontent.com/caritechsolutions/synccu/master/update.sh?$(date +%s)" | sudo bash
+#   curl -sSL "https://raw.githubusercontent.com/caritechsolutions/synccu/main/update.sh?$(date +%s)" | sudo bash
 #
 # Or with options:
-#   curl -sSL "..." | sudo bash -s -- --branch=master --install-dir=/var/www/synccu
+#   curl -sSL "..." | sudo bash -s -- --branch=main --install-dir=/var/www/synccu
 # =============================================================
 
 set -euo pipefail
@@ -20,7 +20,7 @@ error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
 # ── Defaults (override with --flag=value args) ────────────────
 REPO_URL="https://github.com/caritechsolutions/synccu.git"
-BRANCH="master"
+BRANCH="main"
 APP_DIR="/var/www/synccu"
 WEB_ROOT=""                       # derived from APP_DIR below
 BACKUP_DIR="/var/backups/synccu"
