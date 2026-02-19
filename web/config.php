@@ -125,16 +125,27 @@ function mustChangePassword(): bool {
     return $result && $result['must_change_password'];
 }
 
+/**
+ * Return a URL to a root-level page, correct regardless of subdirectory depth.
+ * e.g. called from members/edit.php → '../login.php'
+ *      called from index.php        → 'login.php'
+ */
+function rootUrl(string $page): string {
+    $dir   = trim(dirname($_SERVER['PHP_SELF']), '/');
+    $depth = $dir !== '' ? substr_count($dir, '/') + 1 : 0;
+    return str_repeat('../', $depth) . $page;
+}
+
 function checkForcedPasswordChange(): void {
     if (mustChangePassword() && basename($_SERVER['PHP_SELF']) !== 'forced_password_change.php') {
-        header('Location: forced_password_change.php');
+        header('Location: ' . rootUrl('forced_password_change.php'));
         exit();
     }
 }
 
 function requireLogin(): void {
     if (!isLoggedIn()) {
-        header('Location: login.php');
+        header('Location: ' . rootUrl('login.php'));
         exit();
     }
     checkForcedPasswordChange();
