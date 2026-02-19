@@ -98,57 +98,54 @@ function getMemberId(string $memberNo): ?int
 }
 
 /**
- * Cache: (member_id, acct_type, key) → account_id
- * For loans:  key = 'A'/'B'/'C' (ordinal suffix)
- * For shares: key = share_type_code string '00','01', etc.
+ * Cache: sub_account string → account_id
+ * Looks up member_accounts.account_number directly using the Sub_Account
+ * value from the CSV (e.g. "1220B" for loans, "2003-00" for shares).
+ * Falls back to share_type_code match for shares when account_number differs.
  */
 $accountCache = [];
 
-function getAccountId(int $memberId, string $acctType, string $suffix): ?int
+function getAccountId(int $memberId, string $acctType, string $suffix, string $subAccount): ?int
 {
     global $pdo, $accountCache;
-    $cacheKey = "{$memberId}|{$acctType}|{$suffix}";
+    $cacheKey = $subAccount;
     if (array_key_exists($cacheKey, $accountCache)) {
         return $accountCache[$cacheKey];
     }
 
     $id = null;
 
-    if ($acctType === 'Loan') {
-        // A=1st, B=2nd, C=3rd loan account ordered by date_opened
-        $ordinal = ord(strtoupper($suffix)) - ord('A'); // 0-based
-        // MariaDB requires LIMIT/OFFSET values to be integer literals, not bound params
-        $stmt = $pdo->prepare("
-            SELECT id FROM member_accounts
-            WHERE member_id = ? AND account_type = 'loan' AND is_active = 1
-            ORDER BY date_opened, id
-            LIMIT 1 OFFSET {$ordinal}
-        ");
-        $stmt->execute([$memberId]);
-        $row = $stmt->fetchColumn();
-        $id = $row !== false ? (int)$row : null;
+    // Primary lookup: match account_number directly (works for both loans and shares)
+    $stmt = $pdo->prepare("
+        SELECT id FROM member_accounts
+        WHERE member_id = ? AND account_number = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$memberId, $subAccount]);
+    $row = $stmt->fetchColumn();
+    $id = $row !== false ? (int)$row : null;
 
-    } elseif ($acctType === 'Share') {
-        // suffix is share_type_code (e.g. '00', '01', '05')
-        $stmt = $pdo->prepare("
+    // Share fallback: match by share_type_code when account_number format differs
+    if ($id === null && $acctType === 'Share') {
+        $stmt2 = $pdo->prepare("
             SELECT id FROM member_accounts
-            WHERE member_id = ? AND account_type = 'share' AND share_type_code = ? AND is_active = 1
+            WHERE member_id = ? AND account_type = 'share' AND share_type_code = ?
             LIMIT 1
         ");
-        $stmt->execute([$memberId, $suffix]);
-        $row = $stmt->fetchColumn();
-        $id = $row !== false ? (int)$row : null;
+        $stmt2->execute([$memberId, $suffix]);
+        $row2 = $stmt2->fetchColumn();
+        $id = $row2 !== false ? (int)$row2 : null;
 
-        // Suffix '00' may also be the base savings account
+        // Suffix '00' may map to the base savings account
         if ($id === null && $suffix === '00') {
-            $stmt2 = $pdo->prepare("
+            $stmt3 = $pdo->prepare("
                 SELECT id FROM member_accounts
-                WHERE member_id = ? AND account_type = 'savings' AND is_active = 1
+                WHERE member_id = ? AND account_type = 'savings'
                 LIMIT 1
             ");
-            $stmt2->execute([$memberId]);
-            $row2 = $stmt2->fetchColumn();
-            $id = $row2 !== false ? (int)$row2 : null;
+            $stmt3->execute([$memberId]);
+            $row3 = $stmt3->fetchColumn();
+            $id = $row3 !== false ? (int)$row3 : null;
         }
     }
 
@@ -222,17 +219,18 @@ while (($row = fgetcsv($fh)) !== false) {
     if ($amount <= 0) continue; // skip zero-amount rows
 
     $rows[] = [
-        'gl'        => $glAccount,
-        'gl_name'   => trim($row[1]),
-        'date'      => $dateStr,
-        'trans_no'  => trim($row[3]),
-        'member_no' => trim($row[5]),
-        'suffix'    => trim($row[6]),
-        'acct_type' => $acctType,
-        'desc'      => trim($row[8]),  // Acct_Type_Desc
-        'debit'     => $debit,
-        'credit'    => $credit,
-        'amount'    => $amount,
+        'gl'          => $glAccount,
+        'gl_name'     => trim($row[1]),
+        'date'        => $dateStr,
+        'trans_no'    => trim($row[3]),
+        'sub_account' => trim($row[4]),  // e.g. "1220B" or "2003-00"
+        'member_no'   => trim($row[5]),
+        'suffix'      => trim($row[6]),
+        'acct_type'   => $acctType,
+        'desc'        => trim($row[8]),  // Acct_Type_Desc
+        'debit'       => $debit,
+        'credit'      => $credit,
+        'amount'      => $amount,
     ];
 }
 fclose($fh);
@@ -268,7 +266,7 @@ foreach ($rows as $r) {
     }
 
     // Resolve account
-    $accountId = getAccountId($memberId, $r['acct_type'], $r['suffix']);
+    $accountId = getAccountId($memberId, $r['acct_type'], $r['suffix'], $r['sub_account']);
     if (!$accountId) {
         $noAccount[$r['member_no'] . '-' . $r['suffix']] = true;
         $skipped++;
