@@ -19,6 +19,12 @@ if ($member_id) {
     $member = $stmt->fetch();
 }
 
+// Load active loan terms for dropdown
+$loan_terms = $pdo->query("SELECT * FROM loan_terms WHERE is_active = 1 ORDER BY name")->fetchAll();
+
+// Load active deposit terms for dropdown
+$deposit_terms = $pdo->query("SELECT * FROM deposit_terms WHERE is_active = 1 ORDER BY name")->fetchAll();
+
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verifyCsrf();
@@ -64,32 +70,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $account_number .= '-' . rand(10, 99);
             }
 
+            // Deposit term linkage for non-loan accounts
+            $deposit_term_id = null;
+            if ($account_type !== 'loan') {
+                $deposit_term_id = (int)($_POST['deposit_term_id'] ?? 0) ?: null;
+                // If a deposit term is selected, use its rate
+                if ($deposit_term_id) {
+                    $dt_stmt = $pdo->prepare("SELECT interest_rate FROM deposit_terms WHERE id = ?");
+                    $dt_stmt->execute([$deposit_term_id]);
+                    $dt_rate = $dt_stmt->fetchColumn();
+                    if ($dt_rate !== false) {
+                        $interest_rate = (float)$dt_rate * 100; // Will be divided back by 100 below
+                    }
+                }
+            }
+
             try {
                 $pdo->prepare("
-                    INSERT INTO member_accounts (member_id, account_number, account_type, interest_rate, notes)
-                    VALUES (?, ?, ?, ?, ?)
-                ")->execute([$mid, $account_number, $account_type, $interest_rate / 100, $notes]);
+                    INSERT INTO member_accounts (member_id, account_number, account_type, interest_rate, deposit_term_id, notes)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ")->execute([$mid, $account_number, $account_type, $interest_rate / 100, $deposit_term_id, $notes]);
 
                 // If loan, also create a loans record
                 if ($account_type === 'loan') {
+                    $loan_term_id = (int)($_POST['loan_term_id'] ?? 0) ?: null;
                     $principal    = (float)($_POST['principal']      ?? 0);
                     $term_months  = (int)($_POST['term_months']      ?? 0);
                     $loan_type    = trim($_POST['loan_type']         ?? 'Personal');
                     $date_issued  = $_POST['date_issued']            ?? date('Y-m-d');
-                    $monthly_pmt  = $term_months > 0 ? round($principal / $term_months, 2) : 0;
-                    $date_due     = date('Y-m-d', strtotime("+{$term_months} months", strtotime($date_issued)));
-                    $acct_id      = (int)$pdo->lastInsertId();
+
+                    // Calculate amortized monthly payment with interest
+                    $annual_rate = $interest_rate / 100;
+                    if ($annual_rate > 0 && $term_months > 0) {
+                        $monthly_rate = $annual_rate / 12;
+                        $monthly_pmt = $principal * ($monthly_rate * pow(1 + $monthly_rate, $term_months))
+                                       / (pow(1 + $monthly_rate, $term_months) - 1);
+                        $monthly_pmt = round($monthly_pmt, 2);
+                    } else {
+                        $monthly_pmt = $term_months > 0 ? round($principal / $term_months, 2) : 0;
+                    }
+
+                    $date_due = date('Y-m-d', strtotime("+{$term_months} months", strtotime($date_issued)));
+                    $acct_id  = (int)$pdo->lastInsertId();
 
                     // Set loan account balance to principal
                     $pdo->prepare("UPDATE member_accounts SET balance = ? WHERE id = ?")
                         ->execute([$principal, $acct_id]);
 
                     $pdo->prepare("
-                        INSERT INTO loans (member_id, account_id, loan_type, principal_amount, interest_rate,
+                        INSERT INTO loans (loan_term_id, member_id, account_id, loan_type, principal_amount, interest_rate,
                                            term_months, monthly_payment, outstanding_balance, date_issued, date_due)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ")->execute([
-                        $mid, $acct_id, $loan_type, $principal,
+                        $loan_term_id, $mid, $acct_id, $loan_type, $principal,
                         $interest_rate / 100, $term_months, $monthly_pmt, $principal,
                         $date_issued, $date_due
                     ]);
@@ -140,9 +173,12 @@ $accounts = [];
 if ($member) {
     $stmt = $pdo->prepare("
         SELECT a.*, l.loan_type, l.principal_amount, l.term_months, l.monthly_payment,
-               l.outstanding_balance, l.date_issued, l.date_due
+               l.outstanding_balance, l.date_issued, l.date_due,
+               lt.name AS loan_term_name, dt.name AS deposit_term_name
         FROM member_accounts a
         LEFT JOIN loans l ON l.account_id = a.id AND l.is_active = 1
+        LEFT JOIN loan_terms lt ON l.loan_term_id = lt.id
+        LEFT JOIN deposit_terms dt ON a.deposit_term_id = dt.id
         WHERE a.member_id = ?
         ORDER BY a.is_active DESC, a.account_type, a.date_opened
     ");
@@ -165,6 +201,17 @@ if ($search_q && !$member) {
     $stmt->execute(["%{$search_q}%", $search_q]);
     $search_results = $stmt->fetchAll();
 }
+
+// Build JSON for loan terms auto-fill
+$loan_terms_json = json_encode(array_map(function($t) {
+    return [
+        'id'            => $t['id'],
+        'name'          => $t['name'],
+        'loan_type'     => $t['loan_type'],
+        'interest_rate' => number_format((float)$t['interest_rate'] * 100, 3),
+        'term_months'   => $t['term_months'],
+    ];
+}, $loan_terms));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -176,10 +223,11 @@ if ($search_q && !$member) {
     <style>
         .loan-details { font-size:0.85rem; color:#666; margin-top:4px; }
         .section-title { font-size:1.1rem; font-weight:600; color:#667eea; margin:20px 0 10px; border-bottom:2px solid #f0f0f0; padding-bottom:6px; }
+        .term-badge { display:inline-block; background:#e3f2fd; color:#1976D2; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-top:2px; }
     </style>
 </head>
 <body>
-    <a href="../accounts.php" class="back-btn">← Back</a>
+    <a href="../accounts.php" class="back-btn">&larr; Back</a>
     <div class="user-info" style="left:auto;right:20px;">
         <?php echo htmlspecialchars($_SESSION['full_name']); ?> | <?php echo date('m/d/Y'); ?>
     </div>
@@ -258,6 +306,12 @@ if ($search_q && !$member) {
                                 $<?php echo number_format((float)$a['monthly_payment'], 2); ?>/mo
                             </div>
                             <?php endif; ?>
+                            <?php if (!empty($a['loan_term_name'])): ?>
+                            <div class="term-badge">Term: <?php echo htmlspecialchars($a['loan_term_name']); ?></div>
+                            <?php endif; ?>
+                            <?php if (!empty($a['deposit_term_name'])): ?>
+                            <div class="term-badge">Term: <?php echo htmlspecialchars($a['deposit_term_name']); ?></div>
+                            <?php endif; ?>
                         </td>
                         <td><?php echo ucfirst($a['account_type']); ?></td>
                         <td>$<?php echo number_format((float)$a['balance'], 2); ?></td>
@@ -316,6 +370,19 @@ if ($search_q && !$member) {
                             </select>
                         </div>
                         <div class="form-group">
+                            <label for="deposit_term_id">Deposit Term (optional)</label>
+                            <select id="deposit_term_id" name="deposit_term_id">
+                                <option value="">-- No term (manual rate) --</option>
+                                <?php foreach ($deposit_terms as $dt): ?>
+                                <option value="<?php echo $dt['id']; ?>"
+                                        data-rate="<?php echo number_format((float)$dt['interest_rate'] * 100, 3); ?>">
+                                    <?php echo htmlspecialchars($dt['name']); ?>
+                                    (<?php echo number_format((float)$dt['interest_rate'] * 100, 2); ?>%)
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
                             <label for="interest_rate_share">Interest Rate (%)</label>
                             <input type="number" id="interest_rate_share" name="interest_rate"
                                    step="0.001" min="0" max="100" placeholder="e.g. 2.5" value="0">
@@ -340,7 +407,24 @@ if ($search_q && !$member) {
 
                     <div class="form-grid">
                         <div class="form-group">
-                            <label for="loan_type">Loan Type *</label>
+                            <label for="loan_term_id">Loan Term *</label>
+                            <select id="loan_term_id" name="loan_term_id" required>
+                                <option value="">-- Select a loan term --</option>
+                                <?php foreach ($loan_terms as $lt): ?>
+                                <option value="<?php echo $lt['id']; ?>">
+                                    <?php echo htmlspecialchars($lt['name']); ?>
+                                    (<?php echo htmlspecialchars($lt['loan_type']); ?>,
+                                     <?php echo number_format((float)$lt['interest_rate'] * 100, 2); ?>%,
+                                     <?php echo $lt['term_months']; ?>mo)
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <?php if (empty($loan_terms)): ?>
+                            <small class="text-muted" style="color:#dc3545;">No loan terms defined. <a href="../manager/loan_terms.php">Create one in Manager</a>.</small>
+                            <?php endif; ?>
+                        </div>
+                        <div class="form-group">
+                            <label for="loan_type">Loan Type</label>
                             <select id="loan_type" name="loan_type" required>
                                 <option value="Personal">Personal</option>
                                 <option value="Auto">Auto</option>
@@ -362,7 +446,7 @@ if ($search_q && !$member) {
                                    step="0.001" min="0" max="100" placeholder="e.g. 6.5" value="0">
                         </div>
                         <div class="form-group">
-                            <label for="term_months">Term (months) *</label>
+                            <label for="term_months">Term (months)</label>
                             <input type="number" id="term_months" name="term_months"
                                    min="1" max="600" required placeholder="e.g. 60">
                         </div>
@@ -374,7 +458,7 @@ if ($search_q && !$member) {
                         <div class="form-group">
                             <label>Monthly Payment (calculated)</label>
                             <input type="text" id="monthly_pmt_display" readonly
-                                   style="background:#f8f9fa;color:#666;" placeholder="Enter principal &amp; term above">
+                                   style="background:#f8f9fa;color:#666;" placeholder="Select term &amp; enter principal">
                         </div>
                     </div>
 
@@ -394,17 +478,51 @@ if ($search_q && !$member) {
         event.currentTarget.classList.add('active');
     }
 
-    // Auto-calculate monthly payment
+    // Loan terms data for auto-fill
+    const loanTerms = <?php echo $loan_terms_json; ?>;
+
+    // When a loan term is selected, auto-fill loan type, rate, and term
+    document.getElementById('loan_term_id')?.addEventListener('change', function() {
+        const term = loanTerms.find(t => t.id == this.value);
+        if (term) {
+            document.getElementById('loan_type').value = term.loan_type;
+            document.getElementById('interest_rate_loan').value = term.interest_rate;
+            document.getElementById('term_months').value = term.term_months;
+            calcPayment();
+        }
+    });
+
+    // When a deposit term is selected, auto-fill rate
+    document.getElementById('deposit_term_id')?.addEventListener('change', function() {
+        const selected = this.options[this.selectedIndex];
+        const rate = selected.dataset.rate;
+        if (rate) {
+            document.getElementById('interest_rate_share').value = rate;
+        } else {
+            document.getElementById('interest_rate_share').value = '0';
+        }
+    });
+
+    // Amortized monthly payment calculation
     function calcPayment() {
         const p = parseFloat(document.getElementById('principal')?.value || 0);
         const m = parseInt(document.getElementById('term_months')?.value || 0);
+        const rateInput = parseFloat(document.getElementById('interest_rate_loan')?.value || 0);
         const display = document.getElementById('monthly_pmt_display');
         if (display && p > 0 && m > 0) {
-            display.value = '$' + (p / m).toFixed(2);
+            const annualRate = rateInput / 100;
+            if (annualRate > 0) {
+                const monthlyRate = annualRate / 12;
+                const payment = p * (monthlyRate * Math.pow(1 + monthlyRate, m)) / (Math.pow(1 + monthlyRate, m) - 1);
+                display.value = '$' + payment.toFixed(2);
+            } else {
+                display.value = '$' + (p / m).toFixed(2);
+            }
         }
     }
     document.getElementById('principal')?.addEventListener('input', calcPayment);
     document.getElementById('term_months')?.addEventListener('input', calcPayment);
+    document.getElementById('interest_rate_loan')?.addEventListener('input', calcPayment);
     </script>
 </body>
 </html>

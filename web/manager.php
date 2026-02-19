@@ -40,6 +40,20 @@ if (!hasPermission('manager')) {
             <div class="module-description">Administrative editing of account structures</div>
         </a>
 
+        <a href="manager/loan_terms.php" class="module-card">
+            <div class="module-letter">I</div>
+            <div class="module-icon">📋</div>
+            <div class="module-title">Loan Terms</div>
+            <div class="module-description">Define interest rates, durations, and types for loan products</div>
+        </a>
+
+        <a href="manager/deposit_terms.php" class="module-card">
+            <div class="module-letter">J</div>
+            <div class="module-icon">💰</div>
+            <div class="module-title">Deposit Terms</div>
+            <div class="module-description">Configure interest rates and annual payout dates for deposit accounts</div>
+        </a>
+
         <a href="manager/signon_dates.php" class="module-card">
             <div class="module-letter">C</div>
             <div class="module-icon">📅</div>
@@ -87,6 +101,8 @@ if (!hasPermission('manager')) {
     const keyMap = {
         'A': 'user_management.php',
         'B': 'manager/edit_accounts.php',
+        'I': 'manager/loan_terms.php',
+        'J': 'manager/deposit_terms.php',
         'C': 'manager/signon_dates.php',
         'D': 'manager/backup.php',
         'E': 'manager/cash_transfers.php',
