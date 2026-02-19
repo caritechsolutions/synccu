@@ -6,23 +6,24 @@ if (!hasPermission('transactions')) {
     exit();
 }
 
-$account_type = in_array($_GET['type'] ?? '', ['savings','checking']) ? $_GET['type'] : 'savings';
+$account_type = in_array($_GET['type'] ?? '', ['savings','checking','share','loan','certificate']) ? $_GET['type'] : '';
 $member_id    = (int)($_GET['member_id'] ?? 0);
 $message      = '';
 $error        = '';
 $receipt_data = null;
 
-// Lookup members for dropdown search
+// Pre-populate accounts when arriving from member view
 $members = [];
 if ($member_id) {
     $stmt = $pdo->prepare("
         SELECT m.id, m.member_number, CONCAT(m.first_name,' ',m.last_name) AS name,
-               a.id AS account_id, a.account_number, a.balance
+               a.id AS account_id, a.account_number, a.account_type, a.balance
         FROM members m
         JOIN member_accounts a ON a.member_id = m.id
-        WHERE m.id = ? AND a.account_type = ? AND a.is_active = 1 AND m.is_active = 1
+        WHERE m.id = ? AND a.is_active = 1 AND m.is_active = 1
+        ORDER BY a.account_type, a.account_number
     ");
-    $stmt->execute([$member_id, $account_type]);
+    $stmt->execute([$member_id]);
     $members = $stmt->fetchAll();
 }
 
@@ -40,9 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("
             SELECT a.*, m.first_name, m.last_name, m.member_number
             FROM member_accounts a JOIN members m ON a.member_id = m.id
-            WHERE a.id = ? AND a.account_type = ? AND a.is_active = 1
+            WHERE a.id = ? AND a.is_active = 1
         ");
-        $stmt->execute([$account_id, $account_type]);
+        $stmt->execute([$account_id]);
         $account = $stmt->fetch();
 
         if (!$account) {
@@ -60,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare("
                     INSERT INTO transactions (account_id, transaction_type, amount, balance_after, reference_number, description, teller_id)
                     VALUES (?, 'deposit', ?, ?, ?, ?, ?)
-                ")->execute([$account_id, $amount, $new_balance, $ref, $description ?: "Deposit to {$account_type}", $_SESSION['user_id']]);
+                ")->execute([$account_id, $amount, $new_balance, $ref, $description ?: "Deposit to {$account['account_type']}", $_SESSION['user_id']]);
 
                 $pdo->commit();
 
@@ -90,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SyncCU - Deposit to <?php echo ucfirst($account_type); ?></title>
+    <title>SyncCU - Deposit</title>
     <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
@@ -101,8 +102,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="container-sm">
         <div class="container-header">
-            <h1>Deposit — <?php echo ucfirst($account_type); ?></h1>
-            <p>Process a deposit to a member's <?php echo $account_type; ?> account</p>
+            <h1>Deposit</h1>
+            <p>Process a deposit to a member account</p>
         </div>
 
         <div class="content">
@@ -122,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <div class="d-flex gap-10">
                 <button onclick="window.print()" class="btn btn-secondary">Print Receipt</button>
-                <a href="deposit.php?type=<?php echo $account_type; ?>" class="btn btn-primary">New Deposit</a>
+                <a href="deposit.php" class="btn btn-primary">New Deposit</a>
                 <a href="../transactions.php" class="btn btn-secondary">Back to Transactions</a>
             </div>
 
@@ -149,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <option value="">— Select after member lookup —</option>
                         <?php foreach ($members as $m): ?>
                         <option value="<?php echo $m['account_id']; ?>">
-                            <?php echo htmlspecialchars($m['account_number'] . ' — ' . $m['name'] . ' (Balance: $' . number_format($m['balance'],2) . ')'); ?>
+                            <?php echo htmlspecialchars($m['account_number'] . ' (' . ucfirst($m['account_type']) . ') — ' . $m['name'] . ' (Balance: $' . number_format($m['balance'],2) . ')'); ?>
                         </option>
                         <?php endforeach; ?>
                     </select>
@@ -182,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const q = document.getElementById('member_search').value.trim();
         if (!q) return;
         const type = '<?php echo $account_type; ?>';
-        fetch(`../api/lookup_account.php?q=${encodeURIComponent(q)}&type=${type}`)
+        fetch(`../api/lookup_account.php?q=${encodeURIComponent(q)}${type ? '&type='+type : ''}`)
             .then(r => r.json())
             .then(data => {
                 const sel = document.getElementById('account_id');
