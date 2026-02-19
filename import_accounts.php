@@ -138,16 +138,23 @@ function xlsxReadSheet(string $sheetFile): array
         die("[ERROR] Cannot read sheet file: {$sheetFile}\n");
     }
 
+    // Strip the default namespace so XPath queries work without prefixes.
+    // registerXPathNamespace() is unreliable across PHP versions for child nodes.
+    $xml = str_replace(
+        'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
+        '',
+        $xml
+    );
+
     $doc = new SimpleXMLElement($xml);
-    $doc->registerXPathNamespace('ns', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
 
     $sparse = []; // rowIdx → [ colIdx => value ]
     $maxCol = 0;
 
-    foreach ($doc->xpath('//ns:row') as $xmlRow) {
+    foreach ($doc->xpath('//row') as $xmlRow) {
         $rowIdx = (int)$xmlRow['r'] - 1; // 0-based
 
-        foreach ($xmlRow->xpath('ns:c') as $c) {
+        foreach ($xmlRow->xpath('c') as $c) {
             // Extract column letter from cell reference (e.g. "B3" → "B")
             preg_match('/^([A-Za-z]+)/', (string)$c['r'], $m);
             $colIdx = colIndex($m[1]);
