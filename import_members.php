@@ -105,7 +105,14 @@ function looksLikePhone(string $val): bool
     return preg_match('/^[\d\s\-\/\+\.()]+$/', $val) === 1;
 }
 
-// ── Prepare INSERT statement ───────────────────────────────────────────────────
+// ── Prepare statements ────────────────────────────────────────────────────────
+$stmtSavings = $pdo->prepare("
+    INSERT IGNORE INTO member_accounts
+        (member_id, account_number, account_type)
+    VALUES
+        (:member_id, :account_number, 'savings')
+");
+
 $stmt = $pdo->prepare("
     INSERT INTO members
         (member_number, first_name, last_name, ssn_last4,
@@ -267,6 +274,18 @@ while (($row = fgetcsv($handle)) !== false) {
             $inserted++;
         } else {
             $updated++;
+        }
+
+        // Auto-create the base savings account if it doesn't exist yet.
+        // For legacy members the savings account number = the member number (e.g. "2405").
+        $memberId = $pdo->query(
+            "SELECT id FROM members WHERE member_number = " . $pdo->quote($memberNumber) . " LIMIT 1"
+        )->fetchColumn();
+        if ($memberId !== false) {
+            $stmtSavings->execute([
+                ':member_id'      => $memberId,
+                ':account_number' => $memberNumber,
+            ]);
         }
     } catch (PDOException $e) {
         echo "[ERROR] Line {$lineNum} (Account #{$memberNumber}): " . $e->getMessage() . "\n";
