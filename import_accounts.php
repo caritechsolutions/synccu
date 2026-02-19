@@ -52,35 +52,50 @@ try {
     die("[ERROR] Database connection failed: " . $e->getMessage() . "\n");
 }
 
-// ── XLSX helpers (no external dependencies — uses ZipArchive + SimpleXML) ─────
+// ── XLSX helpers (uses system unzip + SimpleXML — no PHP extensions needed) ────
 
 /**
- * Open the xlsx (a zip archive) and return the ZipArchive handle.
+ * Extract the xlsx into a temp directory and return that directory path.
+ * Registers a shutdown function to clean up the temp dir automatically.
  */
-function xlsxOpen(string $path): ZipArchive
+function xlsxExtract(string $xlsxPath): string
 {
-    $zip = new ZipArchive();
-    if ($zip->open($path) !== true) {
-        die("[ERROR] Cannot open xlsx: {$path}\n");
+    if (!is_file($xlsxPath)) {
+        die("[ERROR] File not found: {$xlsxPath}\n");
     }
-    return $zip;
+    $tmpDir = sys_get_temp_dir() . '/synccu_xlsx_' . uniqid();
+    $safe   = escapeshellarg($xlsxPath);
+    $safeTmp = escapeshellarg($tmpDir);
+    exec("unzip -q {$safe} -d {$safeTmp} 2>&1", $out, $rc);
+    if ($rc !== 0) {
+        die("[ERROR] unzip failed (exit {$rc}): " . implode("\n", $out) . "\n");
+    }
+    // Clean up temp dir when the script finishes
+    register_shutdown_function(function () use ($tmpDir) {
+        exec('rm -rf ' . escapeshellarg($tmpDir));
+    });
+    return $tmpDir;
 }
 
 /**
  * Parse xl/_rels/workbook.xml.rels and xl/workbook.xml to return a map of
- * sheet name → path inside the zip (e.g. "Loan Accounts" → "xl/worksheets/sheet2.xml").
+ * sheet name → absolute filesystem path to the sheet XML.
  */
-function xlsxSheetPaths(ZipArchive $zip): array
+function xlsxSheetPaths(string $tmpDir): array
 {
-    $relXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
-    $wbXml  = $zip->getFromName('xl/workbook.xml');
+    $relXml = file_get_contents("{$tmpDir}/xl/_rels/workbook.xml.rels");
+    $wbXml  = file_get_contents("{$tmpDir}/xl/workbook.xml");
 
-    // rId → zip path (targets use absolute paths like /xl/worksheets/sheet2.xml)
+    if ($relXml === false || $wbXml === false) {
+        die("[ERROR] Could not read workbook XML files from extracted xlsx.\n");
+    }
+
+    // rId → filesystem path (targets are like /xl/worksheets/sheet2.xml)
     $targets = [];
     $rel = new SimpleXMLElement($relXml);
     foreach ($rel->Relationship as $r) {
         $target = ltrim((string)$r['Target'], '/'); // strip leading /
-        $targets[(string)$r['Id']] = $target;
+        $targets[(string)$r['Id']] = "{$tmpDir}/{$target}";
     }
 
     // Sheet name → rId
@@ -113,14 +128,14 @@ function colIndex(string $col): int
 }
 
 /**
- * Read a worksheet and return a 2D array of string values (row-major, 0-based).
+ * Read a worksheet XML file and return a 2D array of string values (row-major, 0-based).
  * All cells in this workbook use t="inlineStr"; numeric cells have no type attr.
  */
-function xlsxReadSheet(ZipArchive $zip, string $sheetPath): array
+function xlsxReadSheet(string $sheetFile): array
 {
-    $xml = $zip->getFromName($sheetPath);
+    $xml = file_get_contents($sheetFile);
     if ($xml === false) {
-        die("[ERROR] Sheet XML not found: {$sheetPath}\n");
+        die("[ERROR] Cannot read sheet file: {$sheetFile}\n");
     }
 
     $doc = new SimpleXMLElement($xml);
@@ -143,7 +158,7 @@ function xlsxReadSheet(ZipArchive $zip, string $sheetPath): array
             if ($type === 'inlineStr') {
                 $val = (string)($c->is->t ?? '');
             } elseif ($type === 's') {
-                // Shared string (not used in this file, but handle gracefully)
+                // Shared string (not present in this file, but handled gracefully)
                 $val = (string)($c->v ?? '');
             } else {
                 // Numeric or empty
@@ -192,8 +207,8 @@ if (!file_exists($xlsxFile)) {
     die("[ERROR] File not found: {$xlsxFile}\n");
 }
 
-$zip        = xlsxOpen($xlsxFile);
-$sheetPaths = xlsxSheetPaths($zip);
+$tmpDir     = xlsxExtract($xlsxFile);
+$sheetPaths = xlsxSheetPaths($tmpDir);
 
 // ── Import function ───────────────────────────────────────────────────────────
 
@@ -285,7 +300,7 @@ if (!isset($sheetPaths['Loan Accounts'])) {
     echo "[WARN] 'Loan Accounts' sheet not found — skipping.\n";
 } else {
     echo "Processing Loan Accounts...\n";
-    $rows      = xlsxReadSheet($zip, $sheetPaths['Loan Accounts']);
+    $rows      = xlsxReadSheet($sheetPaths['Loan Accounts']);
     $loanStats = importSheet($rows, 'loan', 0, 1, 3, 4, $pdo, $stmtLookup, $stmtUpsert);
 }
 
@@ -298,11 +313,9 @@ if (!isset($sheetPaths['Share Accounts'])) {
     echo "[WARN] 'Share Accounts' sheet not found — skipping.\n";
 } else {
     echo "Processing Share Accounts...\n";
-    $rows       = xlsxReadSheet($zip, $sheetPaths['Share Accounts']);
+    $rows       = xlsxReadSheet($sheetPaths['Share Accounts']);
     $shareStats = importSheet($rows, 'share', 0, 1, 3, -1, $pdo, $stmtLookup, $stmtUpsert);
 }
-
-$zip->close();
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 echo "\n";
