@@ -332,16 +332,23 @@ foreach ($rows as $r) {
     }
 }
 
-// ── Sync member_accounts.balance from final running balance ───────────────────
-$stmtUpdateBal = $pdo->prepare(
-    "UPDATE member_accounts SET balance = ? WHERE id = ?"
-);
-
-$balancesUpdated = 0;
-foreach ($runningBalances as $accountId => $finalBalance) {
-    $stmtUpdateBal->execute([$finalBalance, $accountId]);
-    $balancesUpdated++;
-}
+// ── Sync member_accounts.balance from final transaction balance ───────────────
+// Uses the last transaction's balance_after per account (works on re-runs too,
+// since it queries the DB rather than relying on the in-memory running total).
+$balancesUpdated = $pdo->exec("
+    UPDATE member_accounts ma
+    JOIN (
+        SELECT t.account_id, t.balance_after
+        FROM transactions t
+        INNER JOIN (
+            SELECT account_id, MAX(id) AS max_id
+            FROM transactions
+            GROUP BY account_id
+        ) latest ON t.account_id = latest.account_id AND t.id = latest.max_id
+    ) last_tx ON ma.id = last_tx.account_id
+    SET ma.balance = last_tx.balance_after
+");
+if ($balancesUpdated === false) $balancesUpdated = 0;
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 echo "\n";
