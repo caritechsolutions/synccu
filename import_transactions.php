@@ -117,13 +117,14 @@ function getAccountId(int $memberId, string $acctType, string $suffix): ?int
     if ($acctType === 'Loan') {
         // A=1st, B=2nd, C=3rd loan account ordered by date_opened
         $ordinal = ord(strtoupper($suffix)) - ord('A'); // 0-based
+        // MariaDB requires LIMIT/OFFSET values to be integer literals, not bound params
         $stmt = $pdo->prepare("
             SELECT id FROM member_accounts
             WHERE member_id = ? AND account_type = 'loan' AND is_active = 1
             ORDER BY date_opened, id
-            LIMIT 1 OFFSET ?
+            LIMIT 1 OFFSET {$ordinal}
         ");
-        $stmt->execute([$memberId, $ordinal]);
+        $stmt->execute([$memberId]);
         $row = $stmt->fetchColumn();
         $id = $row !== false ? (int)$row : null;
 
