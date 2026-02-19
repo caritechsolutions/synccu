@@ -332,16 +332,28 @@ foreach ($rows as $r) {
     }
 }
 
+// ── Sync member_accounts.balance from final running balance ───────────────────
+$stmtUpdateBal = $pdo->prepare(
+    "UPDATE member_accounts SET balance = ? WHERE id = ?"
+);
+
+$balancesUpdated = 0;
+foreach ($runningBalances as $accountId => $finalBalance) {
+    $stmtUpdateBal->execute([$finalBalance, $accountId]);
+    $balancesUpdated++;
+}
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 echo "\n";
 echo "╔══════════════════════════════════════╗\n";
 echo "║    Transaction Import Complete       ║\n";
 echo "╚══════════════════════════════════════╝\n";
 echo "\n";
-echo "  Rows in CSV          : " . (count($rows) + $skipped) . "\n";
+echo "  Rows processed       : " . count($rows) . "\n";
 echo "  Inserted             : {$inserted}\n";
 echo "  Already imported     : {$dupRef}\n";
-echo "  Skipped (errors)     : {$skipped}\n";
+echo "  Skipped              : {$skipped}\n";
+echo "  Account balances set : {$balancesUpdated}\n";
 echo "\n";
 
 if (!empty($noMember)) {
@@ -359,8 +371,4 @@ if (!empty($noAccount)) {
     }
 }
 
-echo "\n";
-echo "  Note: balance_after values are approximations based on the order of\n";
-echo "  imported rows. They do not affect the live account balances in\n";
-echo "  member_accounts (those remain unchanged).\n";
 echo "\n";
