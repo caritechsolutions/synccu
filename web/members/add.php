@@ -53,10 +53,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $new_id = $pdo->lastInsertId();
 
-            // Auto-create a savings account for the new member
-            $acct_number = 'SAV-' . $member_number;
+            // Auto-create the base savings account.
+            // The savings account number equals the member number (e.g. member 2025001234
+            // → savings account 2025001234), matching the legacy import convention.
             $pdo->prepare("INSERT INTO member_accounts (member_id, account_number, account_type) VALUES (?, ?, 'savings')")
-                ->execute([$new_id, $acct_number]);
+                ->execute([$new_id, $member_number]);
 
             $message = "Member #{$member_number} ({$first_name} {$last_name}) created successfully.";
             $_POST   = [];
