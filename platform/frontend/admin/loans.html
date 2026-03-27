@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SyncCU Admin - Loan management, applications, approvals, and portfolio overview.">
+  <title>Loans - SyncCU Admin</title>
+  <link rel="stylesheet" href="../css/app.css">
+  <script>
+    if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }
+  </script>
+</head>
+<body>
+  <!-- SVG Sprite -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+    <symbol id="icon-credit-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+    <symbol id="icon-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></symbol>
+    <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+    <symbol id="icon-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+  </svg>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><h2>SyncCU</h2></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item"><svg class="nav-icon"><use href="#icon-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="members.html" class="nav-item"><svg class="nav-icon"><use href="#icon-users"/></svg><span>Members</span></a>
+      <a href="accounts.html" class="nav-item"><svg class="nav-icon"><use href="#icon-wallet"/></svg><span>Accounts</span></a>
+      <a href="transactions.html" class="nav-item"><svg class="nav-icon"><use href="#icon-send"/></svg><span>Transactions</span></a>
+      <a href="loans.html" class="nav-item active"><svg class="nav-icon"><use href="#icon-credit-card"/></svg><span>Loans</span></a>
+      <a href="reports.html" class="nav-item"><svg class="nav-icon"><use href="#icon-chart"/></svg><span>Reports</span></a>
+      <a href="settings.html" class="nav-item"><svg class="nav-icon"><use href="#icon-settings"/></svg><span>Settings</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" class="nav-item" id="logoutBtn"><svg class="nav-icon"><use href="#icon-logout"/></svg><span>Logout</span></a>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu"><svg><use href="#icon-menu"/></svg></button>
+        <div class="search-box">
+          <svg class="search-icon"><use href="#icon-search"/></svg>
+          <input type="text" placeholder="Search..." aria-label="Search">
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <svg class="icon-sun"><use href="#icon-sun"/></svg>
+          <svg class="icon-moon" style="display:none"><use href="#icon-moon"/></svg>
+        </button>
+        <button class="topbar-btn notification-btn" aria-label="Notifications">
+          <svg><use href="#icon-bell"/></svg><span class="badge">3</span>
+        </button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-avatar-btn" id="userAvatarBtn">
+            <div class="avatar">AD</div>
+            <svg class="chevron"><use href="#icon-chevron-down"/></svg>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><strong>Admin User</strong><span>admin@synccu.com</span></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><svg><use href="#icon-settings"/></svg> Settings</a>
+            <a href="#" class="dropdown-item" id="logoutBtn2"><svg><use href="#icon-logout"/></svg> Logout</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Loans</h1>
+          <p class="page-subtitle">Manage loan applications, approvals, and the active portfolio.</p>
+        </div>
+        <button class="btn btn-primary" id="newLoanBtn">
+          <svg><use href="#icon-plus"/></svg> New Loan Application
+        </button>
+      </div>
+
+      <!-- Pipeline Status Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon stat-icon-blue">
+            <svg><use href="#icon-file-text"/></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="statApplications">24</span>
+            <span class="stat-label">Applications</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon stat-icon-green">
+            <svg><use href="#icon-check"/></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="statApproved">12</span>
+            <span class="stat-label">Approved</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon stat-icon-purple">
+            <svg><use href="#icon-credit-card"/></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="statActive">438</span>
+            <span class="stat-label">Active</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon stat-icon-orange">
+            <svg><use href="#icon-chart"/></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-value" id="statDelinquent">7</span>
+            <span class="stat-label">Delinquent</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loans Table -->
+      <div class="card">
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Loan #</th>
+                <th>Member</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Rate</th>
+                <th>Term</th>
+                <th>Outstanding</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="loansTableBody">
+              <tr>
+                <td class="font-mono">LN-2026-0482</td>
+                <td>Jane Cooper</td>
+                <td>Personal</td>
+                <td>$25,000.00</td>
+                <td>6.25%</td>
+                <td>60 mo</td>
+                <td>$22,450.00</td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td><button class="icon-btn" title="View Details" data-loan="1"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+              <tr>
+                <td class="font-mono">LN-2026-0481</td>
+                <td>Robert Fox</td>
+                <td>Auto</td>
+                <td>$35,000.00</td>
+                <td>4.75%</td>
+                <td>72 mo</td>
+                <td>$31,200.00</td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td><button class="icon-btn" title="View Details" data-loan="2"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+              <tr>
+                <td class="font-mono">LN-2026-0480</td>
+                <td>Emily Wilson</td>
+                <td>Mortgage</td>
+                <td>$280,000.00</td>
+                <td>5.50%</td>
+                <td>360 mo</td>
+                <td>$274,800.00</td>
+                <td><span class="badge badge-info">Approved</span></td>
+                <td><button class="icon-btn" title="View Details" data-loan="3"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+              <tr>
+                <td class="font-mono">LN-2026-0479</td>
+                <td>Michael Brown</td>
+                <td>Personal</td>
+                <td>$10,000.00</td>
+                <td>7.00%</td>
+                <td>36 mo</td>
+                <td>$8,240.00</td>
+                <td><span class="badge badge-danger">Delinquent</span></td>
+                <td><button class="icon-btn" title="View Details" data-loan="4"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+              <tr>
+                <td class="font-mono">LN-2026-0478</td>
+                <td>Sarah Davis</td>
+                <td>Home Equity</td>
+                <td>$50,000.00</td>
+                <td>5.00%</td>
+                <td>120 mo</td>
+                <td>$0.00</td>
+                <td><span class="badge badge-warning">Application</span></td>
+                <td><button class="icon-btn" title="View Details" data-loan="5"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+              <tr>
+                <td class="font-mono">LN-2026-0477</td>
+                <td>Patricia Garcia</td>
+                <td>Auto</td>
+                <td>$22,000.00</td>
+                <td>4.50%</td>
+                <td>60 mo</td>
+                <td>$18,640.00</td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td><button class="icon-btn" title="View Details" data-loan="6"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span class="pagination-info">Showing 1-6 of 481 loans</span>
+          <div class="pagination-controls">
+            <button class="pagination-btn" disabled><svg><use href="#icon-arrow-left"/></svg></button>
+            <button class="pagination-btn active">1</button>
+            <button class="pagination-btn">2</button>
+            <button class="pagination-btn">3</button>
+            <span class="pagination-ellipsis">...</span>
+            <button class="pagination-btn">81</button>
+            <button class="pagination-btn"><svg><use href="#icon-arrow-right"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- New Loan Modal -->
+  <div class="modal-overlay" id="loanModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>New Loan Application</h3>
+        <button class="icon-btn modal-close" id="closeLoanModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <form id="loanForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="loanMember">Member</label>
+            <input type="text" id="loanMember" class="form-input" placeholder="Search member by name or ID..." required>
+            <input type="hidden" id="loanMemberId" name="member_id">
+          </div>
+          <div class="form-group">
+            <label for="loanType">Loan Type</label>
+            <select id="loanType" name="loan_type" class="form-select" required>
+              <option value="">Select type...</option>
+              <option value="personal">Personal</option>
+              <option value="auto">Auto</option>
+              <option value="mortgage">Mortgage</option>
+              <option value="home_equity">Home Equity</option>
+              <option value="business">Business</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="loanAmount">Amount</label>
+              <input type="number" id="loanAmount" name="amount" class="form-input" placeholder="0.00" min="100" step="0.01" required>
+            </div>
+            <div class="form-group">
+              <label for="loanRate">Interest Rate (%)</label>
+              <input type="number" id="loanRate" name="interest_rate" class="form-input" placeholder="0.00" min="0" step="0.01" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="loanTerm">Term (months)</label>
+            <select id="loanTerm" name="term_months" class="form-select" required>
+              <option value="">Select term...</option>
+              <option value="12">12 months</option>
+              <option value="24">24 months</option>
+              <option value="36">36 months</option>
+              <option value="48">48 months</option>
+              <option value="60">60 months</option>
+              <option value="72">72 months</option>
+              <option value="120">120 months</option>
+              <option value="180">180 months</option>
+              <option value="240">240 months</option>
+              <option value="360">360 months</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelLoanBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Submit Application</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Loan Detail Modal (with amortization) -->
+  <div class="modal-overlay" id="loanDetailModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>Loan Details</h3>
+        <button class="icon-btn modal-close" id="closeLoanDetailModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <dl class="detail-list detail-list-grid">
+          <dt>Loan Number</dt><dd id="detailLoanNum">LN-2026-0482</dd>
+          <dt>Member</dt><dd id="detailLoanMember">Jane Cooper</dd>
+          <dt>Type</dt><dd id="detailLoanType">Personal</dd>
+          <dt>Status</dt><dd id="detailLoanStatus"><span class="badge badge-success">Active</span></dd>
+          <dt>Original Amount</dt><dd id="detailLoanAmount">$25,000.00</dd>
+          <dt>Interest Rate</dt><dd id="detailLoanRate">6.25%</dd>
+          <dt>Term</dt><dd id="detailLoanTerm">60 months</dd>
+          <dt>Monthly Payment</dt><dd id="detailLoanPayment">$487.24</dd>
+          <dt>Outstanding Balance</dt><dd id="detailLoanBalance">$22,450.00</dd>
+          <dt>Next Payment Due</dt><dd id="detailLoanNextDue">Apr 1, 2026</dd>
+        </dl>
+
+        <div class="detail-section" style="margin-top:1.5rem">
+          <h4>Amortization Schedule</h4>
+          <div class="table-responsive" style="max-height:300px; overflow-y:auto">
+            <table class="data-table data-table-sm">
+              <thead>
+                <tr><th>Payment #</th><th>Date</th><th>Payment</th><th>Principal</th><th>Interest</th><th>Balance</th></tr>
+              </thead>
+              <tbody id="amortizationTable">
+                <tr><td>1</td><td>May 2025</td><td>$487.24</td><td>$356.99</td><td>$130.25</td><td>$24,643.01</td></tr>
+                <tr><td>2</td><td>Jun 2025</td><td>$487.24</td><td>$358.85</td><td>$128.39</td><td>$24,284.16</td></tr>
+                <tr><td>3</td><td>Jul 2025</td><td>$487.24</td><td>$360.72</td><td>$126.52</td><td>$23,923.44</td></tr>
+                <tr><td>4</td><td>Aug 2025</td><td>$487.24</td><td>$362.60</td><td>$124.64</td><td>$23,560.84</td></tr>
+                <tr><td>5</td><td>Sep 2025</td><td>$487.24</td><td>$364.49</td><td>$122.75</td><td>$23,196.35</td></tr>
+                <tr><td>6</td><td>Oct 2025</td><td>$487.24</td><td>$366.39</td><td>$120.85</td><td>$22,829.96</td></tr>
+                <tr><td>7</td><td>Nov 2025</td><td>$487.24</td><td>$368.30</td><td>$118.94</td><td>$22,461.66</td></tr>
+                <tr><td>8</td><td>Dec 2025</td><td>$487.24</td><td>$370.22</td><td>$117.02</td><td>$22,091.44</td></tr>
+                <tr><td>9</td><td>Jan 2026</td><td>$487.24</td><td>$372.15</td><td>$115.09</td><td>$21,719.29</td></tr>
+                <tr><td>10</td><td>Feb 2026</td><td>$487.24</td><td>$374.09</td><td>$113.15</td><td>$21,345.20</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="closeLoanDetailBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    const loanModal = document.getElementById('loanModal');
+    const loanDetailModal = document.getElementById('loanDetailModal');
+    const newLoanBtn = document.getElementById('newLoanBtn');
+    const closeLoanModal = document.getElementById('closeLoanModal');
+    const cancelLoanBtn = document.getElementById('cancelLoanBtn');
+    const closeLoanDetailModal = document.getElementById('closeLoanDetailModal');
+    const closeLoanDetailBtn = document.getElementById('closeLoanDetailBtn');
+    const loanForm = document.getElementById('loanForm');
+
+    newLoanBtn.addEventListener('click', () => loanModal.classList.add('active'));
+    closeLoanModal.addEventListener('click', () => loanModal.classList.remove('active'));
+    cancelLoanBtn.addEventListener('click', () => loanModal.classList.remove('active'));
+    loanModal.addEventListener('click', (e) => { if (e.target === loanModal) loanModal.classList.remove('active'); });
+    closeLoanDetailModal.addEventListener('click', () => loanDetailModal.classList.remove('active'));
+    closeLoanDetailBtn.addEventListener('click', () => loanDetailModal.classList.remove('active'));
+    loanDetailModal.addEventListener('click', (e) => { if (e.target === loanDetailModal) loanDetailModal.classList.remove('active'); });
+
+    // View loan details
+    document.querySelectorAll('[data-loan]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const row = btn.closest('tr');
+        const cells = row.querySelectorAll('td');
+        document.getElementById('detailLoanNum').textContent = cells[0].textContent;
+        document.getElementById('detailLoanMember').textContent = cells[1].textContent;
+        document.getElementById('detailLoanType').textContent = cells[2].textContent;
+        document.getElementById('detailLoanAmount').textContent = cells[3].textContent;
+        document.getElementById('detailLoanRate').textContent = cells[4].textContent;
+        document.getElementById('detailLoanTerm').textContent = cells[5].textContent;
+        document.getElementById('detailLoanBalance').textContent = cells[6].textContent;
+        document.getElementById('detailLoanStatus').innerHTML = cells[7].innerHTML;
+        loanDetailModal.classList.add('active');
+      });
+    });
+
+    loanForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(loanForm);
+      const data = Object.fromEntries(formData);
+      try {
+        await fetch('/api/v1/loans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
+          body: JSON.stringify(data)
+        });
+        loanModal.classList.remove('active');
+        loanForm.reset();
+      } catch (e) { /* handle error */ }
+    });
+  </script>
+</body>
+</html>

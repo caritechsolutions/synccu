@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SyncCU Admin - Manage member accounts, create new accounts, and view account details.">
+  <title>Accounts - SyncCU Admin</title>
+  <link rel="stylesheet" href="../css/app.css">
+  <script>
+    if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }
+  </script>
+</head>
+<body>
+  <!-- SVG Sprite -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+    <symbol id="icon-credit-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+    <symbol id="icon-dollar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></symbol>
+    <symbol id="icon-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+  </svg>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><h2>SyncCU</h2></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item"><svg class="nav-icon"><use href="#icon-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="members.html" class="nav-item"><svg class="nav-icon"><use href="#icon-users"/></svg><span>Members</span></a>
+      <a href="accounts.html" class="nav-item active"><svg class="nav-icon"><use href="#icon-wallet"/></svg><span>Accounts</span></a>
+      <a href="transactions.html" class="nav-item"><svg class="nav-icon"><use href="#icon-send"/></svg><span>Transactions</span></a>
+      <a href="loans.html" class="nav-item"><svg class="nav-icon"><use href="#icon-credit-card"/></svg><span>Loans</span></a>
+      <a href="reports.html" class="nav-item"><svg class="nav-icon"><use href="#icon-chart"/></svg><span>Reports</span></a>
+      <a href="settings.html" class="nav-item"><svg class="nav-icon"><use href="#icon-settings"/></svg><span>Settings</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" class="nav-item" id="logoutBtn"><svg class="nav-icon"><use href="#icon-logout"/></svg><span>Logout</span></a>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu"><svg><use href="#icon-menu"/></svg></button>
+        <div class="search-box">
+          <svg class="search-icon"><use href="#icon-search"/></svg>
+          <input type="text" placeholder="Search..." aria-label="Search">
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <svg class="icon-sun"><use href="#icon-sun"/></svg>
+          <svg class="icon-moon" style="display:none"><use href="#icon-moon"/></svg>
+        </button>
+        <button class="topbar-btn notification-btn" aria-label="Notifications">
+          <svg><use href="#icon-bell"/></svg><span class="badge">3</span>
+        </button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-avatar-btn" id="userAvatarBtn">
+            <div class="avatar">AD</div>
+            <svg class="chevron"><use href="#icon-chevron-down"/></svg>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><strong>Admin User</strong><span>admin@synccu.com</span></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><svg><use href="#icon-settings"/></svg> Settings</a>
+            <a href="#" class="dropdown-item" id="logoutBtn2"><svg><use href="#icon-logout"/></svg> Logout</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Accounts</h1>
+          <p class="page-subtitle">Manage member accounts and view account details.</p>
+        </div>
+        <button class="btn btn-primary" id="createAccountBtn">
+          <svg><use href="#icon-plus"/></svg> Create Account
+        </button>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <select id="accountTypeFilter" class="form-select">
+          <option value="all">All Types</option>
+          <option value="checking">Checking</option>
+          <option value="savings">Savings</option>
+          <option value="money_market">Money Market</option>
+          <option value="certificate">Certificate</option>
+        </select>
+        <select id="accountStatusFilter" class="form-select">
+          <option value="all">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="frozen">Frozen</option>
+          <option value="closed">Closed</option>
+        </select>
+        <div class="search-box filter-search">
+          <svg class="search-icon"><use href="#icon-search"/></svg>
+          <input type="text" id="accountSearch" placeholder="Search by account number or member..." aria-label="Search accounts">
+        </div>
+      </div>
+
+      <!-- Accounts Grid -->
+      <div class="accounts-grid" id="accountsGrid">
+        <div class="account-card" data-id="1001">
+          <div class="account-card-header">
+            <span class="account-number">****4821</span>
+            <span class="badge badge-info">Savings</span>
+          </div>
+          <div class="account-card-member">Jane Cooper</div>
+          <div class="account-card-balance">$24,562.80</div>
+          <div class="account-card-footer">
+            <span class="badge badge-success">Active</span>
+            <span class="account-date">
+              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
+              Opened Jan 15, 2024
+            </span>
+          </div>
+        </div>
+        <div class="account-card" data-id="1002">
+          <div class="account-card-header">
+            <span class="account-number">****7392</span>
+            <span class="badge badge-primary">Checking</span>
+          </div>
+          <div class="account-card-member">Robert Fox</div>
+          <div class="account-card-balance">$8,134.20</div>
+          <div class="account-card-footer">
+            <span class="badge badge-success">Active</span>
+            <span class="account-date">
+              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
+              Opened Mar 22, 2023
+            </span>
+          </div>
+        </div>
+        <div class="account-card" data-id="1003">
+          <div class="account-card-header">
+            <span class="account-number">****5610</span>
+            <span class="badge badge-warning">Money Market</span>
+          </div>
+          <div class="account-card-member">Emily Wilson</div>
+          <div class="account-card-balance">$152,340.00</div>
+          <div class="account-card-footer">
+            <span class="badge badge-success">Active</span>
+            <span class="account-date">
+              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
+              Opened Jul 8, 2022
+            </span>
+          </div>
+        </div>
+        <div class="account-card" data-id="1004">
+          <div class="account-card-header">
+            <span class="account-number">****2048</span>
+            <span class="badge badge-info">Savings</span>
+          </div>
+          <div class="account-card-member">Michael Brown</div>
+          <div class="account-card-balance">$3,210.45</div>
+          <div class="account-card-footer">
+            <span class="badge badge-muted">Frozen</span>
+            <span class="account-date">
+              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
+              Opened Nov 3, 2024
+            </span>
+          </div>
+        </div>
+        <div class="account-card" data-id="1005">
+          <div class="account-card-header">
+            <span class="account-number">****9173</span>
+            <span class="badge badge-purple">Certificate</span>
+          </div>
+          <div class="account-card-member">Sarah Davis</div>
+          <div class="account-card-balance">$50,000.00</div>
+          <div class="account-card-footer">
+            <span class="badge badge-success">Active</span>
+            <span class="account-date">
+              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
+              Opened Sep 12, 2025
+            </span>
+          </div>
+        </div>
+        <div class="account-card" data-id="1006">
+          <div class="account-card-header">
+            <span class="account-number">****3847</span>
+            <span class="badge badge-primary">Checking</span>
+          </div>
+          <div class="account-card-member">Patricia Garcia</div>
+          <div class="account-card-balance">$11,892.30</div>
+          <div class="account-card-footer">
+            <span class="badge badge-success">Active</span>
+            <span class="account-date">
+              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
+              Opened Feb 28, 2025
+            </span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Create Account Modal -->
+  <div class="modal-overlay" id="accountModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Create Account</h3>
+        <button class="icon-btn modal-close" id="closeAccountModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <form id="accountForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="accountMemberSearch">Member</label>
+            <input type="text" id="accountMemberSearch" class="form-input" placeholder="Search member by name or ID..." autocomplete="off" required>
+            <input type="hidden" id="accountMemberId" name="member_id">
+            <div class="search-results" id="memberSearchResults"></div>
+          </div>
+          <div class="form-group">
+            <label for="accountType">Account Type</label>
+            <select id="accountType" name="account_type" class="form-select" required>
+              <option value="">Select type...</option>
+              <option value="checking">Checking</option>
+              <option value="savings">Savings</option>
+              <option value="money_market">Money Market</option>
+              <option value="certificate">Certificate of Deposit</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="initialDeposit">Initial Deposit</label>
+              <input type="number" id="initialDeposit" name="initial_deposit" class="form-input" placeholder="0.00" min="0" step="0.01" required>
+            </div>
+            <div class="form-group">
+              <label for="interestRate">Interest Rate (%)</label>
+              <input type="number" id="interestRate" name="interest_rate" class="form-input" placeholder="0.00" min="0" step="0.01">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelAccountBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Account Detail Slide-Over -->
+  <div class="slideover-overlay" id="accountSlideOver">
+    <div class="slideover">
+      <div class="slideover-header">
+        <h3>Account Details</h3>
+        <button class="icon-btn" id="closeSlideOver"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <div class="slideover-body" id="slideOverBody">
+        <div class="detail-section">
+          <h4>Account Information</h4>
+          <dl class="detail-list">
+            <dt>Account Number</dt><dd id="detailAccNum">-</dd>
+            <dt>Type</dt><dd id="detailAccType">-</dd>
+            <dt>Member</dt><dd id="detailAccMember">-</dd>
+            <dt>Status</dt><dd id="detailAccStatus">-</dd>
+            <dt>Balance</dt><dd id="detailAccBalance">-</dd>
+            <dt>Interest Rate</dt><dd id="detailAccRate">-</dd>
+            <dt>Opened</dt><dd id="detailAccOpened">-</dd>
+          </dl>
+        </div>
+        <div class="detail-section">
+          <h4>Recent Transactions</h4>
+          <div class="mini-table" id="detailTransactions">
+            <div class="mini-table-row">
+              <span class="mini-date">Mar 27</span>
+              <span class="mini-desc">Direct Deposit</span>
+              <span class="mini-amount text-green">+$3,240.00</span>
+            </div>
+            <div class="mini-table-row">
+              <span class="mini-date">Mar 25</span>
+              <span class="mini-desc">POS Purchase</span>
+              <span class="mini-amount text-red">-$84.50</span>
+            </div>
+            <div class="mini-table-row">
+              <span class="mini-date">Mar 23</span>
+              <span class="mini-desc">Transfer In</span>
+              <span class="mini-amount text-green">+$500.00</span>
+            </div>
+            <div class="mini-table-row">
+              <span class="mini-date">Mar 20</span>
+              <span class="mini-desc">Bill Payment</span>
+              <span class="mini-amount text-red">-$152.30</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    const accountModal = document.getElementById('accountModal');
+    const accountSlideOver = document.getElementById('accountSlideOver');
+    const createAccountBtn = document.getElementById('createAccountBtn');
+    const closeAccountModal = document.getElementById('closeAccountModal');
+    const cancelAccountBtn = document.getElementById('cancelAccountBtn');
+    const closeSlideOver = document.getElementById('closeSlideOver');
+    const accountForm = document.getElementById('accountForm');
+
+    createAccountBtn.addEventListener('click', () => accountModal.classList.add('active'));
+    closeAccountModal.addEventListener('click', () => accountModal.classList.remove('active'));
+    cancelAccountBtn.addEventListener('click', () => accountModal.classList.remove('active'));
+    accountModal.addEventListener('click', (e) => { if (e.target === accountModal) accountModal.classList.remove('active'); });
+
+    closeSlideOver.addEventListener('click', () => accountSlideOver.classList.remove('active'));
+    accountSlideOver.addEventListener('click', (e) => { if (e.target === accountSlideOver) accountSlideOver.classList.remove('active'); });
+
+    // Open detail slide-over on account card click
+    document.querySelectorAll('.account-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.getElementById('detailAccNum').textContent = card.querySelector('.account-number').textContent;
+        document.getElementById('detailAccType').textContent = card.querySelector('.badge').textContent;
+        document.getElementById('detailAccMember').textContent = card.querySelector('.account-card-member').textContent;
+        document.getElementById('detailAccBalance').textContent = card.querySelector('.account-card-balance').textContent;
+        document.getElementById('detailAccStatus').textContent = card.querySelector('.account-card-footer .badge').textContent;
+        accountSlideOver.classList.add('active');
+      });
+    });
+
+    accountForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(accountForm);
+      const data = Object.fromEntries(formData);
+      try {
+        await fetch('/api/v1/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
+          body: JSON.stringify(data)
+        });
+        accountModal.classList.remove('active');
+        accountForm.reset();
+        loadAccounts();
+      } catch (e) { /* handle error */ }
+    });
+
+    async function loadAccounts() {
+      try {
+        const type = document.getElementById('accountTypeFilter').value;
+        const status = document.getElementById('accountStatusFilter').value;
+        const search = document.getElementById('accountSearch').value;
+        const resp = await fetch('/api/v1/accounts?type=' + type + '&status=' + status + '&search=' + encodeURIComponent(search), {
+          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        renderAccounts(data.accounts || []);
+      } catch (e) { /* API not available */ }
+    }
+
+    function renderAccounts(accounts) {
+      if (!accounts.length) return;
+      const grid = document.getElementById('accountsGrid');
+      const typeClasses = { checking: 'badge-primary', savings: 'badge-info', money_market: 'badge-warning', certificate: 'badge-purple' };
+      const statusClasses = { active: 'badge-success', frozen: 'badge-muted', closed: 'badge-danger' };
+      grid.innerHTML = accounts.map(a => `
+        <div class="account-card" data-id="${a.id}">
+          <div class="account-card-header">
+            <span class="account-number">****${a.account_number?.slice(-4) || '0000'}</span>
+            <span class="badge ${typeClasses[a.account_type] || 'badge-info'}">${a.account_type}</span>
+          </div>
+          <div class="account-card-member">${a.member_name || 'Unknown'}</div>
+          <div class="account-card-balance">$${Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+          <div class="account-card-footer">
+            <span class="badge ${statusClasses[a.status] || 'badge-muted'}">${a.status}</span>
+            <span class="account-date">Opened ${new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+          </div>
+        </div>`).join('');
+    }
+
+    document.getElementById('accountTypeFilter').addEventListener('change', loadAccounts);
+    document.getElementById('accountStatusFilter').addEventListener('change', loadAccounts);
+    let searchTimeout;
+    document.getElementById('accountSearch').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadAccounts, 300); });
+
+    if (new URLSearchParams(window.location.search).get('action') === 'new') { accountModal.classList.add('active'); }
+  </script>
+</body>
+</html>

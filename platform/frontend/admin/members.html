@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SyncCU Admin - Manage credit union members, add new members, and view member details.">
+  <title>Members - SyncCU Admin</title>
+  <link rel="stylesheet" href="../css/app.css">
+  <script>
+    if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }
+  </script>
+</head>
+<body>
+  <!-- SVG Sprite -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+    <symbol id="icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></symbol>
+    <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></symbol>
+    <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+    <symbol id="icon-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+    <symbol id="icon-credit-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+  </svg>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><h2>SyncCU</h2></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item"><svg class="nav-icon"><use href="#icon-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="members.html" class="nav-item active"><svg class="nav-icon"><use href="#icon-users"/></svg><span>Members</span></a>
+      <a href="accounts.html" class="nav-item"><svg class="nav-icon"><use href="#icon-wallet"/></svg><span>Accounts</span></a>
+      <a href="transactions.html" class="nav-item"><svg class="nav-icon"><use href="#icon-send"/></svg><span>Transactions</span></a>
+      <a href="loans.html" class="nav-item"><svg class="nav-icon"><use href="#icon-credit-card"/></svg><span>Loans</span></a>
+      <a href="reports.html" class="nav-item"><svg class="nav-icon"><use href="#icon-chart"/></svg><span>Reports</span></a>
+      <a href="settings.html" class="nav-item"><svg class="nav-icon"><use href="#icon-settings"/></svg><span>Settings</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" class="nav-item" id="logoutBtn"><svg class="nav-icon"><use href="#icon-logout"/></svg><span>Logout</span></a>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu"><svg><use href="#icon-menu"/></svg></button>
+        <div class="search-box">
+          <svg class="search-icon"><use href="#icon-search"/></svg>
+          <input type="text" placeholder="Search..." aria-label="Search">
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <svg class="icon-sun"><use href="#icon-sun"/></svg>
+          <svg class="icon-moon" style="display:none"><use href="#icon-moon"/></svg>
+        </button>
+        <button class="topbar-btn notification-btn" aria-label="Notifications">
+          <svg><use href="#icon-bell"/></svg><span class="badge">3</span>
+        </button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-avatar-btn" id="userAvatarBtn">
+            <div class="avatar">AD</div>
+            <svg class="chevron"><use href="#icon-chevron-down"/></svg>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><strong>Admin User</strong><span>admin@synccu.com</span></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><svg><use href="#icon-settings"/></svg> Settings</a>
+            <a href="#" class="dropdown-item" id="logoutBtn2"><svg><use href="#icon-logout"/></svg> Logout</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Members</h1>
+          <p class="page-subtitle">Manage credit union members and their information.</p>
+        </div>
+        <button class="btn btn-primary" id="addMemberBtn">
+          <svg><use href="#icon-plus"/></svg> Add Member
+        </button>
+      </div>
+
+      <!-- Search and Filters -->
+      <div class="filter-bar">
+        <div class="search-box filter-search">
+          <svg class="search-icon"><use href="#icon-search"/></svg>
+          <input type="text" id="memberSearch" placeholder="Search members by name, email, or phone..." aria-label="Search members">
+        </div>
+        <select id="statusFilter" class="form-select">
+          <option value="all">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+
+      <!-- Members Table -->
+      <div class="card">
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Accounts</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="membersTableBody">
+              <tr>
+                <td><div class="member-cell"><div class="avatar avatar-sm">JC</div><span>Jane Cooper</span></div></td>
+                <td>jane.cooper@email.com</td>
+                <td>(555) 012-3456</td>
+                <td>3</td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td>
+                  <div class="action-btns">
+                    <button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>
+                    <button class="icon-btn" title="Edit"><svg><use href="#icon-edit"/></svg></button>
+                    <button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><div class="member-cell"><div class="avatar avatar-sm">RF</div><span>Robert Fox</span></div></td>
+                <td>robert.fox@email.com</td>
+                <td>(555) 234-5678</td>
+                <td>2</td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td>
+                  <div class="action-btns">
+                    <button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>
+                    <button class="icon-btn" title="Edit"><svg><use href="#icon-edit"/></svg></button>
+                    <button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><div class="member-cell"><div class="avatar avatar-sm">EW</div><span>Emily Wilson</span></div></td>
+                <td>emily.wilson@email.com</td>
+                <td>(555) 345-6789</td>
+                <td>1</td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td>
+                  <div class="action-btns">
+                    <button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>
+                    <button class="icon-btn" title="Edit"><svg><use href="#icon-edit"/></svg></button>
+                    <button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><div class="member-cell"><div class="avatar avatar-sm">MB</div><span>Michael Brown</span></div></td>
+                <td>michael.brown@email.com</td>
+                <td>(555) 456-7890</td>
+                <td>4</td>
+                <td><span class="badge badge-muted">Inactive</span></td>
+                <td>
+                  <div class="action-btns">
+                    <button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>
+                    <button class="icon-btn" title="Edit"><svg><use href="#icon-edit"/></svg></button>
+                    <button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><div class="member-cell"><div class="avatar avatar-sm">SD</div><span>Sarah Davis</span></div></td>
+                <td>sarah.davis@email.com</td>
+                <td>(555) 567-8901</td>
+                <td>2</td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td>
+                  <div class="action-btns">
+                    <button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>
+                    <button class="icon-btn" title="Edit"><svg><use href="#icon-edit"/></svg></button>
+                    <button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+          <span class="pagination-info">Showing 1-5 of 2,847 members</span>
+          <div class="pagination-controls">
+            <button class="pagination-btn" disabled>
+              <svg><use href="#icon-arrow-left"/></svg>
+            </button>
+            <button class="pagination-btn active">1</button>
+            <button class="pagination-btn">2</button>
+            <button class="pagination-btn">3</button>
+            <span class="pagination-ellipsis">...</span>
+            <button class="pagination-btn">570</button>
+            <button class="pagination-btn">
+              <svg><use href="#icon-arrow-right"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add/Edit Member Modal -->
+  <div class="modal-overlay" id="memberModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="memberModalTitle">Add Member</h3>
+        <button class="icon-btn modal-close" id="closeMemberModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <form id="memberForm">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="firstName">First Name</label>
+              <input type="text" id="firstName" name="first_name" class="form-input" placeholder="John" required>
+            </div>
+            <div class="form-group">
+              <label for="lastName">Last Name</label>
+              <input type="text" id="lastName" name="last_name" class="form-input" placeholder="Doe" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="memberEmail">Email Address</label>
+            <input type="email" id="memberEmail" name="email" class="form-input" placeholder="john.doe@email.com" required>
+          </div>
+          <div class="form-group">
+            <label for="memberPhone">Phone Number</label>
+            <input type="tel" id="memberPhone" name="phone" class="form-input" placeholder="(555) 000-0000">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="memberRole">Role</label>
+              <select id="memberRole" name="role" class="form-select">
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+                <option value="teller">Teller</option>
+                <option value="manager">Manager</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="memberStatus">Status</label>
+              <select id="memberStatus" name="status" class="form-select">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelMemberBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveMemberBtn">Save Member</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    // Member page logic
+    const memberModal = document.getElementById('memberModal');
+    const addMemberBtn = document.getElementById('addMemberBtn');
+    const closeMemberModal = document.getElementById('closeMemberModal');
+    const cancelMemberBtn = document.getElementById('cancelMemberBtn');
+    const memberForm = document.getElementById('memberForm');
+    const memberSearch = document.getElementById('memberSearch');
+    const statusFilter = document.getElementById('statusFilter');
+    let currentPage = 1;
+    let editingMemberId = null;
+
+    function openModal(isEdit, member) {
+      document.getElementById('memberModalTitle').textContent = isEdit ? 'Edit Member' : 'Add Member';
+      if (isEdit && member) {
+        editingMemberId = member.id;
+        document.getElementById('firstName').value = member.first_name || '';
+        document.getElementById('lastName').value = member.last_name || '';
+        document.getElementById('memberEmail').value = member.email || '';
+        document.getElementById('memberPhone').value = member.phone || '';
+        document.getElementById('memberRole').value = member.role || 'member';
+        document.getElementById('memberStatus').value = member.status || 'active';
+      } else {
+        editingMemberId = null;
+        memberForm.reset();
+      }
+      memberModal.classList.add('active');
+    }
+
+    function closeModal() {
+      memberModal.classList.remove('active');
+      editingMemberId = null;
+    }
+
+    addMemberBtn.addEventListener('click', () => openModal(false));
+    closeMemberModal.addEventListener('click', closeModal);
+    cancelMemberBtn.addEventListener('click', closeModal);
+    memberModal.addEventListener('click', (e) => { if (e.target === memberModal) closeModal(); });
+
+    memberForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(memberForm);
+      const data = Object.fromEntries(formData);
+      try {
+        const url = editingMemberId ? '/api/v1/members/' + editingMemberId : '/api/v1/members';
+        const method = editingMemberId ? 'PUT' : 'POST';
+        await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
+          body: JSON.stringify(data)
+        });
+        closeModal();
+        loadMembers();
+      } catch (e) { /* handle error */ }
+    });
+
+    async function loadMembers() {
+      try {
+        const query = memberSearch.value;
+        const status = statusFilter.value;
+        const resp = await fetch('/api/v1/members?page=' + currentPage + '&search=' + encodeURIComponent(query) + '&status=' + status, {
+          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        renderMembers(data.members || []);
+      } catch (e) { /* API not available, use placeholder data */ }
+    }
+
+    function renderMembers(members) {
+      const tbody = document.getElementById('membersTableBody');
+      if (!members.length) return;
+      tbody.innerHTML = members.map(m => {
+        const initials = (m.first_name?.[0] || '') + (m.last_name?.[0] || '');
+        const statusClass = m.status === 'active' ? 'badge-success' : 'badge-muted';
+        return '<tr>' +
+          '<td><div class="member-cell"><div class="avatar avatar-sm">' + initials.toUpperCase() + '</div><span>' + m.first_name + ' ' + m.last_name + '</span></div></td>' +
+          '<td>' + m.email + '</td>' +
+          '<td>' + (m.phone || '-') + '</td>' +
+          '<td>' + (m.accounts_count || 0) + '</td>' +
+          '<td><span class="badge ' + statusClass + '">' + m.status + '</span></td>' +
+          '<td><div class="action-btns">' +
+            '<button class="icon-btn" title="View" onclick="viewMember(\'' + m.id + '\')"><svg><use href="#icon-eye"/></svg></button>' +
+            '<button class="icon-btn" title="Edit" onclick="editMember(\'' + m.id + '\')"><svg><use href="#icon-edit"/></svg></button>' +
+            '<button class="icon-btn icon-btn-danger" title="Delete" onclick="deleteMember(\'' + m.id + '\')"><svg><use href="#icon-trash"/></svg></button>' +
+          '</div></td></tr>';
+      }).join('');
+    }
+
+    let searchTimeout;
+    memberSearch.addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadMembers, 300); });
+    statusFilter.addEventListener('change', loadMembers);
+
+    // Check if opened with ?action=new
+    if (new URLSearchParams(window.location.search).get('action') === 'new') { openModal(false); }
+  </script>
+</body>
+</html>

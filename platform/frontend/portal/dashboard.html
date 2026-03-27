@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SyncCU - Member Banking Dashboard">
+    <title>Dashboard - SyncCU</title>
+    <link rel="stylesheet" href="../css/app.css">
+</head>
+<body class="portal-body">
+
+<!-- SVG Icon Sprite -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-logo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-home" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-1M3 7a2 2 0 012-2h12a2 2 0 012 2M3 7h16m-3 4h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-transfer" viewBox="0 0 24 24"><path d="M8 7h12l-4-4M16 17H4l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-loan" viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 00-5-5.917V4a1 1 0 10-2 0v1.083A6 6 0 006 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5m0 0l-7 7m7-7l7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14m0 0l7-7m-7 7l-7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-file-text" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM14 2v6h6M16 13H8M16 17H8M10 9H8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-savings" viewBox="0 0 24 24"><path d="M19 7h-3a5 5 0 00-5-5 5 5 0 00-5 5H3a1 1 0 00-1 1v9a1 1 0 001 1h16a1 1 0 001-1V8a1 1 0 00-1-1z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v4M10 13h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-checking" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2 10h20" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+</svg>
+
+<!-- Top Navigation Bar -->
+<nav class="portal-nav">
+    <div class="portal-nav-inner">
+        <div class="portal-nav-left">
+            <button class="portal-mobile-toggle" id="mobileMenuToggle" aria-label="Toggle menu">
+                <svg class="icon icon-md"><use href="#icon-menu"/></svg>
+            </button>
+            <a href="dashboard.html" class="portal-logo">
+                <svg class="icon icon-lg"><use href="#icon-logo"/></svg>
+                <span class="portal-logo-text">SyncCU</span>
+            </a>
+            <div class="portal-nav-links" id="navLinks">
+                <a href="dashboard.html" class="portal-nav-link active">
+                    <svg class="icon icon-sm"><use href="#icon-home"/></svg> Dashboard
+                </a>
+                <a href="accounts.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-wallet"/></svg> Accounts
+                </a>
+                <a href="transfer.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-transfer"/></svg> Transfer
+                </a>
+                <a href="loans.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-loan"/></svg> Loans
+                </a>
+            </div>
+        </div>
+        <div class="portal-nav-right">
+            <button class="portal-nav-icon-btn theme-toggle" aria-label="Toggle theme">
+                <svg class="icon icon-sm theme-icon-light"><use href="#icon-moon"/></svg>
+                <svg class="icon icon-sm theme-icon-dark"><use href="#icon-sun"/></svg>
+            </button>
+            <button class="portal-nav-icon-btn portal-notification-btn" id="notifBtn" aria-label="Notifications">
+                <svg class="icon icon-sm"><use href="#icon-bell"/></svg>
+                <span class="portal-notification-badge" id="notifBadge" style="display:none">0</span>
+            </button>
+            <div class="portal-user-menu" id="userMenu">
+                <button class="portal-user-trigger" id="userMenuTrigger">
+                    <span class="portal-avatar" id="userAvatar">--</span>
+                    <span class="portal-user-name" id="userName">Member</span>
+                    <svg class="icon icon-xs"><use href="#icon-chevron-down"/></svg>
+                </button>
+                <div class="portal-user-dropdown" id="userDropdown">
+                    <a href="profile.html" class="portal-dropdown-item">
+                        <svg class="icon icon-sm"><use href="#icon-user"/></svg> Profile
+                    </a>
+                    <a href="profile.html#security" class="portal-dropdown-item">
+                        <svg class="icon icon-sm"><use href="#icon-settings"/></svg> Settings
+                    </a>
+                    <hr class="portal-dropdown-divider">
+                    <button class="portal-dropdown-item portal-dropdown-logout" id="logoutBtn">
+                        <svg class="icon icon-sm"><use href="#icon-logout"/></svg> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<main class="portal-main">
+    <div class="portal-container">
+
+        <!-- Welcome Section -->
+        <section class="portal-welcome">
+            <div>
+                <h1 class="portal-welcome-greeting" id="welcomeGreeting">Good morning</h1>
+                <p class="portal-welcome-date" id="welcomeDate"></p>
+            </div>
+        </section>
+
+        <!-- Account Summary Cards -->
+        <section class="portal-section">
+            <h2 class="portal-section-title">Your Accounts</h2>
+            <div class="portal-account-cards" id="accountCards">
+                <!-- Populated by JS -->
+                <div class="portal-skeleton-card"></div>
+                <div class="portal-skeleton-card"></div>
+            </div>
+        </section>
+
+        <!-- Quick Actions -->
+        <section class="portal-section">
+            <div class="portal-quick-actions">
+                <a href="transfer.html" class="portal-quick-action-btn">
+                    <svg class="icon icon-md"><use href="#icon-send"/></svg>
+                    <span>Send Money</span>
+                </a>
+                <a href="loans.html#payment" class="portal-quick-action-btn">
+                    <svg class="icon icon-md"><use href="#icon-loan"/></svg>
+                    <span>Pay Loan</span>
+                </a>
+                <a href="accounts.html" class="portal-quick-action-btn">
+                    <svg class="icon icon-md"><use href="#icon-file-text"/></svg>
+                    <span>View Statements</span>
+                </a>
+            </div>
+        </section>
+
+        <div class="portal-grid-2">
+            <!-- Recent Transactions -->
+            <section class="portal-card">
+                <div class="portal-card-header">
+                    <h3 class="portal-card-title">Recent Transactions</h3>
+                    <a href="accounts.html" class="portal-link">View All</a>
+                </div>
+                <div class="portal-transaction-list" id="recentTransactions">
+                    <div class="portal-skeleton-row"></div>
+                    <div class="portal-skeleton-row"></div>
+                    <div class="portal-skeleton-row"></div>
+                    <div class="portal-skeleton-row"></div>
+                </div>
+            </section>
+
+            <!-- Right Column -->
+            <div class="portal-right-col">
+                <!-- Loan Summary -->
+                <section class="portal-card portal-loan-summary" id="loanSummary" style="display:none">
+                    <div class="portal-card-header">
+                        <h3 class="portal-card-title">Loan Overview</h3>
+                        <a href="loans.html" class="portal-link">Details</a>
+                    </div>
+                    <div id="loanSummaryContent"></div>
+                </section>
+
+                <!-- Notifications Panel -->
+                <section class="portal-card">
+                    <div class="portal-card-header">
+                        <h3 class="portal-card-title">Notifications</h3>
+                        <button class="portal-link" id="markAllRead">Mark all read</button>
+                    </div>
+                    <div class="portal-notification-list" id="notificationList">
+                        <p class="portal-empty-state">No new notifications</p>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+    </div>
+</main>
+
+<script src="../js/app.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+(function() {
+    // Auth check
+    api.loadTokens();
+    if (!auth.requireAuth(['member'])) return;
+
+    // Greeting based on time of day
+    function getGreeting() {
+        const h = new Date().getHours();
+        if (h < 12) return 'Good morning';
+        if (h < 17) return 'Good afternoon';
+        return 'Good evening';
+    }
+
+    // Format current date
+    function formatCurrentDate() {
+        return new Date().toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
+    }
+
+    document.getElementById('welcomeDate').textContent = formatCurrentDate();
+
+    // Mobile menu toggle
+    const mobileToggle = document.getElementById('mobileMenuToggle');
+    const navLinks = document.getElementById('navLinks');
+    mobileToggle.addEventListener('click', () => {
+        navLinks.classList.toggle('open');
+    });
+
+    // User dropdown toggle
+    const userMenuTrigger = document.getElementById('userMenuTrigger');
+    const userDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        userDropdown.classList.toggle('open');
+    });
+    document.addEventListener('click', () => userDropdown.classList.remove('open'));
+
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', () => auth.logout());
+
+    // Load user data
+    async function loadUserData() {
+        try {
+            const user = await auth.getCurrentUser();
+            if (user) {
+                const firstName = user.first_name || 'Member';
+                document.getElementById('welcomeGreeting').textContent = `${getGreeting()}, ${firstName}`;
+                document.getElementById('userName').textContent = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Member';
+                document.getElementById('userAvatar').textContent = Format.initials(user.first_name, user.last_name);
+            }
+        } catch (err) {
+            document.getElementById('welcomeGreeting').textContent = getGreeting();
+        }
+    }
+
+    // Load accounts
+    async function loadAccounts() {
+        const container = document.getElementById('accountCards');
+        try {
+            const response = await api.get('/accounts');
+            const accounts = response.accounts || response.data || response || [];
+
+            if (!Array.isArray(accounts) || accounts.length === 0) {
+                container.innerHTML = '<div class="portal-empty-state">No accounts found</div>';
+                return;
+            }
+
+            const typeConfig = {
+                savings: { icon: '#icon-savings', color: 'blue', label: 'Savings' },
+                checking: { icon: '#icon-checking', color: 'green', label: 'Checking' },
+                loan: { icon: '#icon-loan', color: 'purple', label: 'Loan' }
+            };
+
+            container.innerHTML = accounts.map(acc => {
+                const config = typeConfig[acc.account_type] || typeConfig.savings;
+                return `
+                    <div class="portal-account-card portal-account-card--${config.color}">
+                        <div class="portal-account-card-top">
+                            <div class="portal-account-card-icon">
+                                <svg class="icon icon-md"><use href="${config.icon}"/></svg>
+                            </div>
+                            <span class="portal-account-type-badge portal-badge--${config.color}">${config.label}</span>
+                        </div>
+                        <h4 class="portal-account-name">${acc.name || config.label + ' Account'}</h4>
+                        <p class="portal-account-number">${Format.accountNumber(acc.account_number || '')}</p>
+                        <p class="portal-account-balance">${Format.currency(acc.balance || 0)}</p>
+                        <a href="accounts.html?id=${acc.id}" class="portal-link portal-account-detail-link">View Details</a>
+                    </div>`;
+            }).join('');
+        } catch (err) {
+            container.innerHTML = '<div class="portal-empty-state">Unable to load accounts</div>';
+        }
+    }
+
+    // Load recent transactions
+    async function loadRecentTransactions() {
+        const container = document.getElementById('recentTransactions');
+        try {
+            const response = await api.get('/transactions', { limit: 6 });
+            const transactions = response.transactions || response.data || response || [];
+
+            if (!Array.isArray(transactions) || transactions.length === 0) {
+                container.innerHTML = '<p class="portal-empty-state">No recent transactions</p>';
+                return;
+            }
+
+            container.innerHTML = transactions.map(tx => {
+                const isCredit = tx.type === 'credit' || tx.amount > 0;
+                const absAmount = Math.abs(tx.amount);
+                return `
+                    <div class="portal-transaction-item">
+                        <div class="portal-transaction-icon portal-transaction-icon--${isCredit ? 'credit' : 'debit'}">
+                            <svg class="icon icon-sm"><use href="${isCredit ? '#icon-arrow-down' : '#icon-arrow-up'}"/></svg>
+                        </div>
+                        <div class="portal-transaction-info">
+                            <span class="portal-transaction-desc">${tx.description || tx.memo || 'Transaction'}</span>
+                            <span class="portal-transaction-date">${Format.relative(tx.created_at || tx.date)}</span>
+                        </div>
+                        <span class="portal-transaction-amount portal-transaction-amount--${isCredit ? 'credit' : 'debit'}">
+                            ${isCredit ? '+' : '-'}${Format.currency(absAmount)}
+                        </span>
+                    </div>`;
+            }).join('');
+        } catch (err) {
+            container.innerHTML = '<p class="portal-empty-state">Unable to load transactions</p>';
+        }
+    }
+
+    // Load loan summary
+    async function loadLoanSummary() {
+        try {
+            const response = await api.get('/loans');
+            const loans = response.loans || response.data || response || [];
+
+            if (!Array.isArray(loans) || loans.length === 0) return;
+
+            const card = document.getElementById('loanSummary');
+            const content = document.getElementById('loanSummaryContent');
+            card.style.display = '';
+
+            const loan = loans[0]; // Show primary loan
+            const paidPercent = loan.total_amount ? Math.round((loan.amount_paid / loan.total_amount) * 100) : 0;
+
+            content.innerHTML = `
+                <div class="portal-loan-info">
+                    <h4 class="portal-loan-name">${loan.name || loan.loan_type || 'Loan'}</h4>
+                    <div class="portal-progress-bar">
+                        <div class="portal-progress-fill" style="width:${paidPercent}%"></div>
+                    </div>
+                    <div class="portal-loan-stats">
+                        <span>${paidPercent}% paid</span>
+                        <span>${Format.currency(loan.remaining_balance || 0)} remaining</span>
+                    </div>
+                    <div class="portal-loan-next-payment">
+                        <span>Next payment: ${loan.next_payment_date ? Format.date(loan.next_payment_date) : 'N/A'}</span>
+                        <span class="portal-loan-next-amount">${Format.currency(loan.monthly_payment || 0)}</span>
+                    </div>
+                    <a href="loans.html#payment" class="btn btn-primary btn-sm portal-loan-pay-btn">Make Payment</a>
+                </div>`;
+        } catch (err) {
+            // No loans or error, keep hidden
+        }
+    }
+
+    // Load notifications
+    async function loadNotifications() {
+        const list = document.getElementById('notificationList');
+        const badge = document.getElementById('notifBadge');
+        try {
+            const response = await api.get('/notifications', { limit: 5 });
+            const notifications = response.notifications || response.data || response || [];
+
+            if (!Array.isArray(notifications) || notifications.length === 0) {
+                list.innerHTML = '<p class="portal-empty-state">No new notifications</p>';
+                return;
+            }
+
+            const unread = notifications.filter(n => !n.read).length;
+            if (unread > 0) {
+                badge.style.display = '';
+                badge.textContent = unread > 9 ? '9+' : unread;
+            }
+
+            list.innerHTML = notifications.map(n => `
+                <div class="portal-notification-item ${n.read ? '' : 'portal-notification-item--unread'}">
+                    <p class="portal-notification-text">${n.message || n.title}</p>
+                    <span class="portal-notification-time">${Format.relative(n.created_at || n.date)}</span>
+                </div>`
+            ).join('');
+        } catch (err) {
+            list.innerHTML = '<p class="portal-empty-state">No new notifications</p>';
+        }
+    }
+
+    // Mark all read
+    document.getElementById('markAllRead').addEventListener('click', async () => {
+        try {
+            await api.post('/notifications/read-all');
+            document.getElementById('notifBadge').style.display = 'none';
+            document.querySelectorAll('.portal-notification-item--unread').forEach(el => {
+                el.classList.remove('portal-notification-item--unread');
+            });
+            toast.success('All notifications marked as read');
+        } catch (err) {
+            toast.error('Failed to update notifications');
+        }
+    });
+
+    // Load all data
+    loadUserData();
+    loadAccounts();
+    loadRecentTransactions();
+    loadLoanSummary();
+    loadNotifications();
+})();
+</script>
+</body>
+</html>

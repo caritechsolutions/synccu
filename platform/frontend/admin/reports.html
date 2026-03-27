@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SyncCU Admin - Generate financial reports, trial balances, and portfolio analytics.">
+  <title>Reports - SyncCU Admin</title>
+  <link rel="stylesheet" href="../css/app.css">
+  <script>
+    if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }
+  </script>
+</head>
+<body>
+  <!-- SVG Sprite -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+    <symbol id="icon-credit-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+    <symbol id="icon-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></symbol>
+    <symbol id="icon-dollar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="icon-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+    <symbol id="icon-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+  </svg>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><h2>SyncCU</h2></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item"><svg class="nav-icon"><use href="#icon-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="members.html" class="nav-item"><svg class="nav-icon"><use href="#icon-users"/></svg><span>Members</span></a>
+      <a href="accounts.html" class="nav-item"><svg class="nav-icon"><use href="#icon-wallet"/></svg><span>Accounts</span></a>
+      <a href="transactions.html" class="nav-item"><svg class="nav-icon"><use href="#icon-send"/></svg><span>Transactions</span></a>
+      <a href="loans.html" class="nav-item"><svg class="nav-icon"><use href="#icon-credit-card"/></svg><span>Loans</span></a>
+      <a href="reports.html" class="nav-item active"><svg class="nav-icon"><use href="#icon-chart"/></svg><span>Reports</span></a>
+      <a href="settings.html" class="nav-item"><svg class="nav-icon"><use href="#icon-settings"/></svg><span>Settings</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" class="nav-item" id="logoutBtn"><svg class="nav-icon"><use href="#icon-logout"/></svg><span>Logout</span></a>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu"><svg><use href="#icon-menu"/></svg></button>
+        <div class="search-box">
+          <svg class="search-icon"><use href="#icon-search"/></svg>
+          <input type="text" placeholder="Search..." aria-label="Search">
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <svg class="icon-sun"><use href="#icon-sun"/></svg>
+          <svg class="icon-moon" style="display:none"><use href="#icon-moon"/></svg>
+        </button>
+        <button class="topbar-btn notification-btn" aria-label="Notifications">
+          <svg><use href="#icon-bell"/></svg><span class="badge">3</span>
+        </button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-avatar-btn" id="userAvatarBtn">
+            <div class="avatar">AD</div>
+            <svg class="chevron"><use href="#icon-chevron-down"/></svg>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><strong>Admin User</strong><span>admin@synccu.com</span></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><svg><use href="#icon-settings"/></svg> Settings</a>
+            <a href="#" class="dropdown-item" id="logoutBtn2"><svg><use href="#icon-logout"/></svg> Logout</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Reports</h1>
+          <p class="page-subtitle">Generate and view financial reports for the credit union.</p>
+        </div>
+      </div>
+
+      <!-- Report Type Cards -->
+      <div class="report-cards">
+        <button class="report-card active" data-report="financial">
+          <div class="report-card-icon">
+            <svg><use href="#icon-dollar"/></svg>
+          </div>
+          <h4>Financial Summary</h4>
+          <p>Income, expenses, and net income overview</p>
+        </button>
+        <button class="report-card" data-report="trial-balance">
+          <div class="report-card-icon">
+            <svg><use href="#icon-chart"/></svg>
+          </div>
+          <h4>Trial Balance</h4>
+          <p>Debit and credit balances for all accounts</p>
+        </button>
+        <button class="report-card" data-report="transaction">
+          <div class="report-card-icon">
+            <svg><use href="#icon-send"/></svg>
+          </div>
+          <h4>Transaction Report</h4>
+          <p>Detailed transaction history and analysis</p>
+        </button>
+        <button class="report-card" data-report="loan-portfolio">
+          <div class="report-card-icon">
+            <svg><use href="#icon-credit-card"/></svg>
+          </div>
+          <h4>Loan Portfolio</h4>
+          <p>Loan performance and delinquency metrics</p>
+        </button>
+        <button class="report-card" data-report="member-growth">
+          <div class="report-card-icon">
+            <svg><use href="#icon-users"/></svg>
+          </div>
+          <h4>Member Growth</h4>
+          <p>Membership trends and demographics</p>
+        </button>
+      </div>
+
+      <!-- Date Range & Actions -->
+      <div class="filter-bar" style="margin-top:1.5rem">
+        <div class="form-group filter-date">
+          <label for="reportDateFrom">From</label>
+          <input type="date" id="reportDateFrom" class="form-input" value="2026-03-01">
+        </div>
+        <div class="form-group filter-date">
+          <label for="reportDateTo">To</label>
+          <input type="date" id="reportDateTo" class="form-input" value="2026-03-27">
+        </div>
+        <button class="btn btn-primary" id="generateReportBtn">Generate Report</button>
+        <div class="filter-spacer"></div>
+        <button class="btn btn-secondary" id="printReportBtn">
+          <svg><use href="#icon-printer"/></svg> Print
+        </button>
+        <button class="btn btn-secondary" id="exportReportBtn">
+          <svg><use href="#icon-download"/></svg> Export
+        </button>
+      </div>
+
+      <!-- Report Display Area -->
+      <div class="card" id="reportArea" style="margin-top:1.5rem">
+        <div class="card-header">
+          <h3 id="reportTitle">Financial Summary</h3>
+          <span class="text-muted" id="reportDateRange">March 1 - March 27, 2026</span>
+        </div>
+
+        <!-- Financial Summary (default) -->
+        <div id="reportContent">
+          <div class="report-summary-grid">
+            <div class="report-summary-card report-summary-green">
+              <span class="report-summary-label">Total Income</span>
+              <span class="report-summary-value">$286,420.00</span>
+              <span class="report-summary-sub">Interest Income: $214,300 | Fee Income: $72,120</span>
+            </div>
+            <div class="report-summary-card report-summary-red">
+              <span class="report-summary-label">Total Expenses</span>
+              <span class="report-summary-value">$198,650.00</span>
+              <span class="report-summary-sub">Operating: $142,200 | Interest Paid: $56,450</span>
+            </div>
+            <div class="report-summary-card report-summary-blue">
+              <span class="report-summary-label">Net Income</span>
+              <span class="report-summary-value">$87,770.00</span>
+              <span class="report-summary-sub">Net margin: 30.6%</span>
+            </div>
+          </div>
+
+          <div class="table-responsive" style="margin-top:1.5rem">
+            <table class="data-table">
+              <thead>
+                <tr><th>Category</th><th>Budget</th><th>Actual</th><th>Variance</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><strong>Revenue</strong></td><td></td><td></td><td></td></tr>
+                <tr><td class="indent">Interest on Loans</td><td>$200,000</td><td>$214,300</td><td class="text-green">+$14,300</td></tr>
+                <tr><td class="indent">Service Fees</td><td>$65,000</td><td>$62,420</td><td class="text-red">-$2,580</td></tr>
+                <tr><td class="indent">Investment Income</td><td>$10,000</td><td>$9,700</td><td class="text-red">-$300</td></tr>
+                <tr><td><strong>Expenses</strong></td><td></td><td></td><td></td></tr>
+                <tr><td class="indent">Personnel</td><td>$95,000</td><td>$92,400</td><td class="text-green">+$2,600</td></tr>
+                <tr><td class="indent">Operations</td><td>$50,000</td><td>$49,800</td><td class="text-green">+$200</td></tr>
+                <tr><td class="indent">Interest on Deposits</td><td>$55,000</td><td>$56,450</td><td class="text-red">-$1,450</td></tr>
+                <tr class="table-total">
+                  <td><strong>Net Income</strong></td><td><strong>$75,000</strong></td><td><strong>$87,770</strong></td><td class="text-green"><strong>+$12,770</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    const reportCards = document.querySelectorAll('.report-card');
+    let currentReport = 'financial';
+
+    reportCards.forEach(card => {
+      card.addEventListener('click', () => {
+        reportCards.forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        currentReport = card.dataset.report;
+        document.getElementById('reportTitle').textContent = card.querySelector('h4').textContent;
+      });
+    });
+
+    document.getElementById('generateReportBtn').addEventListener('click', generateReport);
+
+    async function generateReport() {
+      const from = document.getElementById('reportDateFrom').value;
+      const to = document.getElementById('reportDateTo').value;
+      const fromDate = new Date(from + 'T00:00:00');
+      const toDate = new Date(to + 'T00:00:00');
+      document.getElementById('reportDateRange').textContent =
+        fromDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) + ' - ' +
+        toDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+      try {
+        const resp = await fetch('/api/v1/reports/' + currentReport + '?from=' + from + '&to=' + to, {
+          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        // renderReport(currentReport, data);
+      } catch (e) { /* API not available, keep placeholder data */ }
+    }
+
+    document.getElementById('printReportBtn').addEventListener('click', () => {
+      window.print();
+    });
+
+    document.getElementById('exportReportBtn').addEventListener('click', async () => {
+      try {
+        const from = document.getElementById('reportDateFrom').value;
+        const to = document.getElementById('reportDateTo').value;
+        const resp = await fetch('/api/v1/reports/' + currentReport + '/export?from=' + from + '&to=' + to + '&format=csv', {
+          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+        });
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = currentReport + '-report.csv'; a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) { /* handle error */ }
+    });
+  </script>
+</body>
+</html>

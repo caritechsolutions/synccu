@@ -1,0 +1,259 @@
+-- SyncCU Core Banking Platform - Database Schema
+-- Multi-tenant architecture with tenant_id isolation
+
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+SET AUTOCOMMIT = 0;
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+CREATE DATABASE IF NOT EXISTS `synccu` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `synccu`;
+
+-- Tenants table
+CREATE TABLE `tenants` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `name` VARCHAR(255) NOT NULL,
+  `slug` VARCHAR(100) NOT NULL UNIQUE,
+  `domain` VARCHAR(255) DEFAULT NULL,
+  `logo_url` VARCHAR(500) DEFAULT NULL,
+  `primary_color` VARCHAR(7) DEFAULT '#1a56db',
+  `secondary_color` VARCHAR(7) DEFAULT '#7c3aed',
+  `settings` JSON DEFAULT NULL,
+  `status` ENUM('active','suspended','pending') DEFAULT 'active',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- Users table with RBAC
+CREATE TABLE `users` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `email` VARCHAR(255) NOT NULL,
+  `password_hash` VARCHAR(255) NOT NULL,
+  `first_name` VARCHAR(100) NOT NULL,
+  `last_name` VARCHAR(100) NOT NULL,
+  `phone` VARCHAR(20) DEFAULT NULL,
+  `role` ENUM('super_admin','admin','manager','teller','member') NOT NULL DEFAULT 'member',
+  `status` ENUM('active','inactive','locked','pending_verification') DEFAULT 'pending_verification',
+  `email_verified_at` TIMESTAMP NULL DEFAULT NULL,
+  `two_factor_enabled` TINYINT(1) DEFAULT 0,
+  `two_factor_secret` VARCHAR(255) DEFAULT NULL,
+  `failed_login_attempts` INT DEFAULT 0,
+  `locked_until` TIMESTAMP NULL DEFAULT NULL,
+  `password_changed_at` TIMESTAMP NULL DEFAULT NULL,
+  `force_password_change` TINYINT(1) DEFAULT 0,
+  `last_login_at` TIMESTAMP NULL DEFAULT NULL,
+  `last_login_ip` VARCHAR(45) DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `unique_tenant_email` (`tenant_id`, `email`),
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  INDEX `idx_users_tenant` (`tenant_id`),
+  INDEX `idx_users_role` (`role`),
+  INDEX `idx_users_status` (`status`)
+) ENGINE=InnoDB;
+
+-- Refresh tokens
+CREATE TABLE `refresh_tokens` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `user_id` CHAR(36) NOT NULL,
+  `token_hash` VARCHAR(255) NOT NULL UNIQUE,
+  `expires_at` TIMESTAMP NOT NULL,
+  `revoked` TINYINT(1) DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  INDEX `idx_refresh_tokens_user` (`user_id`)
+) ENGINE=InnoDB;
+
+-- Accounts (savings, checking, loan)
+CREATE TABLE `accounts` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `user_id` CHAR(36) NOT NULL,
+  `account_number` VARCHAR(20) NOT NULL,
+  `account_type` ENUM('savings','checking','loan','certificate') NOT NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `available_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `currency` CHAR(3) DEFAULT 'USD',
+  `status` ENUM('active','frozen','closed','dormant') DEFAULT 'active',
+  `interest_rate` DECIMAL(5,4) DEFAULT 0.0000,
+  `opened_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `closed_at` TIMESTAMP NULL DEFAULT NULL,
+  `metadata` JSON DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `unique_tenant_account` (`tenant_id`, `account_number`),
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  INDEX `idx_accounts_tenant` (`tenant_id`),
+  INDEX `idx_accounts_user` (`user_id`),
+  INDEX `idx_accounts_type` (`account_type`),
+  INDEX `idx_accounts_status` (`status`)
+) ENGINE=InnoDB;
+
+-- Transactions
+CREATE TABLE `transactions` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `account_id` CHAR(36) NOT NULL,
+  `type` ENUM('deposit','withdrawal','transfer','payment','fee','interest','adjustment','loan_disbursement','loan_payment') NOT NULL,
+  `amount` DECIMAL(15,2) NOT NULL,
+  `balance_after` DECIMAL(15,2) NOT NULL,
+  `description` VARCHAR(500) DEFAULT NULL,
+  `reference_number` VARCHAR(50) NOT NULL,
+  `related_transaction_id` CHAR(36) DEFAULT NULL,
+  `related_account_id` CHAR(36) DEFAULT NULL,
+  `status` ENUM('pending','completed','failed','reversed','cancelled') DEFAULT 'pending',
+  `processed_by` CHAR(36) DEFAULT NULL,
+  `metadata` JSON DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`account_id`) REFERENCES `accounts`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`processed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+  INDEX `idx_transactions_tenant` (`tenant_id`),
+  INDEX `idx_transactions_account` (`account_id`),
+  INDEX `idx_transactions_type` (`type`),
+  INDEX `idx_transactions_status` (`status`),
+  INDEX `idx_transactions_reference` (`reference_number`),
+  INDEX `idx_transactions_created` (`created_at`)
+) ENGINE=InnoDB;
+
+-- Double-entry ledger
+CREATE TABLE `ledger_entries` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `transaction_id` CHAR(36) NOT NULL,
+  `account_id` CHAR(36) NOT NULL,
+  `entry_type` ENUM('debit','credit') NOT NULL,
+  `amount` DECIMAL(15,2) NOT NULL,
+  `balance_after` DECIMAL(15,2) NOT NULL,
+  `gl_code` VARCHAR(20) NOT NULL,
+  `description` VARCHAR(500) DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`transaction_id`) REFERENCES `transactions`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`account_id`) REFERENCES `accounts`(`id`) ON DELETE CASCADE,
+  INDEX `idx_ledger_tenant` (`tenant_id`),
+  INDEX `idx_ledger_transaction` (`transaction_id`),
+  INDEX `idx_ledger_account` (`account_id`),
+  INDEX `idx_ledger_gl_code` (`gl_code`),
+  INDEX `idx_ledger_created` (`created_at`)
+) ENGINE=InnoDB;
+
+-- Loans
+CREATE TABLE `loans` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `user_id` CHAR(36) NOT NULL,
+  `account_id` CHAR(36) NOT NULL,
+  `loan_number` VARCHAR(20) NOT NULL,
+  `loan_type` ENUM('personal','auto','mortgage','business','education','credit_line') NOT NULL,
+  `principal_amount` DECIMAL(15,2) NOT NULL,
+  `interest_rate` DECIMAL(5,4) NOT NULL,
+  `term_months` INT NOT NULL,
+  `monthly_payment` DECIMAL(15,2) NOT NULL,
+  `outstanding_balance` DECIMAL(15,2) NOT NULL,
+  `disbursed_amount` DECIMAL(15,2) DEFAULT 0.00,
+  `total_paid` DECIMAL(15,2) DEFAULT 0.00,
+  `status` ENUM('application','approved','active','delinquent','default','paid_off','cancelled') DEFAULT 'application',
+  `approved_by` CHAR(36) DEFAULT NULL,
+  `approved_at` TIMESTAMP NULL DEFAULT NULL,
+  `disbursed_at` TIMESTAMP NULL DEFAULT NULL,
+  `next_payment_date` DATE DEFAULT NULL,
+  `maturity_date` DATE DEFAULT NULL,
+  `collateral` JSON DEFAULT NULL,
+  `metadata` JSON DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `unique_tenant_loan` (`tenant_id`, `loan_number`),
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`account_id`) REFERENCES `accounts`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`approved_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+  INDEX `idx_loans_tenant` (`tenant_id`),
+  INDEX `idx_loans_user` (`user_id`),
+  INDEX `idx_loans_status` (`status`)
+) ENGINE=InnoDB;
+
+-- Loan payment schedule
+CREATE TABLE `loan_schedules` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `loan_id` CHAR(36) NOT NULL,
+  `payment_number` INT NOT NULL,
+  `due_date` DATE NOT NULL,
+  `principal_amount` DECIMAL(15,2) NOT NULL,
+  `interest_amount` DECIMAL(15,2) NOT NULL,
+  `total_amount` DECIMAL(15,2) NOT NULL,
+  `paid_amount` DECIMAL(15,2) DEFAULT 0.00,
+  `status` ENUM('upcoming','due','paid','overdue','partial') DEFAULT 'upcoming',
+  `paid_at` TIMESTAMP NULL DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`loan_id`) REFERENCES `loans`(`id`) ON DELETE CASCADE,
+  INDEX `idx_schedule_loan` (`loan_id`),
+  INDEX `idx_schedule_due_date` (`due_date`),
+  INDEX `idx_schedule_status` (`status`)
+) ENGINE=InnoDB;
+
+-- Audit logs
+CREATE TABLE `audit_logs` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) DEFAULT NULL,
+  `user_id` CHAR(36) DEFAULT NULL,
+  `action` VARCHAR(100) NOT NULL,
+  `entity_type` VARCHAR(50) NOT NULL,
+  `entity_id` CHAR(36) DEFAULT NULL,
+  `old_values` JSON DEFAULT NULL,
+  `new_values` JSON DEFAULT NULL,
+  `ip_address` VARCHAR(45) DEFAULT NULL,
+  `user_agent` VARCHAR(500) DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE SET NULL,
+  INDEX `idx_audit_tenant` (`tenant_id`),
+  INDEX `idx_audit_user` (`user_id`),
+  INDEX `idx_audit_action` (`action`),
+  INDEX `idx_audit_entity` (`entity_type`, `entity_id`),
+  INDEX `idx_audit_created` (`created_at`)
+) ENGINE=InnoDB;
+
+-- API keys
+CREATE TABLE `api_keys` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `key_hash` VARCHAR(255) NOT NULL UNIQUE,
+  `key_prefix` VARCHAR(10) NOT NULL,
+  `permissions` JSON DEFAULT NULL,
+  `rate_limit` INT DEFAULT 1000,
+  `last_used_at` TIMESTAMP NULL DEFAULT NULL,
+  `expires_at` TIMESTAMP NULL DEFAULT NULL,
+  `revoked` TINYINT(1) DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  INDEX `idx_api_keys_tenant` (`tenant_id`),
+  INDEX `idx_api_keys_prefix` (`key_prefix`)
+) ENGINE=InnoDB;
+
+-- Notifications
+CREATE TABLE `notifications` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `user_id` CHAR(36) NOT NULL,
+  `type` VARCHAR(50) NOT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `message` TEXT NOT NULL,
+  `read_at` TIMESTAMP NULL DEFAULT NULL,
+  `metadata` JSON DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  INDEX `idx_notifications_user` (`user_id`),
+  INDEX `idx_notifications_read` (`read_at`)
+) ENGINE=InnoDB;
+
+-- Seed default tenant and super admin
+INSERT INTO `tenants` (`id`, `name`, `slug`, `status`) VALUES
+('00000000-0000-0000-0000-000000000001', 'Default Credit Union', 'default', 'active');
+
+COMMIT;

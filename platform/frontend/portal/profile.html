@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SyncCU - Profile & Settings">
+    <title>Profile - SyncCU</title>
+    <link rel="stylesheet" href="../css/app.css">
+</head>
+<body class="portal-body">
+
+<!-- SVG Icon Sprite -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-logo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-home" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-1M3 7a2 2 0 012-2h12a2 2 0 012 2M3 7h16m-3 4h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-transfer" viewBox="0 0 24 24"><path d="M8 7h12l-4-4M16 17H4l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-loan" viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 00-5-5.917V4a1 1 0 10-2 0v1.083A6 6 0 006 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M22 7l-10 7L2 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="icon-eye-off" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<!-- Top Navigation Bar -->
+<nav class="portal-nav">
+    <div class="portal-nav-inner">
+        <div class="portal-nav-left">
+            <button class="portal-mobile-toggle" id="mobileMenuToggle" aria-label="Toggle menu">
+                <svg class="icon icon-md"><use href="#icon-menu"/></svg>
+            </button>
+            <a href="dashboard.html" class="portal-logo">
+                <svg class="icon icon-lg"><use href="#icon-logo"/></svg>
+                <span class="portal-logo-text">SyncCU</span>
+            </a>
+            <div class="portal-nav-links" id="navLinks">
+                <a href="dashboard.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-home"/></svg> Dashboard
+                </a>
+                <a href="accounts.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-wallet"/></svg> Accounts
+                </a>
+                <a href="transfer.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-transfer"/></svg> Transfer
+                </a>
+                <a href="loans.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-loan"/></svg> Loans
+                </a>
+            </div>
+        </div>
+        <div class="portal-nav-right">
+            <button class="portal-nav-icon-btn theme-toggle" aria-label="Toggle theme">
+                <svg class="icon icon-sm theme-icon-light"><use href="#icon-moon"/></svg>
+                <svg class="icon icon-sm theme-icon-dark"><use href="#icon-sun"/></svg>
+            </button>
+            <button class="portal-nav-icon-btn portal-notification-btn" aria-label="Notifications">
+                <svg class="icon icon-sm"><use href="#icon-bell"/></svg>
+            </button>
+            <div class="portal-user-menu" id="userMenu">
+                <button class="portal-user-trigger" id="userMenuTrigger">
+                    <span class="portal-avatar" id="userAvatar">--</span>
+                    <span class="portal-user-name" id="userName">Member</span>
+                    <svg class="icon icon-xs"><use href="#icon-chevron-down"/></svg>
+                </button>
+                <div class="portal-user-dropdown" id="userDropdown">
+                    <a href="profile.html" class="portal-dropdown-item">
+                        <svg class="icon icon-sm"><use href="#icon-user"/></svg> Profile
+                    </a>
+                    <a href="profile.html#security" class="portal-dropdown-item">
+                        <svg class="icon icon-sm"><use href="#icon-settings"/></svg> Settings
+                    </a>
+                    <hr class="portal-dropdown-divider">
+                    <button class="portal-dropdown-item portal-dropdown-logout" id="logoutBtn">
+                        <svg class="icon icon-sm"><use href="#icon-logout"/></svg> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<main class="portal-main">
+    <div class="portal-container portal-container--narrow">
+
+        <!-- Profile Header -->
+        <div class="portal-profile-header">
+            <div class="portal-profile-avatar-lg" id="profileAvatar">--</div>
+            <div class="portal-profile-info">
+                <h1 class="portal-profile-name" id="profileName">Member</h1>
+                <p class="portal-profile-email" id="profileEmail">--</p>
+                <p class="portal-profile-since" id="profileSince">Member since --</p>
+            </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="portal-tabs">
+            <button class="portal-tab portal-tab--active" data-tab="personal">
+                <svg class="icon icon-sm"><use href="#icon-user"/></svg> Personal Info
+            </button>
+            <button class="portal-tab" data-tab="security">
+                <svg class="icon icon-sm"><use href="#icon-shield"/></svg> Security
+            </button>
+            <button class="portal-tab" data-tab="notifications">
+                <svg class="icon icon-sm"><use href="#icon-bell"/></svg> Notifications
+            </button>
+        </div>
+
+        <!-- Personal Info Tab -->
+        <div class="portal-tab-content portal-tab-content--active" id="tab-personal">
+            <div class="portal-card">
+                <div class="portal-card-body">
+                    <form id="personalInfoForm">
+                        <div class="portal-form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="firstName">First Name</label>
+                                <input type="text" class="form-input" id="firstName" name="first_name" required>
+                                <span class="form-error"></span>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="lastName">Last Name</label>
+                                <input type="text" class="form-input" id="lastName" name="last_name" required>
+                                <span class="form-error"></span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="emailField">Email Address</label>
+                            <input type="email" class="form-input form-input--readonly" id="emailField" readonly>
+                            <span class="form-hint">Contact support to change your email address</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="phone">Phone Number</label>
+                            <input type="tel" class="form-input" id="phone" name="phone" placeholder="(555) 123-4567">
+                            <span class="form-error"></span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="address1">Street Address</label>
+                            <input type="text" class="form-input" id="address1" name="address_line_1" placeholder="123 Main St">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="address2">Apt / Suite / Unit</label>
+                            <input type="text" class="form-input" id="address2" name="address_line_2" placeholder="Apt 4B">
+                        </div>
+                        <div class="portal-form-grid portal-form-grid--3">
+                            <div class="form-group">
+                                <label class="form-label" for="city">City</label>
+                                <input type="text" class="form-input" id="city" name="city">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="state">State</label>
+                                <input type="text" class="form-input" id="state" name="state" maxlength="2" placeholder="CA">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="zip">ZIP Code</label>
+                                <input type="text" class="form-input" id="zip" name="zip_code" maxlength="10" placeholder="90210">
+                            </div>
+                        </div>
+                        <div class="portal-form-actions">
+                            <button type="submit" class="btn btn-primary" id="saveProfileBtn">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security Tab -->
+        <div class="portal-tab-content" id="tab-security">
+            <!-- Change Password -->
+            <div class="portal-card">
+                <div class="portal-card-header">
+                    <h3 class="portal-card-title">Change Password</h3>
+                </div>
+                <div class="portal-card-body">
+                    <form id="changePasswordForm">
+                        <div class="form-group">
+                            <label class="form-label" for="currentPassword">Current Password</label>
+                            <div class="portal-password-input">
+                                <input type="password" class="form-input" id="currentPassword" required>
+                                <button type="button" class="portal-password-toggle" data-toggle-password="currentPassword">
+                                    <svg class="icon icon-sm"><use href="#icon-eye"/></svg>
+                                </button>
+                            </div>
+                            <span class="form-error"></span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="new-password">New Password</label>
+                            <div class="portal-password-input">
+                                <input type="password" class="form-input" id="new-password" required minlength="8" data-validate="password">
+                                <button type="button" class="portal-password-toggle" data-toggle-password="new-password">
+                                    <svg class="icon icon-sm"><use href="#icon-eye"/></svg>
+                                </button>
+                            </div>
+                            <div id="password-strength" class="portal-password-strength"></div>
+                            <span class="form-error"></span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="confirmPassword">Confirm New Password</label>
+                            <div class="portal-password-input">
+                                <input type="password" class="form-input" id="confirmPassword" required data-match="new-password">
+                                <button type="button" class="portal-password-toggle" data-toggle-password="confirmPassword">
+                                    <svg class="icon icon-sm"><use href="#icon-eye"/></svg>
+                                </button>
+                            </div>
+                            <span class="form-error"></span>
+                        </div>
+                        <div class="portal-form-actions">
+                            <button type="submit" class="btn btn-primary" id="changePasswordBtn">Update Password</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Two-Factor Authentication -->
+            <div class="portal-card">
+                <div class="portal-card-header">
+                    <h3 class="portal-card-title">Two-Factor Authentication</h3>
+                </div>
+                <div class="portal-card-body">
+                    <div class="portal-2fa-row">
+                        <div class="portal-2fa-info">
+                            <p class="portal-2fa-desc">Add an extra layer of security to your account. When enabled, you will need to enter a verification code in addition to your password when signing in.</p>
+                        </div>
+                        <label class="portal-toggle-switch">
+                            <input type="checkbox" id="twoFactorToggle">
+                            <span class="portal-toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="portal-2fa-setup" id="twoFactorSetup" style="display:none">
+                        <div class="portal-2fa-steps">
+                            <p><strong>1.</strong> Download an authenticator app (Google Authenticator, Authy, etc.)</p>
+                            <p><strong>2.</strong> Scan the QR code or enter the setup key manually</p>
+                            <p><strong>3.</strong> Enter the 6-digit verification code from the app</p>
+                        </div>
+                        <div class="portal-2fa-qr" id="twoFactorQR">
+                            <div class="portal-2fa-qr-placeholder">QR code will appear here</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="twoFactorCode">Verification Code</label>
+                            <input type="text" class="form-input form-input--center" id="twoFactorCode" maxlength="6" placeholder="000000" pattern="[0-9]{6}">
+                        </div>
+                        <button class="btn btn-primary btn-sm" id="verify2FABtn">Verify & Enable</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Login Activity -->
+            <div class="portal-card">
+                <div class="portal-card-header">
+                    <h3 class="portal-card-title">Recent Login Activity</h3>
+                </div>
+                <div class="portal-card-body">
+                    <div class="portal-table-responsive">
+                        <table class="portal-table" id="loginActivityTable">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>IP Address</th>
+                                    <th>Device / Browser</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loginActivityBody">
+                                <tr><td colspan="4" class="portal-empty-state">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notifications Tab -->
+        <div class="portal-tab-content" id="tab-notifications">
+            <div class="portal-card">
+                <div class="portal-card-header">
+                    <h3 class="portal-card-title">Email Notifications</h3>
+                </div>
+                <div class="portal-card-body">
+                    <div class="portal-notification-settings">
+                        <div class="portal-notification-setting">
+                            <div class="portal-notification-setting-info">
+                                <h4>Transaction Alerts</h4>
+                                <p>Get notified for each deposit, withdrawal, and transfer</p>
+                            </div>
+                            <label class="portal-toggle-switch">
+                                <input type="checkbox" name="notify_transactions" checked>
+                                <span class="portal-toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="portal-notification-setting">
+                            <div class="portal-notification-setting-info">
+                                <h4>Login Alerts</h4>
+                                <p>Receive an email when your account is accessed from a new device</p>
+                            </div>
+                            <label class="portal-toggle-switch">
+                                <input type="checkbox" name="notify_logins" checked>
+                                <span class="portal-toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="portal-notification-setting">
+                            <div class="portal-notification-setting-info">
+                                <h4>Loan Updates</h4>
+                                <p>Payment reminders, rate changes, and loan status updates</p>
+                            </div>
+                            <label class="portal-toggle-switch">
+                                <input type="checkbox" name="notify_loans" checked>
+                                <span class="portal-toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="portal-notification-setting">
+                            <div class="portal-notification-setting-info">
+                                <h4>Marketing & Offers</h4>
+                                <p>Promotions, new products, and exclusive member offers</p>
+                            </div>
+                            <label class="portal-toggle-switch">
+                                <input type="checkbox" name="notify_marketing">
+                                <span class="portal-toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="portal-form-actions">
+                        <button class="btn btn-primary" id="saveNotificationsBtn">Save Preferences</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</main>
+
+<script src="../js/app.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+(function() {
+    // Auth check
+    api.loadTokens();
+    if (!auth.requireAuth(['member'])) return;
+
+    // Navigation helpers
+    const mobileToggle = document.getElementById('mobileMenuToggle');
+    const navLinks = document.getElementById('navLinks');
+    mobileToggle.addEventListener('click', () => navLinks.classList.toggle('open'));
+
+    const userMenuTrigger = document.getElementById('userMenuTrigger');
+    const userDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        userDropdown.classList.toggle('open');
+    });
+    document.addEventListener('click', () => userDropdown.classList.remove('open'));
+    document.getElementById('logoutBtn').addEventListener('click', () => auth.logout());
+
+    // Tab navigation
+    const tabs = document.querySelectorAll('.portal-tab');
+    const tabContents = document.querySelectorAll('.portal-tab-content');
+
+    function switchTab(tabName) {
+        tabs.forEach(t => t.classList.toggle('portal-tab--active', t.dataset.tab === tabName));
+        tabContents.forEach(c => c.classList.toggle('portal-tab-content--active', c.id === `tab-${tabName}`));
+    }
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
+
+    // Handle URL hash for tab switching
+    if (window.location.hash) {
+        const hash = window.location.hash.substring(1);
+        if (['personal', 'security', 'notifications'].includes(hash)) {
+            switchTab(hash);
+        }
+    }
+
+    // Load user profile
+    async function loadProfile() {
+        try {
+            const user = await auth.getCurrentUser();
+            if (!user) return;
+
+            document.getElementById('userName').textContent = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Member';
+            document.getElementById('userAvatar').textContent = Format.initials(user.first_name, user.last_name);
+            document.getElementById('profileAvatar').textContent = Format.initials(user.first_name, user.last_name);
+            document.getElementById('profileName').textContent = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+            document.getElementById('profileEmail').textContent = user.email || '';
+            document.getElementById('profileSince').textContent = user.created_at ? `Member since ${Format.date(user.created_at)}` : '';
+
+            // Fill form fields
+            document.getElementById('firstName').value = user.first_name || '';
+            document.getElementById('lastName').value = user.last_name || '';
+            document.getElementById('emailField').value = user.email || '';
+            document.getElementById('phone').value = user.phone || '';
+            document.getElementById('address1').value = user.address_line_1 || user.address || '';
+            document.getElementById('address2').value = user.address_line_2 || '';
+            document.getElementById('city').value = user.city || '';
+            document.getElementById('state').value = user.state || '';
+            document.getElementById('zip').value = user.zip_code || user.zip || '';
+
+            // 2FA status
+            if (user.two_factor_enabled) {
+                document.getElementById('twoFactorToggle').checked = true;
+            }
+
+            // Notification preferences
+            if (user.notification_preferences) {
+                const prefs = user.notification_preferences;
+                const checkboxes = document.querySelectorAll('[name^="notify_"]');
+                checkboxes.forEach(cb => {
+                    const key = cb.name.replace('notify_', '');
+                    if (prefs[key] !== undefined) cb.checked = prefs[key];
+                });
+            }
+        } catch (err) {
+            toast.error('Failed to load profile');
+        }
+    }
+    loadProfile();
+
+    // Save personal info
+    document.getElementById('personalInfoForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        if (!FormValidator.validate(form)) return;
+
+        const btn = document.getElementById('saveProfileBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner spinner-sm"></span> Saving...';
+
+        try {
+            const data = FormValidator.getFormData(form);
+            await api.put('/auth/me', data);
+            auth.user = null; // Clear cache to reload
+            toast.success('Profile updated successfully');
+
+            // Update header
+            const firstName = data.first_name || '';
+            const lastName = data.last_name || '';
+            document.getElementById('userName').textContent = `${firstName} ${lastName}`.trim() || 'Member';
+            document.getElementById('userAvatar').textContent = Format.initials(firstName, lastName);
+            document.getElementById('profileAvatar').textContent = Format.initials(firstName, lastName);
+            document.getElementById('profileName').textContent = `${firstName} ${lastName}`.trim();
+        } catch (err) {
+            toast.error(err.message || 'Failed to update profile');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save Changes';
+        }
+    });
+
+    // Password strength meter
+    PasswordStrength.attachTo('new-password', 'password-strength');
+
+    // Password visibility toggles
+    document.querySelectorAll('[data-toggle-password]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById(btn.dataset.togglePassword);
+            if (input) {
+                const isPassword = input.type === 'password';
+                input.type = isPassword ? 'text' : 'password';
+                btn.innerHTML = `<svg class="icon icon-sm"><use href="${isPassword ? '#icon-eye-off' : '#icon-eye'}"/></svg>`;
+            }
+        });
+    });
+
+    // Change password
+    document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        if (!FormValidator.validate(form)) return;
+
+        const currentPw = document.getElementById('currentPassword').value;
+        const newPw = document.getElementById('new-password').value;
+        const confirmPw = document.getElementById('confirmPassword').value;
+
+        if (newPw !== confirmPw) {
+            toast.error('Passwords do not match');
+            return;
+        }
+
+        const btn = document.getElementById('changePasswordBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner spinner-sm"></span> Updating...';
+
+        try {
+            await auth.changePassword(currentPw, newPw);
+            toast.success('Password changed successfully');
+            form.reset();
+            document.getElementById('password-strength').innerHTML = '';
+        } catch (err) {
+            toast.error(err.message || 'Failed to change password');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Update Password';
+        }
+    });
+
+    // Two-Factor Authentication toggle
+    document.getElementById('twoFactorToggle').addEventListener('change', async function() {
+        const setup = document.getElementById('twoFactorSetup');
+        if (this.checked) {
+            setup.style.display = '';
+            try {
+                const response = await api.post('/auth/2fa/setup');
+                if (response.qr_code_url) {
+                    document.getElementById('twoFactorQR').innerHTML = `<img src="${response.qr_code_url}" alt="2FA QR Code" class="portal-2fa-qr-img">`;
+                }
+                if (response.secret) {
+                    document.getElementById('twoFactorQR').insertAdjacentHTML('afterend',
+                        `<p class="portal-2fa-secret">Manual key: <code>${response.secret}</code></p>`);
+                }
+            } catch (err) {
+                toast.error('Failed to initialize 2FA setup');
+                this.checked = false;
+                setup.style.display = 'none';
+            }
+        } else {
+            // Disable 2FA
+            try {
+                await api.post('/auth/2fa/disable');
+                toast.success('Two-factor authentication disabled');
+                setup.style.display = 'none';
+            } catch (err) {
+                toast.error('Failed to disable 2FA');
+                this.checked = true;
+            }
+        }
+    });
+
+    // Verify 2FA code
+    document.getElementById('verify2FABtn').addEventListener('click', async () => {
+        const code = document.getElementById('twoFactorCode').value.trim();
+        if (!code || code.length !== 6) {
+            toast.error('Please enter a 6-digit verification code');
+            return;
+        }
+
+        try {
+            await api.post('/auth/2fa/verify', { code });
+            toast.success('Two-factor authentication enabled!');
+            document.getElementById('twoFactorSetup').style.display = 'none';
+        } catch (err) {
+            toast.error('Invalid verification code. Please try again.');
+        }
+    });
+
+    // Load login activity
+    async function loadLoginActivity() {
+        const tbody = document.getElementById('loginActivityBody');
+        try {
+            const response = await api.get('/auth/login-activity');
+            const activity = response.activity || response.data || response || [];
+
+            if (!Array.isArray(activity) || activity.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="portal-empty-state">No recent activity</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = activity.map(entry => {
+                const statusClass = entry.status === 'success' ? 'success' : 'danger';
+                return `<tr>
+                    <td>${Format.dateTime(entry.created_at || entry.date)}</td>
+                    <td><code>${entry.ip_address || 'Unknown'}</code></td>
+                    <td>${entry.device || entry.user_agent || 'Unknown'}</td>
+                    <td><span class="portal-status-badge portal-status-badge--${statusClass}">${entry.status || 'Unknown'}</span></td>
+                </tr>`;
+            }).join('');
+        } catch (err) {
+            tbody.innerHTML = '<tr><td colspan="4" class="portal-empty-state">Unable to load activity</td></tr>';
+        }
+    }
+    loadLoginActivity();
+
+    // Save notification preferences
+    document.getElementById('saveNotificationsBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('saveNotificationsBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner spinner-sm"></span> Saving...';
+
+        const prefs = {};
+        document.querySelectorAll('[name^="notify_"]').forEach(cb => {
+            prefs[cb.name.replace('notify_', '')] = cb.checked;
+        });
+
+        try {
+            await api.put('/auth/me/notifications', { notification_preferences: prefs });
+            toast.success('Notification preferences saved');
+        } catch (err) {
+            toast.error('Failed to save preferences');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save Preferences';
+        }
+    });
+})();
+</script>
+</body>
+</html>

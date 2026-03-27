@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SyncCU Admin - Platform settings, branding, security configuration, and API key management.">
+  <title>Settings - SyncCU Admin</title>
+  <link rel="stylesheet" href="../css/app.css">
+  <script>
+    if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }
+  </script>
+</head>
+<body>
+  <!-- SVG Sprite -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+    <symbol id="icon-credit-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+    <symbol id="icon-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+    <symbol id="icon-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+    <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+    <symbol id="icon-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></symbol>
+  </svg>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><h2>SyncCU</h2></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item"><svg class="nav-icon"><use href="#icon-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="members.html" class="nav-item"><svg class="nav-icon"><use href="#icon-users"/></svg><span>Members</span></a>
+      <a href="accounts.html" class="nav-item"><svg class="nav-icon"><use href="#icon-wallet"/></svg><span>Accounts</span></a>
+      <a href="transactions.html" class="nav-item"><svg class="nav-icon"><use href="#icon-send"/></svg><span>Transactions</span></a>
+      <a href="loans.html" class="nav-item"><svg class="nav-icon"><use href="#icon-credit-card"/></svg><span>Loans</span></a>
+      <a href="reports.html" class="nav-item"><svg class="nav-icon"><use href="#icon-chart"/></svg><span>Reports</span></a>
+      <a href="settings.html" class="nav-item active"><svg class="nav-icon"><use href="#icon-settings"/></svg><span>Settings</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" class="nav-item" id="logoutBtn"><svg class="nav-icon"><use href="#icon-logout"/></svg><span>Logout</span></a>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu"><svg><use href="#icon-menu"/></svg></button>
+        <div class="search-box">
+          <svg class="search-icon"><use href="#icon-search"/></svg>
+          <input type="text" placeholder="Search..." aria-label="Search">
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <svg class="icon-sun"><use href="#icon-sun"/></svg>
+          <svg class="icon-moon" style="display:none"><use href="#icon-moon"/></svg>
+        </button>
+        <button class="topbar-btn notification-btn" aria-label="Notifications">
+          <svg><use href="#icon-bell"/></svg><span class="badge">3</span>
+        </button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-avatar-btn" id="userAvatarBtn">
+            <div class="avatar">AD</div>
+            <svg class="chevron"><use href="#icon-chevron-down"/></svg>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><strong>Admin User</strong><span>admin@synccu.com</span></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><svg><use href="#icon-settings"/></svg> Settings</a>
+            <a href="#" class="dropdown-item" id="logoutBtn2"><svg><use href="#icon-logout"/></svg> Logout</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Settings</h1>
+          <p class="page-subtitle">Configure your credit union platform settings.</p>
+        </div>
+      </div>
+
+      <!-- Tab Navigation -->
+      <div class="tabs">
+        <button class="tab active" data-tab="general">
+          <svg style="width:16px;height:16px"><use href="#icon-home"/></svg> General
+        </button>
+        <button class="tab" data-tab="branding">
+          <svg style="width:16px;height:16px"><use href="#icon-upload"/></svg> Branding
+        </button>
+        <button class="tab" data-tab="security">
+          <svg style="width:16px;height:16px"><use href="#icon-shield"/></svg> Security
+        </button>
+        <button class="tab" data-tab="api-keys">
+          <svg style="width:16px;height:16px"><use href="#icon-key"/></svg> API Keys
+        </button>
+      </div>
+
+      <!-- General Tab -->
+      <div class="tab-content active" id="tab-general">
+        <div class="card">
+          <div class="card-header"><h3>General Settings</h3></div>
+          <form id="generalForm" class="settings-form">
+            <div class="form-group">
+              <label for="cuName">Credit Union Name</label>
+              <input type="text" id="cuName" class="form-input" value="SyncCU Federal Credit Union">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="timezone">Timezone</label>
+                <select id="timezone" class="form-select">
+                  <option value="America/New_York">Eastern Time (ET)</option>
+                  <option value="America/Chicago">Central Time (CT)</option>
+                  <option value="America/Denver">Mountain Time (MT)</option>
+                  <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                  <option value="UTC">UTC</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="currency">Currency</label>
+                <select id="currency" class="form-select">
+                  <option value="USD" selected>USD - US Dollar</option>
+                  <option value="EUR">EUR - Euro</option>
+                  <option value="GBP">GBP - British Pound</option>
+                  <option value="CAD">CAD - Canadian Dollar</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="savingsRate">Default Savings Rate (%)</label>
+                <input type="number" id="savingsRate" class="form-input" value="1.50" min="0" step="0.01">
+              </div>
+              <div class="form-group">
+                <label for="checkingRate">Default Checking Rate (%)</label>
+                <input type="number" id="checkingRate" class="form-input" value="0.10" min="0" step="0.01">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="loanBaseRate">Base Loan Rate (%)</label>
+                <input type="number" id="loanBaseRate" class="form-input" value="5.00" min="0" step="0.01">
+              </div>
+              <div class="form-group">
+                <label for="cdRate">Default CD Rate (%)</label>
+                <input type="number" id="cdRate" class="form-input" value="4.25" min="0" step="0.01">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Branding Tab -->
+      <div class="tab-content" id="tab-branding">
+        <div class="card">
+          <div class="card-header"><h3>Branding</h3></div>
+          <form id="brandingForm" class="settings-form">
+            <div class="form-group">
+              <label>Logo</label>
+              <div class="upload-area" id="logoUpload">
+                <svg style="width:2rem;height:2rem;color:var(--color-text-muted)"><use href="#icon-upload"/></svg>
+                <p>Drag and drop your logo here, or <span class="upload-link">browse files</span></p>
+                <span class="text-muted" style="font-size:0.75rem">PNG, SVG, or JPG. Max 2MB. Recommended: 200x60px</span>
+                <input type="file" id="logoFile" accept="image/*" style="display:none">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="primaryColor">Primary Color</label>
+                <div class="color-picker-group">
+                  <input type="color" id="primaryColor" value="#2563eb" class="color-input">
+                  <input type="text" id="primaryColorHex" class="form-input" value="#2563eb" pattern="^#[0-9A-Fa-f]{6}$">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="secondaryColor">Secondary Color</label>
+                <div class="color-picker-group">
+                  <input type="color" id="secondaryColor" value="#1e40af" class="color-input">
+                  <input type="text" id="secondaryColorHex" class="form-input" value="#1e40af" pattern="^#[0-9A-Fa-f]{6}$">
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Preview</label>
+              <div class="brand-preview" id="brandPreview">
+                <div class="brand-preview-header" id="previewHeader">
+                  <span class="brand-preview-logo">SyncCU</span>
+                  <span class="brand-preview-text">Federal Credit Union</span>
+                </div>
+                <div class="brand-preview-btn" id="previewBtn">Sample Button</div>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save Branding</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Security Tab -->
+      <div class="tab-content" id="tab-security">
+        <div class="card">
+          <div class="card-header"><h3>Security Settings</h3></div>
+          <form id="securityForm" class="settings-form">
+            <h4 class="settings-section-title">Password Policy</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="minPasswordLength">Minimum Password Length</label>
+                <input type="number" id="minPasswordLength" class="form-input" value="12" min="8" max="128">
+              </div>
+              <div class="form-group">
+                <label for="passwordExpiry">Password Expiry (days)</label>
+                <input type="number" id="passwordExpiry" class="form-input" value="90" min="0">
+                <span class="form-hint">Set to 0 to disable expiry</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="toggle-row">
+                <div>
+                  <label>Require Uppercase Letters</label>
+                  <span class="form-hint">Passwords must contain at least one uppercase letter</span>
+                </div>
+                <label class="toggle"><input type="checkbox" id="requireUppercase" checked><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="toggle-row">
+                <div>
+                  <label>Require Special Characters</label>
+                  <span class="form-hint">Passwords must contain at least one special character</span>
+                </div>
+                <label class="toggle"><input type="checkbox" id="requireSpecial" checked><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+
+            <h4 class="settings-section-title" style="margin-top:2rem">Two-Factor Authentication</h4>
+            <div class="form-group">
+              <div class="toggle-row">
+                <div>
+                  <label>Enforce 2FA for All Users</label>
+                  <span class="form-hint">Require two-factor authentication for all admin and teller accounts</span>
+                </div>
+                <label class="toggle"><input type="checkbox" id="enforce2fa" checked><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+
+            <h4 class="settings-section-title" style="margin-top:2rem">Session &amp; Rate Limiting</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="sessionTimeout">Session Timeout (minutes)</label>
+                <input type="number" id="sessionTimeout" class="form-input" value="30" min="5" max="1440">
+              </div>
+              <div class="form-group">
+                <label for="rateLimit">API Rate Limit (req/min)</label>
+                <input type="number" id="rateLimit" class="form-input" value="100" min="10" max="10000">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="maxLoginAttempts">Max Login Attempts</label>
+                <input type="number" id="maxLoginAttempts" class="form-input" value="5" min="3" max="20">
+              </div>
+              <div class="form-group">
+                <label for="lockoutDuration">Lockout Duration (minutes)</label>
+                <input type="number" id="lockoutDuration" class="form-input" value="15" min="1" max="1440">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save Security Settings</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- API Keys Tab -->
+      <div class="tab-content" id="tab-api-keys">
+        <div class="card">
+          <div class="card-header">
+            <h3>API Keys</h3>
+            <button class="btn btn-primary btn-sm" id="generateKeyBtn">
+              <svg><use href="#icon-plus"/></svg> Generate New Key
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Key</th>
+                  <th>Created</th>
+                  <th>Last Used</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="apiKeysTable">
+                <tr>
+                  <td><strong>Production API</strong></td>
+                  <td class="font-mono">sk_live_****...a3f8</td>
+                  <td>Jan 15, 2026</td>
+                  <td>Mar 27, 2026</td>
+                  <td><span class="badge badge-success">Active</span></td>
+                  <td>
+                    <div class="action-btns">
+                      <button class="icon-btn" title="View Key"><svg><use href="#icon-eye"/></svg></button>
+                      <button class="icon-btn icon-btn-danger" title="Revoke"><svg><use href="#icon-trash"/></svg></button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Testing API</strong></td>
+                  <td class="font-mono">sk_test_****...b7d2</td>
+                  <td>Feb 3, 2026</td>
+                  <td>Mar 26, 2026</td>
+                  <td><span class="badge badge-success">Active</span></td>
+                  <td>
+                    <div class="action-btns">
+                      <button class="icon-btn" title="View Key"><svg><use href="#icon-eye"/></svg></button>
+                      <button class="icon-btn icon-btn-danger" title="Revoke"><svg><use href="#icon-trash"/></svg></button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Mobile App</strong></td>
+                  <td class="font-mono">sk_live_****...c9e1</td>
+                  <td>Mar 1, 2026</td>
+                  <td>Mar 27, 2026</td>
+                  <td><span class="badge badge-success">Active</span></td>
+                  <td>
+                    <div class="action-btns">
+                      <button class="icon-btn" title="View Key"><svg><use href="#icon-eye"/></svg></button>
+                      <button class="icon-btn icon-btn-danger" title="Revoke"><svg><use href="#icon-trash"/></svg></button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Legacy Integration</strong></td>
+                  <td class="font-mono">sk_live_****...d4a0</td>
+                  <td>Nov 20, 2025</td>
+                  <td>Dec 15, 2025</td>
+                  <td><span class="badge badge-muted">Revoked</span></td>
+                  <td>
+                    <div class="action-btns">
+                      <button class="icon-btn" title="View Key"><svg><use href="#icon-eye"/></svg></button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- New Key Detail (hidden by default) -->
+          <div class="api-key-reveal" id="apiKeyReveal" style="display:none">
+            <div class="alert alert-warning">
+              <strong>Your new API key has been generated.</strong> Copy it now. You will not be able to see it again.
+            </div>
+            <div class="api-key-display">
+              <code id="newKeyValue">syncu_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code>
+              <button class="btn btn-secondary btn-sm" id="copyKeyBtn">Copy</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    // Tab navigation
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Branding color pickers sync
+    document.getElementById('primaryColor').addEventListener('input', (e) => {
+      document.getElementById('primaryColorHex').value = e.target.value;
+      document.getElementById('previewHeader').style.background = e.target.value;
+      document.getElementById('previewBtn').style.background = e.target.value;
+    });
+    document.getElementById('primaryColorHex').addEventListener('input', (e) => {
+      if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
+        document.getElementById('primaryColor').value = e.target.value;
+        document.getElementById('previewHeader').style.background = e.target.value;
+        document.getElementById('previewBtn').style.background = e.target.value;
+      }
+    });
+    document.getElementById('secondaryColor').addEventListener('input', (e) => {
+      document.getElementById('secondaryColorHex').value = e.target.value;
+    });
+    document.getElementById('secondaryColorHex').addEventListener('input', (e) => {
+      if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
+        document.getElementById('secondaryColor').value = e.target.value;
+      }
+    });
+
+    // Logo upload
+    const logoUpload = document.getElementById('logoUpload');
+    const logoFile = document.getElementById('logoFile');
+    logoUpload.addEventListener('click', () => logoFile.click());
+    logoUpload.addEventListener('dragover', (e) => { e.preventDefault(); logoUpload.classList.add('dragover'); });
+    logoUpload.addEventListener('dragleave', () => logoUpload.classList.remove('dragover'));
+    logoUpload.addEventListener('drop', (e) => { e.preventDefault(); logoUpload.classList.remove('dragover'); handleLogoFile(e.dataTransfer.files[0]); });
+    logoFile.addEventListener('change', () => { if (logoFile.files[0]) handleLogoFile(logoFile.files[0]); });
+    function handleLogoFile(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      logoUpload.querySelector('p').textContent = file.name;
+    }
+
+    // Generate API Key
+    document.getElementById('generateKeyBtn').addEventListener('click', async () => {
+      try {
+        const resp = await fetch('/api/v1/api-keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
+          body: JSON.stringify({ name: 'New API Key' })
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        document.getElementById('newKeyValue').textContent = data.key;
+        document.getElementById('apiKeyReveal').style.display = '';
+      } catch (e) {
+        // Demo: show a dummy key
+        document.getElementById('newKeyValue').textContent = 'sk_live_' + Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
+        document.getElementById('apiKeyReveal').style.display = '';
+      }
+    });
+
+    document.getElementById('copyKeyBtn').addEventListener('click', () => {
+      navigator.clipboard.writeText(document.getElementById('newKeyValue').textContent);
+      document.getElementById('copyKeyBtn').textContent = 'Copied!';
+      setTimeout(() => { document.getElementById('copyKeyBtn').textContent = 'Copy'; }, 2000);
+    });
+
+    // Form submissions
+    ['generalForm', 'brandingForm', 'securityForm'].forEach(formId => {
+      document.getElementById(formId).addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          await fetch('/api/v1/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
+            body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
+          });
+        } catch (err) { /* handle error */ }
+      });
+    });
+  </script>
+</body>
+</html>

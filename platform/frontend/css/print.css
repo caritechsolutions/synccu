@@ -1,0 +1,360 @@
+/**
+ * SyncCU Platform - Print Stylesheet
+ * Core Banking Platform
+ *
+ * Optimized for clean black-on-white printed output of
+ * reports, statements, and transaction histories.
+ */
+
+/* ──────────────────────────────────────────────
+   Base Print Reset
+   ────────────────────────────────────────────── */
+
+@media print {
+
+    *,
+    *::before,
+    *::after {
+        background: transparent !important;
+        color: #000 !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    body {
+        font-family: "Times New Roman", Times, Georgia, serif;
+        font-size: 12pt;
+        line-height: 1.5;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+    }
+
+    /* ──────────────────────────────────────────────
+       Hide Non-Print Elements
+       ────────────────────────────────────────────── */
+
+    .sidebar,
+    .side-nav,
+    .navigation,
+    .nav,
+    .navbar,
+    .header-nav,
+    .top-bar,
+    .menu,
+    .breadcrumb {
+        display: none !important;
+    }
+
+    button,
+    .btn,
+    .button,
+    .btn-group,
+    .actions,
+    .toolbar,
+    .action-bar,
+    .fab,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"] {
+        display: none !important;
+    }
+
+    .modal,
+    .modal-backdrop,
+    .dialog,
+    .popup,
+    .overlay,
+    .toast,
+    .notification,
+    .alert-dismissible,
+    .tooltip,
+    .dropdown-menu {
+        display: none !important;
+    }
+
+    .search,
+    .search-bar,
+    .filter,
+    .filter-bar,
+    .pagination,
+    .pager,
+    .scroll-to-top {
+        display: none !important;
+    }
+
+    .no-print,
+    [data-print="hide"],
+    .print-hide {
+        display: none !important;
+    }
+
+    footer,
+    .footer,
+    .chat-widget,
+    .help-button {
+        display: none !important;
+    }
+
+    /* ──────────────────────────────────────────────
+       Show Print-Only Elements
+       ────────────────────────────────────────────── */
+
+    .print-only,
+    [data-print="show"],
+    .print-show {
+        display: block !important;
+    }
+
+    /* ──────────────────────────────────────────────
+       Layout
+       ────────────────────────────────────────────── */
+
+    .main-content,
+    .content,
+    .page-content {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        float: none !important;
+    }
+
+    .container,
+    .container-fluid,
+    .wrapper {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .row {
+        display: block !important;
+    }
+
+    .col,
+    [class*="col-"] {
+        width: 100% !important;
+        float: none !important;
+        padding: 0 !important;
+    }
+
+    /* ──────────────────────────────────────────────
+       Tables - Print with Borders
+       ────────────────────────────────────────────── */
+
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 10pt;
+        page-break-inside: auto;
+    }
+
+    thead {
+        display: table-header-group;
+    }
+
+    tfoot {
+        display: table-footer-group;
+    }
+
+    tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+
+    th,
+    td {
+        border: 1px solid #333 !important;
+        padding: 6px 8px !important;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    th {
+        font-weight: bold;
+        border-bottom-width: 2px !important;
+    }
+
+    /* Zebra striping for readability */
+    tbody tr:nth-child(even) {
+        background-color: #f5f5f5 !important;
+    }
+
+    /* Numeric columns right-aligned */
+    td.amount,
+    td.balance,
+    td.number,
+    td[data-type="currency"],
+    td[data-type="number"] {
+        text-align: right;
+        font-family: "Courier New", Courier, monospace;
+    }
+
+    /* ──────────────────────────────────────────────
+       Typography
+       ────────────────────────────────────────────── */
+
+    h1 {
+        font-size: 18pt;
+        margin-bottom: 10pt;
+    }
+
+    h2 {
+        font-size: 16pt;
+        margin-bottom: 8pt;
+    }
+
+    h3 {
+        font-size: 14pt;
+        margin-bottom: 6pt;
+    }
+
+    h4, h5, h6 {
+        font-size: 12pt;
+        margin-bottom: 4pt;
+    }
+
+    p {
+        orphans: 3;
+        widows: 3;
+    }
+
+    /* ──────────────────────────────────────────────
+       Links
+       ────────────────────────────────────────────── */
+
+    a,
+    a:visited {
+        text-decoration: underline;
+        color: #000 !important;
+    }
+
+    a[href]::after {
+        content: " (" attr(href) ")";
+        font-size: 9pt;
+        color: #555 !important;
+    }
+
+    /* Don't show URL for internal/JS links */
+    a[href^="#"]::after,
+    a[href^="javascript:"]::after,
+    a[href^="mailto:"]::after,
+    .no-print-url a::after {
+        content: "";
+    }
+
+    /* ──────────────────────────────────────────────
+       Page Break Rules
+       ────────────────────────────────────────────── */
+
+    .page-break,
+    .page-break-before {
+        page-break-before: always;
+    }
+
+    .page-break-after {
+        page-break-after: always;
+    }
+
+    .no-page-break,
+    .keep-together {
+        page-break-inside: avoid;
+    }
+
+    /* Avoid breaks after headings */
+    h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* Avoid breaking cards and panels */
+    .card,
+    .panel,
+    .report-section,
+    .statement-section {
+        page-break-inside: avoid;
+    }
+
+    /* ──────────────────────────────────────────────
+       Images
+       ────────────────────────────────────────────── */
+
+    img {
+        max-width: 100% !important;
+        page-break-inside: avoid;
+    }
+
+    /* Show logo for printed reports */
+    .print-logo {
+        display: block !important;
+        max-height: 60px;
+        margin-bottom: 10pt;
+    }
+
+    /* ──────────────────────────────────────────────
+       Page Margins
+       ────────────────────────────────────────────── */
+
+    @page {
+        margin: 1.5cm 2cm;
+        size: A4 portrait;
+    }
+
+    @page :first {
+        margin-top: 2cm;
+    }
+
+    /* Landscape for wide reports */
+    .print-landscape {
+        page: landscape;
+    }
+
+    @page landscape {
+        size: A4 landscape;
+    }
+
+    /* ──────────────────────────────────────────────
+       Banking-Specific Print Styles
+       ────────────────────────────────────────────── */
+
+    /* Account statement header */
+    .statement-header {
+        border-bottom: 2px solid #000 !important;
+        padding-bottom: 10pt;
+        margin-bottom: 15pt;
+    }
+
+    /* Transaction summary */
+    .transaction-summary {
+        border: 2px solid #000 !important;
+        padding: 10pt !important;
+        margin: 10pt 0 !important;
+    }
+
+    /* Signature line */
+    .signature-line {
+        border-top: 1px solid #000 !important;
+        margin-top: 40pt;
+        padding-top: 5pt;
+        width: 250px;
+    }
+
+    /* Disclaimer / fine print */
+    .disclaimer,
+    .fine-print {
+        font-size: 8pt;
+        color: #555 !important;
+        border-top: 1px solid #999 !important;
+        padding-top: 5pt;
+        margin-top: 20pt;
+    }
+
+    /* Receipt styles */
+    .receipt {
+        max-width: 80mm;
+        margin: 0 auto;
+    }
+}

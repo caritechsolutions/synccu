@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SyncCU Admin - Monitor and manage transactions, process new transactions, and export reports.">
+  <title>Transactions - SyncCU Admin</title>
+  <link rel="stylesheet" href="../css/app.css">
+  <script>
+    if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }
+  </script>
+</head>
+<body>
+  <!-- SVG Sprite -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+    <symbol id="icon-credit-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+    <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+    <symbol id="icon-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+  </svg>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><h2>SyncCU</h2></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item"><svg class="nav-icon"><use href="#icon-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="members.html" class="nav-item"><svg class="nav-icon"><use href="#icon-users"/></svg><span>Members</span></a>
+      <a href="accounts.html" class="nav-item"><svg class="nav-icon"><use href="#icon-wallet"/></svg><span>Accounts</span></a>
+      <a href="transactions.html" class="nav-item active"><svg class="nav-icon"><use href="#icon-send"/></svg><span>Transactions</span></a>
+      <a href="loans.html" class="nav-item"><svg class="nav-icon"><use href="#icon-credit-card"/></svg><span>Loans</span></a>
+      <a href="reports.html" class="nav-item"><svg class="nav-icon"><use href="#icon-chart"/></svg><span>Reports</span></a>
+      <a href="settings.html" class="nav-item"><svg class="nav-icon"><use href="#icon-settings"/></svg><span>Settings</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" class="nav-item" id="logoutBtn"><svg class="nav-icon"><use href="#icon-logout"/></svg><span>Logout</span></a>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu"><svg><use href="#icon-menu"/></svg></button>
+        <div class="search-box">
+          <svg class="search-icon"><use href="#icon-search"/></svg>
+          <input type="text" placeholder="Search..." aria-label="Search">
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <svg class="icon-sun"><use href="#icon-sun"/></svg>
+          <svg class="icon-moon" style="display:none"><use href="#icon-moon"/></svg>
+        </button>
+        <button class="topbar-btn notification-btn" aria-label="Notifications">
+          <svg><use href="#icon-bell"/></svg><span class="badge">3</span>
+        </button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-avatar-btn" id="userAvatarBtn">
+            <div class="avatar">AD</div>
+            <svg class="chevron"><use href="#icon-chevron-down"/></svg>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><strong>Admin User</strong><span>admin@synccu.com</span></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><svg><use href="#icon-settings"/></svg> Settings</a>
+            <a href="#" class="dropdown-item" id="logoutBtn2"><svg><use href="#icon-logout"/></svg> Logout</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Transactions</h1>
+          <p class="page-subtitle">Monitor and manage all financial transactions.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" id="exportCsvBtn">
+            <svg><use href="#icon-download"/></svg> Export CSV
+          </button>
+          <button class="btn btn-primary" id="newTransactionBtn">
+            <svg><use href="#icon-plus"/></svg> New Transaction
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Row -->
+      <div class="filter-bar">
+        <div class="form-group filter-date">
+          <label for="dateFrom">From</label>
+          <input type="date" id="dateFrom" class="form-input">
+        </div>
+        <div class="form-group filter-date">
+          <label for="dateTo">To</label>
+          <input type="date" id="dateTo" class="form-input">
+        </div>
+        <select id="txnTypeFilter" class="form-select">
+          <option value="all">All Types</option>
+          <option value="deposit">Deposit</option>
+          <option value="withdrawal">Withdrawal</option>
+          <option value="transfer">Transfer</option>
+          <option value="payment">Payment</option>
+        </select>
+        <select id="txnStatusFilter" class="form-select">
+          <option value="all">All Statuses</option>
+          <option value="completed">Completed</option>
+          <option value="pending">Pending</option>
+          <option value="failed">Failed</option>
+        </select>
+        <div class="search-box filter-search">
+          <svg class="search-icon"><use href="#icon-search"/></svg>
+          <input type="text" id="txnSearch" placeholder="Search reference or account..." aria-label="Search transactions">
+        </div>
+      </div>
+
+      <!-- Transactions Table -->
+      <div class="card">
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date/Time</th>
+                <th>Reference #</th>
+                <th>Type</th>
+                <th>From Account</th>
+                <th>To Account</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="transactionsTableBody">
+              <tr>
+                <td>Mar 27, 2026 09:14 AM</td>
+                <td class="font-mono">TXN-20260327-001</td>
+                <td><span class="badge badge-success">Deposit</span></td>
+                <td>External</td>
+                <td>****4821</td>
+                <td class="text-green">+$3,240.00</td>
+                <td><span class="badge badge-success">Completed</span></td>
+                <td><button class="icon-btn" title="View Details" data-txn="1"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>Mar 27, 2026 08:42 AM</td>
+                <td class="font-mono">TXN-20260327-002</td>
+                <td><span class="badge badge-danger">Withdrawal</span></td>
+                <td>****7392</td>
+                <td>External</td>
+                <td class="text-red">-$1,500.00</td>
+                <td><span class="badge badge-success">Completed</span></td>
+                <td><button class="icon-btn" title="View Details" data-txn="2"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>Mar 26, 2026 04:30 PM</td>
+                <td class="font-mono">TXN-20260326-003</td>
+                <td><span class="badge badge-info">Transfer</span></td>
+                <td>****5610</td>
+                <td>****4821</td>
+                <td>$500.00</td>
+                <td><span class="badge badge-success">Completed</span></td>
+                <td><button class="icon-btn" title="View Details" data-txn="3"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>Mar 26, 2026 02:15 PM</td>
+                <td class="font-mono">TXN-20260326-004</td>
+                <td><span class="badge badge-warning">Payment</span></td>
+                <td>****2048</td>
+                <td>Loan #LN-0482</td>
+                <td class="text-red">-$842.50</td>
+                <td><span class="badge badge-warning">Pending</span></td>
+                <td><button class="icon-btn" title="View Details" data-txn="4"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>Mar 26, 2026 10:00 AM</td>
+                <td class="font-mono">TXN-20260326-005</td>
+                <td><span class="badge badge-danger">Withdrawal</span></td>
+                <td>****9173</td>
+                <td>External</td>
+                <td class="text-red">-$200.00</td>
+                <td><span class="badge badge-success">Completed</span></td>
+                <td><button class="icon-btn" title="View Details" data-txn="5"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+              <tr>
+                <td>Mar 25, 2026 03:45 PM</td>
+                <td class="font-mono">TXN-20260325-006</td>
+                <td><span class="badge badge-info">Transfer</span></td>
+                <td>****3847</td>
+                <td>****7392</td>
+                <td>$5,000.00</td>
+                <td><span class="badge badge-danger">Failed</span></td>
+                <td><button class="icon-btn" title="View Details" data-txn="6"><svg><use href="#icon-eye"/></svg></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <span class="pagination-info">Showing 1-6 of 12,483 transactions</span>
+          <div class="pagination-controls">
+            <button class="pagination-btn" disabled><svg><use href="#icon-arrow-left"/></svg></button>
+            <button class="pagination-btn active">1</button>
+            <button class="pagination-btn">2</button>
+            <button class="pagination-btn">3</button>
+            <span class="pagination-ellipsis">...</span>
+            <button class="pagination-btn">2081</button>
+            <button class="pagination-btn"><svg><use href="#icon-arrow-right"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- New Transaction Modal -->
+  <div class="modal-overlay" id="txnModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>New Transaction</h3>
+        <button class="icon-btn modal-close" id="closeTxnModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <form id="txnForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="txnType">Transaction Type</label>
+            <select id="txnType" name="type" class="form-select" required>
+              <option value="">Select type...</option>
+              <option value="deposit">Deposit</option>
+              <option value="withdrawal">Withdrawal</option>
+              <option value="transfer">Transfer</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="txnAccount">Account</label>
+            <input type="text" id="txnAccount" name="account" class="form-input" placeholder="Search account by number or member..." required>
+          </div>
+          <div class="form-group" id="txnDestGroup" style="display:none">
+            <label for="txnDestAccount">Destination Account</label>
+            <input type="text" id="txnDestAccount" name="destination_account" class="form-input" placeholder="Search destination account...">
+          </div>
+          <div class="form-group">
+            <label for="txnAmount">Amount</label>
+            <input type="number" id="txnAmount" name="amount" class="form-input" placeholder="0.00" min="0.01" step="0.01" required>
+          </div>
+          <div class="form-group">
+            <label for="txnDescription">Description</label>
+            <input type="text" id="txnDescription" name="description" class="form-input" placeholder="Transaction description...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelTxnBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Process Transaction</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Transaction Detail Modal -->
+  <div class="modal-overlay" id="txnDetailModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>Transaction Details</h3>
+        <button class="icon-btn modal-close" id="closeTxnDetailModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <dl class="detail-list detail-list-grid">
+          <dt>Reference</dt><dd id="detailRef">-</dd>
+          <dt>Date/Time</dt><dd id="detailDate">-</dd>
+          <dt>Type</dt><dd id="detailType">-</dd>
+          <dt>Status</dt><dd id="detailStatus">-</dd>
+          <dt>From Account</dt><dd id="detailFrom">-</dd>
+          <dt>To Account</dt><dd id="detailTo">-</dd>
+          <dt>Amount</dt><dd id="detailAmount">-</dd>
+          <dt>Description</dt><dd id="detailDesc">-</dd>
+        </dl>
+        <div class="detail-section" style="margin-top:1.5rem">
+          <h4>Ledger Entries</h4>
+          <table class="data-table data-table-sm">
+            <thead>
+              <tr><th>Account</th><th>Debit</th><th>Credit</th><th>Balance After</th></tr>
+            </thead>
+            <tbody id="ledgerEntries">
+              <tr><td>****4821 (Member Savings)</td><td>-</td><td>$3,240.00</td><td>$24,562.80</td></tr>
+              <tr><td>Cash / External</td><td>$3,240.00</td><td>-</td><td>-</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="closeTxnDetailBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/app.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    const txnModal = document.getElementById('txnModal');
+    const txnDetailModal = document.getElementById('txnDetailModal');
+    const newTransactionBtn = document.getElementById('newTransactionBtn');
+    const closeTxnModal = document.getElementById('closeTxnModal');
+    const cancelTxnBtn = document.getElementById('cancelTxnBtn');
+    const closeTxnDetailModal = document.getElementById('closeTxnDetailModal');
+    const closeTxnDetailBtn = document.getElementById('closeTxnDetailBtn');
+    const txnForm = document.getElementById('txnForm');
+    const txnType = document.getElementById('txnType');
+
+    newTransactionBtn.addEventListener('click', () => txnModal.classList.add('active'));
+    closeTxnModal.addEventListener('click', () => txnModal.classList.remove('active'));
+    cancelTxnBtn.addEventListener('click', () => txnModal.classList.remove('active'));
+    txnModal.addEventListener('click', (e) => { if (e.target === txnModal) txnModal.classList.remove('active'); });
+    closeTxnDetailModal.addEventListener('click', () => txnDetailModal.classList.remove('active'));
+    closeTxnDetailBtn.addEventListener('click', () => txnDetailModal.classList.remove('active'));
+    txnDetailModal.addEventListener('click', (e) => { if (e.target === txnDetailModal) txnDetailModal.classList.remove('active'); });
+
+    // Show/hide destination account for transfers
+    txnType.addEventListener('change', () => {
+      document.getElementById('txnDestGroup').style.display = txnType.value === 'transfer' ? '' : 'none';
+    });
+
+    // View detail buttons
+    document.querySelectorAll('[data-txn]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const row = btn.closest('tr');
+        const cells = row.querySelectorAll('td');
+        document.getElementById('detailDate').textContent = cells[0].textContent;
+        document.getElementById('detailRef').textContent = cells[1].textContent;
+        document.getElementById('detailType').textContent = cells[2].textContent.trim();
+        document.getElementById('detailFrom').textContent = cells[3].textContent;
+        document.getElementById('detailTo').textContent = cells[4].textContent;
+        document.getElementById('detailAmount').textContent = cells[5].textContent;
+        document.getElementById('detailStatus').textContent = cells[6].textContent.trim();
+        txnDetailModal.classList.add('active');
+      });
+    });
+
+    txnForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(txnForm);
+      const data = Object.fromEntries(formData);
+      try {
+        await fetch('/api/v1/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
+          body: JSON.stringify(data)
+        });
+        txnModal.classList.remove('active');
+        txnForm.reset();
+        loadTransactions();
+      } catch (e) { /* handle error */ }
+    });
+
+    // Export CSV
+    document.getElementById('exportCsvBtn').addEventListener('click', async () => {
+      try {
+        const resp = await fetch('/api/v1/transactions/export?format=csv', {
+          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+        });
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'transactions.csv'; a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) { /* handle error */ }
+    });
+
+    async function loadTransactions() {
+      try {
+        const params = new URLSearchParams({
+          from: document.getElementById('dateFrom').value,
+          to: document.getElementById('dateTo').value,
+          type: document.getElementById('txnTypeFilter').value,
+          status: document.getElementById('txnStatusFilter').value,
+          search: document.getElementById('txnSearch').value
+        });
+        const resp = await fetch('/api/v1/transactions?' + params, {
+          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        // renderTransactions(data.transactions || []);
+      } catch (e) { /* API not available */ }
+    }
+
+    document.getElementById('txnTypeFilter').addEventListener('change', loadTransactions);
+    document.getElementById('txnStatusFilter').addEventListener('change', loadTransactions);
+    document.getElementById('dateFrom').addEventListener('change', loadTransactions);
+    document.getElementById('dateTo').addEventListener('change', loadTransactions);
+    let searchTimeout;
+    document.getElementById('txnSearch').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadTransactions, 300); });
+
+    if (new URLSearchParams(window.location.search).get('action') === 'new') { txnModal.classList.add('active'); }
+  </script>
+</body>
+</html>
