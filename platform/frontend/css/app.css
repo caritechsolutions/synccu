@@ -1,0 +1,18 @@
+/*
+ * SyncCU Platform - Main Stylesheet
+ * Modern neobank-style core banking UI
+ *
+ * Modular structure:
+ *   variables.css  - CSS custom properties & theming
+ *   base.css       - Reset & typography
+ *   layout.css     - App layout, sidebar, topbar, grid
+ *   components.css - Cards, buttons, forms, tables, modals, etc.
+ *   utilities.css  - Spacing, text, flex, animations
+ *   print.css      - Print-specific styles (linked separately)
+ */
+
+@import url('variables.css');
+@import url('base.css');
+@import url('layout.css');
+@import url('components.css');
+@import url('utilities.css');
