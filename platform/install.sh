@@ -509,7 +509,8 @@ NGINX
 ln -sf /etc/nginx/sites-available/synccu /etc/nginx/sites-enabled/synccu
 rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 
-nginx -t 2>/dev/null && systemctl reload nginx
+nginx -t 2>/dev/null && (systemctl is-active nginx &>/dev/null && systemctl reload nginx || systemctl start nginx)
+systemctl enable nginx 2>/dev/null || true
 success "Nginx configured"
 
 ################################################################################
