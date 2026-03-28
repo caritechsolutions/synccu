@@ -214,20 +214,28 @@ read -rp "MySQL host [localhost]: " DB_HOST
 DB_HOST="${DB_HOST:-localhost}"
 
 # Check if MySQL needs root password setup
-MYSQL_NEEDS_PASS=false
-if mysql -h "$DB_HOST" -u root -e "SELECT 1" &>/dev/null 2>&1; then
-    info "MySQL root access OK (no password / socket auth)"
-    DB_ROOT_PASS=""
+# Try socket auth first (default on Ubuntu), then TCP, then ask for password
+MYSQL_CMD=""
+if mysql -u root -e "SELECT 1" &>/dev/null 2>&1; then
+    info "MySQL root access OK (socket auth, no password needed)"
+    MYSQL_CMD="mysql -u root"
+elif mysql -h "$DB_HOST" -u root -e "SELECT 1" &>/dev/null 2>&1; then
+    info "MySQL root access OK (no password)"
     MYSQL_CMD="mysql -h $DB_HOST -u root"
 else
     read -rsp "MySQL root password: " DB_ROOT_PASS
     echo ""
-    MYSQL_CMD="mysql -h $DB_HOST -u root -p${DB_ROOT_PASS}"
+    if [ -n "$DB_ROOT_PASS" ]; then
+        MYSQL_CMD="mysql -h $DB_HOST -u root -p${DB_ROOT_PASS}"
+    else
+        MYSQL_CMD="mysql -h $DB_HOST -u root"
+    fi
 fi
 
 # Test MySQL connection
 if ! $MYSQL_CMD -e "SELECT 1" &>/dev/null 2>&1; then
     error "Cannot connect to MySQL. Check your root password."
+    error "Try: sudo mysql -u root   (Ubuntu uses socket auth by default)"
     exit 1
 fi
 success "MySQL connection verified"
