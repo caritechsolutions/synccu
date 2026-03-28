@@ -465,6 +465,16 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
+    # PHP files in frontend (auth API etc)
+    location ~ ^/api/.*\.php$ {
+        limit_req zone=api_limit burst=10 nodelay;
+        fastcgi_pass unix:${PHP_SOCK};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME ${FRONTEND_DIR}/\$uri;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_NAME \$uri;
+    }
+
     # PHP API
     location /api/v1/ {
         limit_req zone=api_limit burst=20 nodelay;

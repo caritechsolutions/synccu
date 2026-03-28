@@ -8,7 +8,16 @@ class AuthManager {
     }
 
     async login(email, password, rememberMe = false) {
-        const response = await this.api.post('/auth/login', { email, password });
+        // Use standalone auth endpoint (bypasses baseUrl prefix)
+        const res = await fetch('/api/auth.php?action=login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+        const response = await res.json();
+        if (!res.ok || !response.success) {
+            throw { status: res.status, message: response.message || 'Login failed' };
+        }
 
         this.api.setTokens(response.access_token, response.refresh_token);
         this.user = response.user;
