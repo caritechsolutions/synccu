@@ -3,362 +3,304 @@ set -euo pipefail
 
 ################################################################################
 # SyncCU Platform Updater
-# Core Banking Platform - Update Script
-# Version: 1.0.0
+# One-command: curl -sSL https://raw.githubusercontent.com/caritechsolutions/synccu/main/platform/update.sh | sudo bash
+# Version: 2.0.0
 ################################################################################
 
 UPDATE_LOG="/var/log/synccu-update.log"
+REPO_BRANCH="claude/rebuild-platform-modern-5He4J"
 
+mkdir -p "$(dirname "$UPDATE_LOG")"
 exec > >(tee -a "$UPDATE_LOG") 2>&1
 
-################################################################################
-# Color Output Helpers
-################################################################################
-
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
 success() { echo -e "${GREEN}[✓]${NC} $1"; }
 error()   { echo -e "${RED}[✗]${NC} $1" >&2; }
 warn()    { echo -e "${YELLOW}[!]${NC} $1"; }
 info()    { echo -e "${BLUE}[i]${NC} $1"; }
-step()    { echo -e "${CYAN}[>]${NC} ${BOLD}$1${NC}"; }
+step()    { echo -e "\n${CYAN}[>]${NC} ${BOLD}$1${NC}"; }
 
-################################################################################
-# Banner
-################################################################################
-
-print_banner() {
-    echo -e "${CYAN}"
-    cat << 'BANNER'
+echo -e "${CYAN}"
+cat << 'BANNER'
   ____                    ____ _   _
  / ___| _   _ _ __   ___ / ___| | | |
  \___ \| | | | '_ \ / __| |   | | | |
   ___) | |_| | | | | (__| |___| |_| |
  |____/ \__, |_| |_|\___|\____|\___/
         |___/
-    Platform Updater v1.0.0
+    Platform Updater v2.0.0
 BANNER
-    echo -e "${NC}"
-}
+echo -e "${NC}"
+
+# Root check
+if [ "$EUID" -ne 0 ]; then
+    error "Run as root:  curl -sSL <url> | sudo bash"
+    exit 1
+fi
 
 ################################################################################
-# Detect Install Directory
+# 1. Find installation
 ################################################################################
+step "Locating installation..."
 
-detect_install_dir() {
-    step "Detecting installation directory..."
+INSTALL_DIR=""
+CONFIG_FILE="/etc/synccu/config"
 
-    CONFIG_FILE="/etc/synccu/config"
-    if [ -f "$CONFIG_FILE" ]; then
-        source "$CONFIG_FILE"
-        if [ -n "${INSTALL_DIR:-}" ] && [ -d "$INSTALL_DIR" ]; then
-            success "Found installation at $INSTALL_DIR"
-            return
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+fi
+
+if [ -z "${INSTALL_DIR:-}" ] || [ ! -d "${INSTALL_DIR:-}" ]; then
+    # Try common locations
+    for dir in /var/www/synccu /opt/synccu /home/*/synccu; do
+        if [ -d "$dir/platform" ]; then
+            INSTALL_DIR="$dir"
+            break
         fi
-    fi
+    done
+fi
 
-    warn "Could not detect installation directory from config"
-    read -rp "Enter SyncCU install directory [/var/www/synccu]: " INSTALL_DIR
-    INSTALL_DIR="${INSTALL_DIR:-/var/www/synccu}"
+if [ -z "${INSTALL_DIR:-}" ] || [ ! -d "${INSTALL_DIR:-}" ]; then
+    read -rp "Install directory not found. Enter path: " INSTALL_DIR
+fi
 
-    if [ ! -d "$INSTALL_DIR" ]; then
-        error "Directory $INSTALL_DIR does not exist"
+if [ ! -d "$INSTALL_DIR/platform" ]; then
+    error "Invalid install directory: $INSTALL_DIR"
+    exit 1
+fi
+
+success "Found installation at $INSTALL_DIR"
+
+# Load config
+DB_HOST="${DB_HOST:-localhost}"
+DB_NAME="${DB_NAME:-synccu}"
+DB_USER="${DB_USER:-synccu_user}"
+DOMAIN="${DOMAIN:-localhost}"
+
+################################################################################
+# 2. Backup current installation
+################################################################################
+step "Creating pre-update backup..."
+
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_DIR="/var/backups/synccu"
+mkdir -p "$BACKUP_DIR"
+
+# Database backup
+info "Backing up database..."
+mysqldump -h "$DB_HOST" -u "$DB_USER" "$DB_NAME" \
+    --single-transaction --routines --triggers \
+    2>/dev/null | gzip > "$BACKUP_DIR/db_${TIMESTAMP}.sql.gz" && \
+    success "Database backed up" || \
+    warn "Database backup failed (continuing anyway)"
+
+# Files backup
+info "Backing up files..."
+tar czf "$BACKUP_DIR/files_${TIMESTAMP}.tar.gz" \
+    -C "$(dirname "$INSTALL_DIR")" "$(basename "$INSTALL_DIR")" \
+    --exclude="*/venv/*" --exclude="*/vendor/*" --exclude="*/node_modules/*" \
+    --exclude="*/.git/*" 2>/dev/null && \
+    success "Files backed up to $BACKUP_DIR/files_${TIMESTAMP}.tar.gz" || \
+    warn "Files backup had warnings"
+
+################################################################################
+# 3. Pull latest code
+################################################################################
+step "Pulling latest code..."
+
+cd "$INSTALL_DIR"
+
+if [ -d ".git" ]; then
+    BEFORE=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+    # Retry git pull up to 4 times with backoff
+    PULL_OK=false
+    for i in 1 2 3 4; do
+        if git pull origin "$REPO_BRANCH" 2>/dev/null; then
+            PULL_OK=true
+            break
+        fi
+        WAIT=$((2 ** i))
+        warn "Git pull failed, retrying in ${WAIT}s... (attempt $i/4)"
+        sleep "$WAIT"
+    done
+
+    if [ "$PULL_OK" = false ]; then
+        error "Could not pull latest code after 4 attempts"
         exit 1
     fi
 
-    success "Using installation directory: $INSTALL_DIR"
-}
-
-################################################################################
-# Pre-Update Backup
-################################################################################
-
-create_backup() {
-    step "Creating pre-update backup..."
-
-    TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-    BACKUP_DIR="/var/backups/synccu/pre-update"
-    mkdir -p "$BACKUP_DIR"
-
-    # Database backup
-    if [ -f "/etc/synccu/config" ]; then
-        source /etc/synccu/config
-        DB_HOST="${DB_HOST:-localhost}"
-        DB_NAME="${DB_NAME:-synccu}"
-        DB_USER="${DB_USER:-synccu_user}"
-
-        info "Dumping database $DB_NAME..."
-        mysqldump -h "$DB_HOST" -u "$DB_USER" "$DB_NAME" \
-            --single-transaction --routines --triggers \
-            > "$BACKUP_DIR/db_${DB_NAME}_${TIMESTAMP}.sql" 2>/dev/null && \
-            success "Database backup created" || \
-            warn "Database backup failed; continuing with update"
+    AFTER=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    if [ "$BEFORE" = "$AFTER" ]; then
+        info "Already up to date ($BEFORE)"
     else
-        warn "No config found, skipping database backup"
+        success "Updated: $BEFORE → $AFTER"
+        git log --oneline "${BEFORE}..${AFTER}" 2>/dev/null | head -20
     fi
-
-    # Files backup
-    info "Archiving application files..."
-    tar czf "$BACKUP_DIR/files_${TIMESTAMP}.tar.gz" \
-        -C "$(dirname "$INSTALL_DIR")" \
-        "$(basename "$INSTALL_DIR")" \
-        --exclude="*/venv/*" \
-        --exclude="*/vendor/*" \
-        --exclude="*/node_modules/*" 2>/dev/null && \
-        success "Files backup created at $BACKUP_DIR/files_${TIMESTAMP}.tar.gz" || \
-        warn "Files backup had warnings"
-
-    success "Pre-update backup complete"
-}
+else
+    warn "Not a git repo — re-cloning..."
+    cd /tmp
+    git clone -b "$REPO_BRANCH" "https://github.com/caritechsolutions/synccu.git" synccu-update
+    rsync -a --delete --exclude='.env' --exclude='venv/' --exclude='vendor/' \
+        /tmp/synccu-update/platform/ "$INSTALL_DIR/platform/"
+    rm -rf /tmp/synccu-update
+    success "Files updated via fresh clone"
+fi
 
 ################################################################################
-# Update Code
+# 4. Run database migrations
 ################################################################################
+step "Running database migrations..."
 
-update_code() {
-    step "Pulling latest code..."
+MIGRATION_DIR="$INSTALL_DIR/platform/database/migrations"
+MIGRATION_TRACKER="$INSTALL_DIR/platform/database/.migrations_applied"
 
-    cd "$INSTALL_DIR"
-
-    if [ -d ".git" ]; then
-        BEFORE_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-        git fetch origin 2>/dev/null
-        git pull origin "$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null || {
-            error "Git pull failed. Check for local changes."
-            exit 1
-        }
-        AFTER_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-
-        if [ "$BEFORE_HASH" = "$AFTER_HASH" ]; then
-            info "Code is already up to date ($BEFORE_HASH)"
-        else
-            success "Code updated: $BEFORE_HASH -> $AFTER_HASH"
-            info "Changes:"
-            git log --oneline "${BEFORE_HASH}..${AFTER_HASH}" 2>/dev/null | head -20
-        fi
-    else
-        warn "Not a git repository, skipping code pull"
-    fi
-}
-
-################################################################################
-# Run Migrations
-################################################################################
-
-run_migrations() {
-    step "Running database migrations..."
-
-    MIGRATION_DIR="$INSTALL_DIR/database/migrations"
-    MIGRATION_TRACKER="$INSTALL_DIR/database/.migrations_applied"
-
-    if [ ! -d "$MIGRATION_DIR" ]; then
-        info "No migrations directory found, skipping"
-        return
-    fi
-
+if [ -d "$MIGRATION_DIR" ] && ls "$MIGRATION_DIR"/*.sql &>/dev/null 2>&1; then
     touch "$MIGRATION_TRACKER"
-    local applied=0
-
-    if [ -f "/etc/synccu/config" ]; then
-        source /etc/synccu/config
-    fi
+    APPLIED=0
 
     for migration in "$MIGRATION_DIR"/*.sql; do
-        [ -f "$migration" ] || continue
-        MIGRATION_NAME=$(basename "$migration")
-
-        if grep -qF "$MIGRATION_NAME" "$MIGRATION_TRACKER" 2>/dev/null; then
+        NAME=$(basename "$migration")
+        if grep -qF "$NAME" "$MIGRATION_TRACKER" 2>/dev/null; then
             continue
         fi
-
-        info "Applying migration: $MIGRATION_NAME"
-        mysql -h "${DB_HOST:-localhost}" -u "${DB_USER:-synccu_user}" "${DB_NAME:-synccu}" < "$migration" && {
-            echo "$MIGRATION_NAME" >> "$MIGRATION_TRACKER"
-            success "Applied: $MIGRATION_NAME"
-            applied=$((applied + 1))
+        info "Applying: $NAME"
+        mysql -h "$DB_HOST" -u "$DB_USER" "$DB_NAME" < "$migration" && {
+            echo "$NAME" >> "$MIGRATION_TRACKER"
+            success "Applied: $NAME"
+            APPLIED=$((APPLIED + 1))
         } || {
-            error "Failed to apply migration: $MIGRATION_NAME"
+            error "Migration failed: $NAME"
+            warn "Restore from backup: $BACKUP_DIR/db_${TIMESTAMP}.sql.gz"
             exit 1
         }
     done
 
-    if [ $applied -eq 0 ]; then
-        info "No new migrations to apply"
+    [ $APPLIED -eq 0 ] && info "No new migrations" || success "$APPLIED migration(s) applied"
+else
+    info "No migrations to run"
+fi
+
+################################################################################
+# 5. Update Python API dependencies
+################################################################################
+step "Updating Python dependencies..."
+
+API_DIR="$INSTALL_DIR/platform/api"
+
+if [ ! -d "$API_DIR/venv" ]; then
+    python3 -m venv "$API_DIR/venv"
+fi
+
+source "$API_DIR/venv/bin/activate"
+pip install --upgrade pip -q 2>/dev/null
+pip install -r "$API_DIR/requirements.txt" -q 2>/dev/null && \
+    success "Python packages updated" || \
+    warn "Some packages had warnings"
+deactivate
+
+################################################################################
+# 6. Update PHP dependencies
+################################################################################
+step "Updating PHP dependencies..."
+
+BACKEND_DIR="$INSTALL_DIR/platform/backend"
+if [ -f "$BACKEND_DIR/composer.json" ] && command -v composer &>/dev/null; then
+    cd "$BACKEND_DIR"
+    composer install --no-dev --optimize-autoloader --no-interaction -q 2>/dev/null && \
+        success "Composer packages updated" || \
+        warn "Composer had warnings"
+else
+    info "No composer.json or composer not installed — skipping"
+fi
+
+################################################################################
+# 7. Clear caches
+################################################################################
+step "Clearing caches..."
+
+# PHP opcache
+php -r "if(function_exists('opcache_reset')){opcache_reset();}" 2>/dev/null || true
+
+# App caches
+find "$BACKEND_DIR" -path "*/cache/*.php" -delete 2>/dev/null || true
+find "$BACKEND_DIR" -path "*/views/*.php" -delete 2>/dev/null || true
+
+success "Caches cleared"
+
+################################################################################
+# 8. Fix permissions
+################################################################################
+step "Fixing permissions..."
+
+chown -R www-data:www-data "$INSTALL_DIR"
+find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
+find "$INSTALL_DIR" -type f -exec chmod 644 {} \;
+find "$INSTALL_DIR" -name "*.sh" -exec chmod 755 {} \;
+chmod 640 "$BACKEND_DIR/.env" "$API_DIR/.env" 2>/dev/null || true
+
+success "Permissions fixed"
+
+################################################################################
+# 9. Restart services
+################################################################################
+step "Restarting services..."
+
+# API
+systemctl restart synccu-api 2>/dev/null && success "synccu-api restarted" || warn "synccu-api restart failed"
+
+# PHP-FPM
+PHP_FPM=$(systemctl list-units --type=service --state=running 2>/dev/null | grep -oP 'php[\d.]+-fpm\.service' | head -1 || echo "")
+if [ -n "$PHP_FPM" ]; then
+    systemctl restart "$PHP_FPM" && success "$PHP_FPM restarted" || warn "$PHP_FPM restart failed"
+fi
+
+# Nginx
+systemctl reload nginx 2>/dev/null && success "nginx reloaded" || warn "nginx reload failed"
+
+################################################################################
+# 10. Verify
+################################################################################
+step "Verifying services..."
+
+ALL_OK=true
+for svc in synccu-api nginx; do
+    if systemctl is-active "$svc" &>/dev/null; then
+        success "$svc is running"
     else
-        success "$applied migration(s) applied"
+        error "$svc is NOT running"
+        ALL_OK=false
     fi
-}
+done
 
-################################################################################
-# Update Python Dependencies
-################################################################################
-
-update_python_deps() {
-    step "Updating Python API dependencies..."
-
-    local API_DIR="$INSTALL_DIR/api"
-
-    if [ ! -d "$API_DIR/venv" ]; then
-        warn "Python venv not found, creating..."
-        python3 -m venv "$API_DIR/venv"
-    fi
-
-    source "$API_DIR/venv/bin/activate"
-
-    if [ -f "$API_DIR/requirements.txt" ]; then
-        pip install --upgrade pip >/dev/null 2>&1
-        pip install -r "$API_DIR/requirements.txt" --upgrade 2>/dev/null && \
-            success "Python dependencies updated" || \
-            warn "Some Python packages had warnings during update"
+# Health check
+if command -v curl &>/dev/null; then
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost/" 2>/dev/null || echo "000")
+    if [ "$HTTP_CODE" = "200" ]; then
+        success "Frontend responding (HTTP $HTTP_CODE)"
     else
-        warn "requirements.txt not found"
+        warn "Frontend returned HTTP $HTTP_CODE"
     fi
-
-    deactivate
-}
+fi
 
 ################################################################################
-# Clear Caches
+# Done
 ################################################################################
+echo ""
+echo -e "${GREEN}══════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}   SyncCU Platform - Update Complete!${NC}"
+echo -e "${GREEN}══════════════════════════════════════════════════════════${NC}"
+echo ""
+echo "  Platform:   http://${DOMAIN}"
+echo "  Backup:     $BACKUP_DIR/"
+echo "  Log:        $UPDATE_LOG"
+if [ -d "$INSTALL_DIR/.git" ]; then
+    echo "  Revision:   $(cd "$INSTALL_DIR" && git rev-parse --short HEAD 2>/dev/null)"
+fi
+echo ""
 
-clear_caches() {
-    step "Clearing caches..."
-
-    # PHP opcache reset
-    if command -v php &>/dev/null; then
-        php -r "opcache_reset();" 2>/dev/null || true
-        info "PHP opcache cleared"
-    fi
-
-    # Clear application caches
-    if [ -d "$INSTALL_DIR/backend/bootstrap/cache" ]; then
-        find "$INSTALL_DIR/backend/bootstrap/cache" -type f -name "*.php" -delete 2>/dev/null
-        info "Backend bootstrap cache cleared"
-    fi
-
-    if [ -d "$INSTALL_DIR/backend/storage/framework/cache" ]; then
-        find "$INSTALL_DIR/backend/storage/framework/cache" -type f -delete 2>/dev/null
-        info "Backend framework cache cleared"
-    fi
-
-    if [ -d "$INSTALL_DIR/backend/storage/framework/views" ]; then
-        find "$INSTALL_DIR/backend/storage/framework/views" -type f -delete 2>/dev/null
-        info "Backend view cache cleared"
-    fi
-
-    success "Caches cleared"
-}
-
-################################################################################
-# Restart Services
-################################################################################
-
-restart_services() {
-    step "Restarting services..."
-
-    local services=("synccu-api" "nginx")
-
-    # Find PHP-FPM service name
-    PHP_FPM=$(systemctl list-units --type=service --state=running | grep -oP 'php[\d.]+-fpm\.service' | head -1 || echo "")
-    if [ -n "$PHP_FPM" ]; then
-        services+=("$PHP_FPM")
-    fi
-
-    for svc in "${services[@]}"; do
-        if systemctl is-enabled "$svc" &>/dev/null; then
-            info "Restarting $svc..."
-            systemctl restart "$svc" && success "$svc restarted" || warn "Failed to restart $svc"
-        else
-            warn "$svc is not enabled, skipping"
-        fi
-    done
-}
-
-################################################################################
-# Verify Services
-################################################################################
-
-verify_services() {
-    step "Verifying services..."
-
-    local all_ok=true
-    local services=("synccu-api" "nginx")
-
-    PHP_FPM=$(systemctl list-units --type=service --state=running | grep -oP 'php[\d.]+-fpm\.service' | head -1 || echo "")
-    if [ -n "$PHP_FPM" ]; then
-        services+=("$PHP_FPM")
-    fi
-
-    for svc in "${services[@]}"; do
-        if systemctl is-active "$svc" &>/dev/null; then
-            success "$svc is running"
-        else
-            error "$svc is NOT running"
-            all_ok=false
-        fi
-    done
-
-    if [ "$all_ok" = true ]; then
-        success "All services are running"
-    else
-        warn "Some services are not running. Check with: journalctl -u <service-name>"
-    fi
-}
-
-################################################################################
-# Print Summary
-################################################################################
-
-print_summary() {
-    echo ""
-    echo -e "${GREEN}=========================================================="
-    echo "  SyncCU Platform Update Complete!"
-    echo "==========================================================${NC}"
-    echo ""
-    echo "  Timestamp:      $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-    echo "  Install Dir:    $INSTALL_DIR"
-    echo "  Backup Dir:     /var/backups/synccu/pre-update"
-    echo "  Update Log:     $UPDATE_LOG"
-    echo ""
-    if [ -d "$INSTALL_DIR/.git" ]; then
-        echo "  Git Revision:   $(cd "$INSTALL_DIR" && git rev-parse --short HEAD 2>/dev/null || echo 'N/A')"
-        echo "  Git Branch:     $(cd "$INSTALL_DIR" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'N/A')"
-    fi
-    echo ""
-}
-
-################################################################################
-# Main
-################################################################################
-
-main() {
-    print_banner
-
-    if [ "$EUID" -ne 0 ]; then
-        error "This script must be run as root. Use: sudo bash update.sh"
-        exit 1
-    fi
-
-    info "Update started at $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-    echo ""
-
-    detect_install_dir
-    create_backup
-    update_code
-    run_migrations
-    update_python_deps
-    clear_caches
-    restart_services
-    verify_services
-    print_summary
-
-    success "Update completed successfully"
-}
-
-main "$@"
+if [ "$ALL_OK" = false ]; then
+    warn "Some services need attention. Check: journalctl -u <service>"
+fi
