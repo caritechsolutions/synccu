@@ -143,9 +143,9 @@ rsync -a --delete \
     --exclude='storage/logs/' \
     "$SOURCE_DIR/platform/" "$INSTALL_DIR/platform/"
 
-# Restore .env files
-[ -f /tmp/synccu-backend-env.bak ] && mv /tmp/synccu-backend-env.bak "$INSTALL_DIR/platform/backend/.env"
-[ -f /tmp/synccu-api-env.bak ] && mv /tmp/synccu-api-env.bak "$INSTALL_DIR/platform/api/.env"
+# Restore .env files with correct ownership
+[ -f /tmp/synccu-backend-env.bak ] && mv /tmp/synccu-backend-env.bak "$INSTALL_DIR/platform/backend/.env" && chown root:www-data "$INSTALL_DIR/platform/backend/.env" && chmod 640 "$INSTALL_DIR/platform/backend/.env"
+[ -f /tmp/synccu-api-env.bak ] && mv /tmp/synccu-api-env.bak "$INSTALL_DIR/platform/api/.env" && chown root:www-data "$INSTALL_DIR/platform/api/.env" && chmod 640 "$INSTALL_DIR/platform/api/.env"
 
 # Cleanup download
 rm -rf "$DOWNLOAD_DIR"
