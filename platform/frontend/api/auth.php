@@ -37,42 +37,66 @@ $action = $_GET['action'] ?? basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL
 
 // Database connection - search for .env in known locations
 $envFile = null;
+$scriptDir = __DIR__;  // e.g. /var/www/synccu/platform/frontend/api
 $searchPaths = [
-    dirname(__DIR__, 2) . '/backend/.env',      // /platform/frontend/api -> /platform/backend/.env
-    dirname(__DIR__) . '/../backend/.env',       // alternative traversal
+    dirname($scriptDir, 2) . '/backend/.env',   // up 2 from api/ -> /platform/backend/.env
+    dirname($scriptDir) . '/../backend/.env',    // up 1 from api/ then ../backend
     '/var/www/synccu/platform/backend/.env',     // absolute fallback
+    '/opt/synccu/platform/backend/.env',         // alt install location
 ];
 foreach ($searchPaths as $path) {
-    if (file_exists($path)) {
-        $envFile = $path;
+    $resolved = realpath($path);
+    if ($resolved && is_readable($resolved)) {
+        $envFile = $resolved;
         break;
     }
 }
-$dbHost = 'localhost';
+
+$dbHost = '127.0.0.1';
 $dbName = 'synccu';
 $dbUser = 'synccu_user';
 $dbPass = '';
+$jwtSecret = '';
 
-if ($envFile && file_exists($envFile)) {
+if ($envFile) {
     $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     foreach ($lines as $line) {
-        if (str_starts_with($line, '#')) continue;
-        $parts = explode('=', $line, 2);
-        if (count($parts) !== 2) continue;
-        $key = trim($parts[0]);
-        $val = trim($parts[1]);
-        match ($key) {
-            'DB_HOST' => $dbHost = $val,
-            'DB_DATABASE' => $dbName = $val,
-            'DB_USERNAME' => $dbUser = $val,
-            'DB_PASSWORD' => $dbPass = $val,
-            'JWT_SECRET' => $jwtSecret = $val,
-            default => null,
-        };
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#') continue;
+        $eqPos = strpos($line, '=');
+        if ($eqPos === false) continue;
+        $key = trim(substr($line, 0, $eqPos));
+        $val = trim(substr($line, $eqPos + 1));
+        // Remove surrounding quotes if present
+        if ((str_starts_with($val, '"') && str_ends_with($val, '"')) ||
+            (str_starts_with($val, "'") && str_ends_with($val, "'"))) {
+            $val = substr($val, 1, -1);
+        }
+        switch ($key) {
+            case 'DB_HOST': $dbHost = $val; break;
+            case 'DB_DATABASE': $dbName = $val; break;
+            case 'DB_USERNAME': $dbUser = $val; break;
+            case 'DB_PASSWORD': $dbPass = $val; break;
+            case 'JWT_SECRET': $jwtSecret = $val; break;
+        }
     }
+} else {
+    // .env not found - return helpful debug info (remove in production)
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Configuration error: cannot find .env file',
+        'debug' => [
+            'script_dir' => $scriptDir,
+            'searched' => $searchPaths,
+        ]
+    ]);
+    exit;
 }
 
-$jwtSecret = $jwtSecret ?? 'fallback-change-me';
+if (!$jwtSecret) {
+    $jwtSecret = hash('sha256', $dbPass . $dbName . 'synccu-fallback');
+}
 
 try {
     $pdo = new PDO(
@@ -86,7 +110,17 @@ try {
     );
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Database connection failed',
+        'debug' => [
+            'host' => $dbHost,
+            'db' => $dbName,
+            'user' => $dbUser,
+            'env_file' => $envFile ?: 'NOT FOUND',
+            'error' => $e->getMessage(),
+        ]
+    ]);
     exit;
 }
 
