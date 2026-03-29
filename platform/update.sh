@@ -244,6 +244,9 @@ chown -R www-data:www-data "$INSTALL_DIR/platform"
 find "$INSTALL_DIR/platform" -type d -exec chmod 755 {} \;
 find "$INSTALL_DIR/platform" -type f -exec chmod 644 {} \;
 find "$INSTALL_DIR/platform" -name "*.sh" -exec chmod 755 {} \;
+# .env files: readable by www-data group, not world-readable
+chown root:www-data "$INSTALL_DIR/platform/backend/.env" 2>/dev/null || true
+chown root:www-data "$INSTALL_DIR/platform/api/.env" 2>/dev/null || true
 chmod 640 "$INSTALL_DIR/platform/backend/.env" 2>/dev/null || true
 chmod 640 "$INSTALL_DIR/platform/api/.env" 2>/dev/null || true
 

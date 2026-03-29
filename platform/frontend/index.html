@@ -3,81 +3,149 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="SyncCU - Modern Core Banking Platform. Secure login to manage your credit union operations.">
-  <meta name="theme-color" content="#2563eb">
+  <meta name="description" content="SyncCU - Modern Core Banking Platform">
+  <meta name="theme-color" content="#1a56db">
   <title>SyncCU - Sign In</title>
   <link rel="stylesheet" href="css/app.css">
   <style>
-    .login-bg {
+    .login-page {
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #1e40af 100%);
-      padding: 1rem;
+      padding: 1.5rem;
       position: relative;
+      background: #0f172a;
+      overflow: hidden;
     }
-    [data-theme="dark"] .login-bg {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+
+    .login-page::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 30% 50%, rgba(26, 86, 219, 0.3) 0%, transparent 50%),
+                  radial-gradient(ellipse at 70% 50%, rgba(124, 58, 237, 0.2) 0%, transparent 50%);
+      animation: bgPulse 8s ease-in-out infinite alternate;
     }
+
+    @keyframes bgPulse {
+      0% { transform: scale(1) rotate(0deg); }
+      100% { transform: scale(1.1) rotate(3deg); }
+    }
+
     .login-card {
-      background: var(--color-surface);
-      border-radius: 1rem;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      background: #ffffff;
+      border-radius: 1.25rem;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
       width: 100%;
-      max-width: 420px;
-      padding: 2.5rem 2rem;
+      max-width: 440px;
+      padding: 3rem 2.5rem;
       position: relative;
       z-index: 1;
     }
-    .login-brand {
+
+    [data-theme="dark"] .login-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+    }
+
+    .login-logo {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, #1a56db, #7c3aed);
+      border-radius: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+      box-shadow: 0 8px 24px rgba(26, 86, 219, 0.35);
+    }
+
+    .login-logo svg {
+      width: 32px;
+      height: 32px;
+      color: white;
+    }
+
+    .login-title {
       text-align: center;
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.03em;
+      margin: 0 0 0.25rem;
+    }
+
+    [data-theme="dark"] .login-title { color: #f1f5f9; }
+
+    .login-subtitle {
+      text-align: center;
+      color: #64748b;
+      font-size: 0.9375rem;
       margin-bottom: 2rem;
     }
-    .login-brand h1 {
-      font-size: 2rem;
-      font-weight: 800;
-      color: var(--color-primary);
-      letter-spacing: -0.025em;
-      margin: 0;
-    }
-    .login-brand p {
-      color: var(--color-text-secondary);
-      font-size: 0.875rem;
-      margin-top: 0.5rem;
-    }
+
+    [data-theme="dark"] .login-subtitle { color: #94a3b8; }
+
     .form-group {
       margin-bottom: 1.25rem;
     }
+
     .form-group label {
       display: block;
-      font-size: 0.875rem;
+      font-size: 0.8125rem;
       font-weight: 600;
-      color: var(--color-text);
-      margin-bottom: 0.375rem;
+      color: #334155;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
+
+    [data-theme="dark"] .form-group label { color: #cbd5e1; }
+
     .input-wrapper {
       position: relative;
     }
+
     .input-wrapper input {
       width: 100%;
-      padding: 0.75rem 1rem;
-      border: 1px solid var(--color-border);
-      border-radius: 0.5rem;
+      padding: 0.8125rem 1rem;
+      border: 2px solid #e2e8f0;
+      border-radius: 0.625rem;
       font-size: 0.9375rem;
-      background: var(--color-bg);
-      color: var(--color-text);
-      transition: border-color 0.2s, box-shadow 0.2s;
+      font-family: inherit;
+      background: #f8fafc;
+      color: #0f172a;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
       box-sizing: border-box;
     }
+
     .input-wrapper input:focus {
       outline: none;
-      border-color: var(--color-primary);
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+      border-color: #1a56db;
+      background: #ffffff;
+      box-shadow: 0 0 0 4px rgba(26, 86, 219, 0.12);
     }
+
     .input-wrapper input::placeholder {
-      color: var(--color-text-muted);
+      color: #94a3b8;
     }
+
+    [data-theme="dark"] .input-wrapper input {
+      background: #0f172a;
+      border-color: #475569;
+      color: #f1f5f9;
+    }
+
+    [data-theme="dark"] .input-wrapper input:focus {
+      border-color: #60a5fa;
+      background: #0f172a;
+      box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.15);
+    }
+
     .password-toggle {
       position: absolute;
       right: 0.75rem;
@@ -86,121 +154,231 @@
       background: none;
       border: none;
       cursor: pointer;
-      color: var(--color-text-secondary);
+      color: #94a3b8;
       padding: 0.25rem;
       display: flex;
       align-items: center;
+      transition: color 0.15s;
     }
-    .password-toggle:hover {
-      color: var(--color-text);
-    }
+
+    .password-toggle:hover { color: #475569; }
+    [data-theme="dark"] .password-toggle:hover { color: #e2e8f0; }
+
     .password-toggle svg {
-      width: 1.125rem;
-      height: 1.125rem;
+      width: 1.25rem;
+      height: 1.25rem;
     }
+
     .form-options {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.75rem;
     }
+
     .checkbox-group {
       display: flex;
       align-items: center;
       gap: 0.5rem;
     }
+
     .checkbox-group input[type="checkbox"] {
       width: 1rem;
       height: 1rem;
-      accent-color: var(--color-primary);
+      accent-color: #1a56db;
       cursor: pointer;
     }
+
     .checkbox-group label {
       font-size: 0.8125rem;
-      color: var(--color-text-secondary);
+      color: #64748b;
       cursor: pointer;
-    }
-    .forgot-link {
-      font-size: 0.8125rem;
-      color: var(--color-primary);
-      text-decoration: none;
       font-weight: 500;
     }
-    .forgot-link:hover {
-      text-decoration: underline;
+
+    [data-theme="dark"] .checkbox-group label { color: #94a3b8; }
+
+    .forgot-link {
+      font-size: 0.8125rem;
+      color: #1a56db;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.15s;
     }
+
+    .forgot-link:hover { color: #1e40af; }
+    [data-theme="dark"] .forgot-link { color: #60a5fa; }
+
     .btn-login {
       width: 100%;
-      padding: 0.8125rem 1rem;
-      background: var(--color-primary);
+      padding: 0.875rem 1rem;
+      background: linear-gradient(135deg, #1a56db, #1e40af);
       color: #ffffff;
       border: none;
-      border-radius: 0.5rem;
+      border-radius: 0.625rem;
       font-size: 1rem;
-      font-weight: 600;
+      font-weight: 700;
+      font-family: inherit;
       cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(26, 86, 219, 0.35);
+      letter-spacing: 0.01em;
     }
+
     .btn-login:hover {
-      background: var(--color-primary-dark);
+      background: linear-gradient(135deg, #1e40af, #1e3a8a);
+      box-shadow: 0 6px 20px rgba(26, 86, 219, 0.45);
+      transform: translateY(-1px);
     }
+
     .btn-login:active {
-      transform: scale(0.99);
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(26, 86, 219, 0.3);
     }
+
     .btn-login:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+      transform: none;
     }
+
+    .btn-login .spinner-sm {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
     .login-error {
-      background: var(--color-danger-bg, #fef2f2);
-      color: var(--color-danger, #dc2626);
+      background: #fef2f2;
+      color: #b91c1c;
       padding: 0.75rem 1rem;
-      border-radius: 0.5rem;
+      border-radius: 0.625rem;
       font-size: 0.8125rem;
-      margin-bottom: 1rem;
+      font-weight: 500;
+      margin-bottom: 1.25rem;
       display: none;
       align-items: center;
       gap: 0.5rem;
+      border: 1px solid #fecaca;
     }
+
+    [data-theme="dark"] .login-error {
+      background: #450a0a;
+      color: #fca5a5;
+      border-color: #7f1d1d;
+    }
+
     .login-error.visible {
       display: flex;
     }
+
+    .login-footer {
+      text-align: center;
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #e2e8f0;
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+
+    [data-theme="dark"] .login-footer { border-top-color: #334155; }
+
     .theme-toggle-corner {
       position: absolute;
-      top: 1rem;
-      right: 1rem;
+      top: 1.5rem;
+      right: 1.5rem;
       z-index: 10;
     }
+
     .theme-toggle-corner button {
-      background: rgba(255, 255, 255, 0.15);
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       color: #ffffff;
-      width: 2.5rem;
-      height: 2.5rem;
-      border-radius: 0.5rem;
+      width: 2.75rem;
+      height: 2.75rem;
+      border-radius: 0.75rem;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: background 0.2s;
     }
+
     .theme-toggle-corner button:hover {
-      background: rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.2);
     }
+
     .theme-toggle-corner svg {
       width: 1.25rem;
       height: 1.25rem;
     }
-    .login-footer {
-      text-align: center;
-      margin-top: 1.5rem;
-      font-size: 0.75rem;
-      color: var(--color-text-muted);
+
+    /* Toast override for login page */
+    .toast-container {
+      position: fixed;
+      top: 1.5rem;
+      right: 1.5rem;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-width: 380px;
     }
+
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.875rem 1rem;
+      background: #ffffff;
+      border-radius: 0.75rem;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      font-size: 0.875rem;
+      transform: translateX(120%);
+      transition: transform 0.3s ease;
+      min-width: 280px;
+    }
+
+    [data-theme="dark"] .toast {
+      background: #1e293b;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .toast.toast-show { transform: translateX(0); }
+
+    .toast-icon { font-size: 1.125rem; flex-shrink: 0; }
+    .toast-message { flex: 1; color: #0f172a; }
+    [data-theme="dark"] .toast-message { color: #f1f5f9; }
+
+    .toast-close {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 1.25rem;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .toast-success { border-left: 4px solid #059669; }
+    .toast-success .toast-icon { color: #059669; }
+    .toast-error { border-left: 4px solid #dc2626; }
+    .toast-error .toast-icon { color: #dc2626; }
+
     @media (max-width: 480px) {
-      .login-card { padding: 2rem 1.25rem; }
-      .login-brand h1 { font-size: 1.75rem; }
+      .login-card { padding: 2rem 1.5rem; }
+      .login-title { font-size: 1.5rem; }
     }
   </style>
 </head>
@@ -219,9 +397,12 @@
     <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
     </symbol>
+    <symbol id="icon-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </symbol>
   </svg>
 
-  <div class="login-bg">
+  <div class="login-page">
     <div class="theme-toggle-corner">
       <button type="button" id="themeToggle" aria-label="Toggle theme">
         <svg class="icon-sun"><use href="#icon-sun"/></svg>
@@ -230,10 +411,12 @@
     </div>
 
     <div class="login-card">
-      <div class="login-brand">
-        <h1>SyncCU</h1>
-        <p>Core Banking Platform</p>
+      <div class="login-logo">
+        <svg><use href="#icon-shield"/></svg>
       </div>
+
+      <h1 class="login-title">SyncCU</h1>
+      <p class="login-subtitle">Secure Banking Platform</p>
 
       <div id="loginError" class="login-error">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
@@ -264,7 +447,7 @@
             <input type="checkbox" id="remember" name="remember">
             <label for="remember">Remember me</label>
           </div>
-          <a href="#" class="forgot-link" id="forgotPassword">Forgot password?</a>
+          <a href="#" class="forgot-link">Forgot password?</a>
         </div>
 
         <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
@@ -304,11 +487,75 @@
         input.type = isPassword ? 'text' : 'password';
         toggle.querySelector('.icon-show').style.display = isPassword ? 'none' : '';
         toggle.querySelector('.icon-hide').style.display = isPassword ? '' : 'none';
-        toggle.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+      });
+    })();
+
+    // Login form handler
+    (function() {
+      const form = document.getElementById('login-form');
+      const errorBox = document.getElementById('loginError');
+      const errorMsg = document.getElementById('loginErrorMsg');
+      const btn = document.getElementById('loginBtn');
+
+      function showError(msg) {
+        errorMsg.textContent = msg;
+        errorBox.classList.add('visible');
+      }
+
+      function hideError() {
+        errorBox.classList.remove('visible');
+      }
+
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        hideError();
+
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+
+        if (!email || !password) {
+          showError('Please enter your email and password.');
+          return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-sm"></span> Signing in...';
+
+        try {
+          const res = await fetch('/api/auth.php?action=login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok || !data.success) {
+            showError(data.message || 'Invalid email or password.');
+            btn.disabled = false;
+            btn.textContent = 'Sign In';
+            return;
+          }
+
+          // Store tokens
+          sessionStorage.setItem('access_token', data.access_token);
+          sessionStorage.setItem('refresh_token', data.refresh_token);
+          sessionStorage.setItem('user', JSON.stringify(data.user));
+
+          // Redirect based on role
+          const role = data.user.role;
+          if (['super_admin', 'admin', 'manager', 'teller'].includes(role)) {
+            window.location.href = '/admin/dashboard.html';
+          } else {
+            window.location.href = '/portal/dashboard.html';
+          }
+        } catch (err) {
+          showError(err.message || 'Connection error. Please try again.');
+          btn.disabled = false;
+          btn.textContent = 'Sign In';
+        }
       });
     })();
   </script>
-  <script src="js/app.js"></script>
-  <script src="js/auth.js"></script>
 </body>
 </html>
