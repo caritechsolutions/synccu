@@ -217,6 +217,14 @@
       });
     });
 
+    const reportTypeMap = {
+      'financial': 'summary',
+      'trial-balance': 'summary',
+      'transaction': 'transactions',
+      'loan-portfolio': 'loans',
+      'member-growth': 'summary',
+    };
+
     document.getElementById('generateReportBtn').addEventListener('click', generateReport);
 
     async function generateReport() {
@@ -228,14 +236,62 @@
         fromDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) + ' - ' +
         toDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
+      const apiType = reportTypeMap[currentReport] || 'summary';
       try {
-        const resp = await fetch('/api/v1/reports/' + currentReport + '?from=' + from + '&to=' + to, {
+        const resp = await fetch('/api/v1/admin/reports?type=' + apiType + '&from=' + from + '&to=' + to, {
           headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
         });
         if (!resp.ok) return;
-        const data = await resp.json();
-        // renderReport(currentReport, data);
+        const json = await resp.json();
+        const d = json.data || {};
+        renderReport(currentReport, d.report || {}, from, to);
       } catch (e) { /* API not available, keep placeholder data */ }
+    }
+
+    function fmt(n) { return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }); }
+
+    function renderReport(type, report, from, to) {
+      const el = document.getElementById('reportContent');
+      if (type === 'financial' || type === 'member-growth' || type === 'trial-balance') {
+        el.innerHTML = `
+          <div class="report-summary-grid">
+            <div class="report-summary-card report-summary-green">
+              <span class="report-summary-label">Total Deposits</span>
+              <span class="report-summary-value">${fmt(report.total_deposits)}</span>
+              <span class="report-summary-sub">New accounts: ${report.new_accounts || 0} | New members: ${report.new_members || 0}</span>
+            </div>
+            <div class="report-summary-card report-summary-red">
+              <span class="report-summary-label">Total Withdrawals</span>
+              <span class="report-summary-value">${fmt(report.total_withdrawals)}</span>
+              <span class="report-summary-sub">Transfers: ${fmt(report.total_transfers)}</span>
+            </div>
+            <div class="report-summary-card report-summary-blue">
+              <span class="report-summary-label">Net Flow</span>
+              <span class="report-summary-value">${fmt(report.net_flow)}</span>
+              <span class="report-summary-sub">Period: ${from} to ${to}</span>
+            </div>
+          </div>`;
+      } else if (type === 'transaction' && Array.isArray(report)) {
+        el.innerHTML = `
+          <div class="table-responsive" style="margin-top:1rem">
+            <table class="data-table">
+              <thead><tr><th>Type</th><th>Count</th><th>Total Amount</th></tr></thead>
+              <tbody>${report.map(r => `
+                <tr><td>${r.type}</td><td>${r.count}</td><td>${fmt(r.total_amount)}</td></tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      } else if (type === 'loan-portfolio' && Array.isArray(report)) {
+        el.innerHTML = `
+          <div class="table-responsive" style="margin-top:1rem">
+            <table class="data-table">
+              <thead><tr><th>Status</th><th>Count</th><th>Total Amount</th><th>Outstanding</th></tr></thead>
+              <tbody>${report.map(r => `
+                <tr><td>${r.status}</td><td>${r.count}</td><td>${fmt(r.total_amount)}</td><td>${fmt(r.total_remaining)}</td></tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      }
     }
 
     document.getElementById('printReportBtn').addEventListener('click', () => {

@@ -343,14 +343,20 @@
           headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
         });
         if (!resp.ok) return;
-        const data = await resp.json();
-        renderMembers(data.members || []);
+        const json = await resp.json();
+        const members = json.data || [];
+        const meta = json.meta || {};
+        renderMembers(members);
+        renderPagination(meta);
       } catch (e) { /* API not available, use placeholder data */ }
     }
 
     function renderMembers(members) {
       const tbody = document.getElementById('membersTableBody');
-      if (!members.length) return;
+      if (!members.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">No members found</td></tr>';
+        return;
+      }
       tbody.innerHTML = members.map(m => {
         const initials = (m.first_name?.[0] || '') + (m.last_name?.[0] || '');
         const statusClass = m.status === 'active' ? 'badge-success' : 'badge-muted';
@@ -359,18 +365,34 @@
           '<td>' + m.email + '</td>' +
           '<td>' + (m.phone || '-') + '</td>' +
           '<td>' + (m.accounts_count || 0) + '</td>' +
-          '<td><span class="badge ' + statusClass + '">' + m.status + '</span></td>' +
+          '<td><span class="badge ' + statusClass + '">' + (m.status || 'active') + '</span></td>' +
           '<td><div class="action-btns">' +
-            '<button class="icon-btn" title="View" onclick="viewMember(\'' + m.id + '\')"><svg><use href="#icon-eye"/></svg></button>' +
-            '<button class="icon-btn" title="Edit" onclick="editMember(\'' + m.id + '\')"><svg><use href="#icon-edit"/></svg></button>' +
-            '<button class="icon-btn icon-btn-danger" title="Delete" onclick="deleteMember(\'' + m.id + '\')"><svg><use href="#icon-trash"/></svg></button>' +
+            '<button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>' +
+            '<button class="icon-btn" title="Edit" onclick=\'editMember(' + JSON.stringify(m).replace(/'/g,"&#39;") + ')\'><svg><use href="#icon-edit"/></svg></button>' +
+            '<button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>' +
           '</div></td></tr>';
       }).join('');
+    }
+
+    function editMember(member) {
+      openModal(true, member);
+    }
+
+    function renderPagination(meta) {
+      const info = document.querySelector('.pagination-info');
+      if (info && meta.total !== undefined) {
+        const start = (meta.page - 1) * meta.per_page + 1;
+        const end = Math.min(meta.page * meta.per_page, meta.total);
+        info.textContent = 'Showing ' + start + '-' + end + ' of ' + Number(meta.total).toLocaleString() + ' members';
+      }
     }
 
     let searchTimeout;
     memberSearch.addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadMembers, 300); });
     statusFilter.addEventListener('change', loadMembers);
+
+    // Load members on page load
+    loadMembers();
 
     // Check if opened with ?action=new
     if (new URLSearchParams(window.location.search).get('action') === 'new') { openModal(false); }

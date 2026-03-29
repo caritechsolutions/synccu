@@ -457,18 +457,98 @@
       setTimeout(() => { document.getElementById('copyKeyBtn').textContent = 'Copy'; }, 2000);
     });
 
-    // Form submissions
-    ['generalForm', 'brandingForm', 'securityForm'].forEach(formId => {
-      document.getElementById(formId).addEventListener('submit', async (e) => {
-        e.preventDefault();
-        try {
-          await fetch('/api/v1/settings', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
-            body: JSON.stringify(Object.fromEntries(new FormData(e.target)))
-          });
-        } catch (err) { /* handle error */ }
-      });
+    // Load settings from API
+    async function loadSettings() {
+      try {
+        const resp = await fetch('/api/v1/tenant/settings', {
+          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+        });
+        if (!resp.ok) return;
+        const json = await resp.json();
+        const d = json.data || {};
+        const tenant = d.tenant || {};
+        const settings = d.settings || {};
+
+        if (tenant.name) document.getElementById('cuName').value = tenant.name;
+        if (settings.timezone) document.getElementById('timezone').value = settings.timezone;
+        if (settings.currency) document.getElementById('currency').value = settings.currency;
+        if (settings.savings_rate) document.getElementById('savingsRate').value = settings.savings_rate;
+        if (settings.checking_rate) document.getElementById('checkingRate').value = settings.checking_rate;
+        if (settings.loan_base_rate) document.getElementById('loanBaseRate').value = settings.loan_base_rate;
+        if (settings.cd_rate) document.getElementById('cdRate').value = settings.cd_rate;
+
+        // Branding
+        if (settings.branding_primary_color) {
+          document.getElementById('primaryColor').value = settings.branding_primary_color;
+          document.getElementById('primaryColorHex').value = settings.branding_primary_color;
+        }
+        if (settings.branding_secondary_color) {
+          document.getElementById('secondaryColor').value = settings.branding_secondary_color;
+          document.getElementById('secondaryColorHex').value = settings.branding_secondary_color;
+        }
+
+        // Security
+        if (settings.min_password_length) document.getElementById('minPasswordLength').value = settings.min_password_length;
+        if (settings.password_expiry) document.getElementById('passwordExpiry').value = settings.password_expiry;
+        if (settings.session_timeout) document.getElementById('sessionTimeout').value = settings.session_timeout;
+        if (settings.rate_limit) document.getElementById('rateLimit').value = settings.rate_limit;
+        if (settings.max_login_attempts) document.getElementById('maxLoginAttempts').value = settings.max_login_attempts;
+        if (settings.lockout_duration) document.getElementById('lockoutDuration').value = settings.lockout_duration;
+      } catch (e) { /* keep defaults */ }
+    }
+    loadSettings();
+
+    // General form
+    document.getElementById('generalForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await fetch('/api/v1/tenant/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
+          body: JSON.stringify({
+            name: document.getElementById('cuName').value,
+            timezone: document.getElementById('timezone').value,
+            currency: document.getElementById('currency').value,
+          })
+        });
+        alert('Settings saved.');
+      } catch (err) { alert('Failed to save settings.'); }
+    });
+
+    // Branding form
+    document.getElementById('brandingForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await fetch('/api/v1/tenant/branding', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
+          body: JSON.stringify({
+            primary_color: document.getElementById('primaryColorHex').value,
+            secondary_color: document.getElementById('secondaryColorHex').value,
+          })
+        });
+        alert('Branding saved.');
+      } catch (err) { alert('Failed to save branding.'); }
+    });
+
+    // Security form
+    document.getElementById('securityForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await fetch('/api/v1/tenant/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
+          body: JSON.stringify({
+            min_password_length: document.getElementById('minPasswordLength').value,
+            password_expiry: document.getElementById('passwordExpiry').value,
+            session_timeout: document.getElementById('sessionTimeout').value,
+            rate_limit: document.getElementById('rateLimit').value,
+            max_login_attempts: document.getElementById('maxLoginAttempts').value,
+            lockout_duration: document.getElementById('lockoutDuration').value,
+          })
+        });
+        alert('Security settings saved.');
+      } catch (err) { alert('Failed to save security settings.'); }
     });
   </script>
 </body>

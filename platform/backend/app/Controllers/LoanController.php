@@ -34,13 +34,57 @@ final class LoanController
         $perPage = min(100, max(1, (int) ($request->query('per_page', '20'))));
         $status  = $request->query('status');
 
-        if (in_array($role, ['admin', 'manager'], true)) {
-            $result = $this->loans->getAll($page, $perPage, $status);
+        if (in_array($role, ['admin', 'super_admin', 'manager'], true)) {
+            $result = $this->adminListLoans($request, $page, $perPage);
         } else {
             $result = $this->loans->getByUser($userId, $page, $perPage);
         }
 
         return Response::paginated($result['items'], $result['total'], $page, $perPage);
+    }
+
+    /**
+     * Admin-level loan listing with member names and status counts.
+     */
+    private function adminListLoans(Request $request, int $page, int $perPage): array
+    {
+        $db = \App\Core\Database::getInstance();
+        $tenantId = $db->getTenantId();
+        $offset = ($page - 1) * $perPage;
+        $params = [$tenantId];
+        $where = 'WHERE l.tenant_id = ?';
+
+        $status = $request->query('status');
+        if ($status !== null && $status !== '' && $status !== 'all') {
+            $where .= ' AND l.status = ?';
+            $params[] = $status;
+        }
+
+        $search = $request->query('search');
+        if ($search !== null && $search !== '') {
+            $where .= ' AND (l.loan_number LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ?)';
+            $term = "%{$search}%";
+            $params = [...$params, $term, $term, $term];
+        }
+
+        $items = $db->fetchAll(
+            "SELECT l.*, CONCAT(u.first_name, ' ', u.last_name) AS member_name
+             FROM loans l
+             LEFT JOIN users u ON u.id = l.user_id AND u.tenant_id = l.tenant_id
+             {$where}
+             ORDER BY l.created_at DESC
+             LIMIT {$perPage} OFFSET {$offset}",
+            $params,
+        );
+
+        $total = (int) $db->fetchColumn(
+            "SELECT COUNT(*) FROM loans l
+             LEFT JOIN users u ON u.id = l.user_id AND u.tenant_id = l.tenant_id
+             {$where}",
+            $params,
+        );
+
+        return ['items' => $items, 'total' => $total];
     }
 
     /**
@@ -93,7 +137,7 @@ final class LoanController
         }
 
         // Non-admin/manager users can only view their own loans
-        if (!in_array($role, ['admin', 'manager'], true) && $loan['user_id'] !== $userId) {
+        if (!in_array($role, ['admin', 'super_admin', 'manager'], true) && $loan['user_id'] !== $userId) {
             return Response::error('Forbidden', 403);
         }
 
@@ -193,7 +237,7 @@ final class LoanController
             return Response::error('Loan not found', 404);
         }
 
-        if (!in_array($role, ['admin', 'manager'], true) && $loan['user_id'] !== $userId) {
+        if (!in_array($role, ['admin', 'super_admin', 'manager'], true) && $loan['user_id'] !== $userId) {
             return Response::error('Forbidden', 403);
         }
 
@@ -202,7 +246,7 @@ final class LoanController
             $schedule = $this->loans->getSchedule($loanId);
         } else {
             $schedule = $this->loans->calculateSchedule(
-                (float) $loan['amount'],
+                (float) $loan['principal_amount'],
                 (float) $loan['interest_rate'],
                 (int) $loan['term_months'],
             );

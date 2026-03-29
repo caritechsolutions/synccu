@@ -155,72 +155,7 @@
               </tr>
             </thead>
             <tbody id="loansTableBody">
-              <tr>
-                <td class="font-mono">LN-2026-0482</td>
-                <td>Jane Cooper</td>
-                <td>Personal</td>
-                <td>$25,000.00</td>
-                <td>6.25%</td>
-                <td>60 mo</td>
-                <td>$22,450.00</td>
-                <td><span class="badge badge-success">Active</span></td>
-                <td><button class="icon-btn" title="View Details" data-loan="1"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
-              <tr>
-                <td class="font-mono">LN-2026-0481</td>
-                <td>Robert Fox</td>
-                <td>Auto</td>
-                <td>$35,000.00</td>
-                <td>4.75%</td>
-                <td>72 mo</td>
-                <td>$31,200.00</td>
-                <td><span class="badge badge-success">Active</span></td>
-                <td><button class="icon-btn" title="View Details" data-loan="2"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
-              <tr>
-                <td class="font-mono">LN-2026-0480</td>
-                <td>Emily Wilson</td>
-                <td>Mortgage</td>
-                <td>$280,000.00</td>
-                <td>5.50%</td>
-                <td>360 mo</td>
-                <td>$274,800.00</td>
-                <td><span class="badge badge-info">Approved</span></td>
-                <td><button class="icon-btn" title="View Details" data-loan="3"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
-              <tr>
-                <td class="font-mono">LN-2026-0479</td>
-                <td>Michael Brown</td>
-                <td>Personal</td>
-                <td>$10,000.00</td>
-                <td>7.00%</td>
-                <td>36 mo</td>
-                <td>$8,240.00</td>
-                <td><span class="badge badge-danger">Delinquent</span></td>
-                <td><button class="icon-btn" title="View Details" data-loan="4"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
-              <tr>
-                <td class="font-mono">LN-2026-0478</td>
-                <td>Sarah Davis</td>
-                <td>Home Equity</td>
-                <td>$50,000.00</td>
-                <td>5.00%</td>
-                <td>120 mo</td>
-                <td>$0.00</td>
-                <td><span class="badge badge-warning">Application</span></td>
-                <td><button class="icon-btn" title="View Details" data-loan="5"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
-              <tr>
-                <td class="font-mono">LN-2026-0477</td>
-                <td>Patricia Garcia</td>
-                <td>Auto</td>
-                <td>$22,000.00</td>
-                <td>4.50%</td>
-                <td>60 mo</td>
-                <td>$18,640.00</td>
-                <td><span class="badge badge-success">Active</span></td>
-                <td><button class="icon-btn" title="View Details" data-loan="6"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
+              <tr><td colspan="9" style="text-align:center;padding:2rem">Loading loans...</td></tr>
             </tbody>
           </table>
         </div>
@@ -361,6 +296,36 @@
     const closeLoanDetailBtn = document.getElementById('closeLoanDetailBtn');
     const loanForm = document.getElementById('loanForm');
 
+    // Member search for loan form
+    let loanMemberTimeout;
+    document.getElementById('loanMember').addEventListener('input', (e) => {
+      clearTimeout(loanMemberTimeout);
+      const q = e.target.value.trim();
+      if (q.length < 2) return;
+      loanMemberTimeout = setTimeout(async () => {
+        try {
+          const resp = await fetch('/api/v1/members?search=' + encodeURIComponent(q) + '&per_page=5', {
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+          });
+          if (!resp.ok) return;
+          const json = await resp.json();
+          const members = json.data || [];
+          // Simple dropdown using datalist or inline
+          const input = document.getElementById('loanMember');
+          let list = input.parentElement.querySelector('.search-results');
+          if (!list) { list = document.createElement('div'); list.className = 'search-results'; input.parentElement.appendChild(list); }
+          list.innerHTML = members.map(m => `<div class="search-result-item" data-id="${m.id}">${m.first_name} ${m.last_name} (${m.email})</div>`).join('');
+          list.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('click', () => {
+              document.getElementById('loanMemberId').value = item.dataset.id;
+              document.getElementById('loanMember').value = item.textContent;
+              list.innerHTML = '';
+            });
+          });
+        } catch (e) { /* ignore */ }
+      }, 300);
+    });
+
     newLoanBtn.addEventListener('click', () => loanModal.classList.add('active'));
     closeLoanModal.addEventListener('click', () => loanModal.classList.remove('active'));
     cancelLoanBtn.addEventListener('click', () => loanModal.classList.remove('active'));
@@ -369,37 +334,129 @@
     closeLoanDetailBtn.addEventListener('click', () => loanDetailModal.classList.remove('active'));
     loanDetailModal.addEventListener('click', (e) => { if (e.target === loanDetailModal) loanDetailModal.classList.remove('active'); });
 
-    // View loan details
-    document.querySelectorAll('[data-loan]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const row = btn.closest('tr');
-        const cells = row.querySelectorAll('td');
-        document.getElementById('detailLoanNum').textContent = cells[0].textContent;
-        document.getElementById('detailLoanMember').textContent = cells[1].textContent;
-        document.getElementById('detailLoanType').textContent = cells[2].textContent;
-        document.getElementById('detailLoanAmount').textContent = cells[3].textContent;
-        document.getElementById('detailLoanRate').textContent = cells[4].textContent;
-        document.getElementById('detailLoanTerm').textContent = cells[5].textContent;
-        document.getElementById('detailLoanBalance').textContent = cells[6].textContent;
-        document.getElementById('detailLoanStatus').innerHTML = cells[7].innerHTML;
-        loanDetailModal.classList.add('active');
+    function bindLoanDetailButtons() {
+      document.querySelectorAll('[data-loan]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const row = btn.closest('tr');
+          const cells = row.querySelectorAll('td');
+          const loanId = btn.dataset.loan;
+          document.getElementById('detailLoanNum').textContent = cells[0].textContent;
+          document.getElementById('detailLoanMember').textContent = cells[1].textContent;
+          document.getElementById('detailLoanType').textContent = cells[2].textContent;
+          document.getElementById('detailLoanAmount').textContent = cells[3].textContent;
+          document.getElementById('detailLoanRate').textContent = cells[4].textContent;
+          document.getElementById('detailLoanTerm').textContent = cells[5].textContent;
+          document.getElementById('detailLoanBalance').textContent = cells[6].textContent;
+          document.getElementById('detailLoanStatus').innerHTML = cells[7].innerHTML;
+
+          // Load amortization schedule
+          try {
+            const resp = await fetch('/api/v1/loans/' + loanId + '/schedule', {
+              headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+            });
+            if (resp.ok) {
+              const json = await resp.json();
+              const schedule = (json.data && json.data.schedule) || [];
+              const tbody = document.getElementById('amortizationTable');
+              if (schedule.length) {
+                tbody.innerHTML = schedule.slice(0, 12).map((s, i) => `
+                  <tr>
+                    <td>${s.payment_number || (i + 1)}</td>
+                    <td>${s.due_date ? new Date(s.due_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '-'}</td>
+                    <td>$${Number(s.payment_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td>$${Number(s.principal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td>$${Number(s.interest || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td>$${Number(s.remaining_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  </tr>`).join('');
+              }
+            }
+          } catch (e) { /* keep placeholder */ }
+
+          loanDetailModal.classList.add('active');
+        });
       });
-    });
+    }
+
+    bindLoanDetailButtons();
 
     loanForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(loanForm);
       const data = Object.fromEntries(formData);
       try {
-        await fetch('/api/v1/loans', {
+        const resp = await fetch('/api/v1/loans/apply', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
           body: JSON.stringify(data)
         });
         loanModal.classList.remove('active');
         loanForm.reset();
+        if (resp.ok) loadLoans();
       } catch (e) { /* handle error */ }
     });
+
+    let currentLoanPage = 1;
+
+    async function loadLoans(page = 1) {
+      currentLoanPage = page;
+      try {
+        const resp = await fetch('/api/v1/loans?page=' + page + '&per_page=20', {
+          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+        });
+        if (!resp.ok) return;
+        const json = await resp.json();
+        const loans = json.data || [];
+        const meta = json.meta || {};
+        renderLoans(loans, meta);
+      } catch (e) { /* API not available */ }
+
+      // Load stats
+      try {
+        const resp = await fetch('/api/v1/admin/loan-stats', {
+          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          const s = json.data || {};
+          document.getElementById('statApplications').textContent = s.application || 0;
+          document.getElementById('statApproved').textContent = s.approved || 0;
+          document.getElementById('statActive').textContent = s.active || 0;
+          document.getElementById('statDelinquent').textContent = s.delinquent || 0;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    function renderLoans(loans, meta) {
+      const tbody = document.getElementById('loansTableBody');
+      if (!loans.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem">No loans found.</td></tr>';
+        return;
+      }
+      const statusClasses = { application: 'badge-warning', approved: 'badge-info', active: 'badge-success', delinquent: 'badge-danger', default: 'badge-danger', paid_off: 'badge-muted', cancelled: 'badge-muted' };
+      tbody.innerHTML = loans.map(l => `
+        <tr>
+          <td class="font-mono">${l.loan_number || '-'}</td>
+          <td>${l.member_name || '-'}</td>
+          <td>${l.loan_type ? l.loan_type.charAt(0).toUpperCase() + l.loan_type.slice(1) : '-'}</td>
+          <td>$${Number(l.principal_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td>${Number(l.interest_rate || 0).toFixed(2)}%</td>
+          <td>${l.term_months || '-'} mo</td>
+          <td>$${Number(l.outstanding_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td><span class="badge ${statusClasses[l.status] || 'badge-muted'}">${l.status ? l.status.charAt(0).toUpperCase() + l.status.slice(1) : '-'}</span></td>
+          <td><button class="icon-btn" title="View Details" data-loan="${l.id}"><svg><use href="#icon-eye"/></svg></button></td>
+        </tr>`).join('');
+
+      // Pagination
+      const pag = document.querySelector('.pagination');
+      if (meta.total) {
+        const totalPages = meta.total_pages || Math.ceil(meta.total / meta.per_page);
+        pag.querySelector('.pagination-info').textContent = 'Showing ' + ((meta.page - 1) * meta.per_page + 1) + '-' + Math.min(meta.page * meta.per_page, meta.total) + ' of ' + meta.total + ' loans';
+      }
+
+      bindLoanDetailButtons();
+    }
+
+    loadLoans();
   </script>
 </body>
 </html>

@@ -39,6 +39,11 @@ final class RBACMiddleware
             return $next($request);
         }
 
+        // super_admin has access to all routes
+        if ($userRole === 'super_admin') {
+            return $next($request);
+        }
+
         if (!in_array($userRole, $allowedRoles, true)) {
             return Response::error('Insufficient permissions', 403);
         }

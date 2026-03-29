@@ -33,7 +33,7 @@ use App\Middleware\AuditMiddleware;
 // ------------------------------------------------------------------
 // Health check (no middleware)
 // ------------------------------------------------------------------
-$router->get('/api/health', function () {
+$router->get('/api/v1/health', function () {
     return \App\Core\Response::ok([
         'status'  => 'healthy',
         'version' => '1.0.0',
@@ -45,7 +45,7 @@ $router->get('/api/health', function () {
 // Auth routes (rate-limited, tenant-aware, no JWT required)
 // ------------------------------------------------------------------
 $router->group([
-    'prefix'     => '/api/auth',
+    'prefix'     => '/api/v1/auth',
     'middleware'  => [
         RateLimitMiddleware::class . ':10',
         TenantMiddleware::class,
@@ -59,7 +59,7 @@ $router->group([
 
 // Auth logout requires authentication
 $router->group([
-    'prefix'     => '/api/auth',
+    'prefix'     => '/api/v1/auth',
     'middleware'  => [
         RateLimitMiddleware::class,
         AuthMiddleware::class,
@@ -73,7 +73,7 @@ $router->group([
 // Account routes (authenticated, tenant-scoped)
 // ------------------------------------------------------------------
 $router->group([
-    'prefix'     => '/api/accounts',
+    'prefix'     => '/api/v1/accounts',
     'middleware'  => [
         RateLimitMiddleware::class,
         AuthMiddleware::class,
@@ -92,7 +92,7 @@ $router->group([
 // Transaction routes (authenticated, tenant-scoped, audited)
 // ------------------------------------------------------------------
 $router->group([
-    'prefix'     => '/api/transactions',
+    'prefix'     => '/api/v1/transactions',
     'middleware'  => [
         RateLimitMiddleware::class,
         AuthMiddleware::class,
@@ -100,6 +100,8 @@ $router->group([
         AuditMiddleware::class,
     ],
 ], function ($router) {
+    $router->get('/',           [TransactionController::class, 'index']);
+    $router->post('/',          [TransactionController::class, 'store']);
     $router->post('/deposit',   [TransactionController::class, 'deposit']);
     $router->post('/withdraw',  [TransactionController::class, 'withdraw']);
     $router->post('/transfer',  [TransactionController::class, 'transfer']);
@@ -110,7 +112,7 @@ $router->group([
 // Loan routes (authenticated, tenant-scoped, audited)
 // ------------------------------------------------------------------
 $router->group([
-    'prefix'     => '/api/loans',
+    'prefix'     => '/api/v1/loans',
     'middleware'  => [
         RateLimitMiddleware::class,
         AuthMiddleware::class,
@@ -134,10 +136,28 @@ $router->group([
 });
 
 // ------------------------------------------------------------------
+// Members routes (admin/manager/teller, tenant-scoped)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/members',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+        RBACMiddleware::class . ':admin,manager,teller',
+        AuditMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/',            [AdminController::class, 'members']);
+    $router->post('/',           [AdminController::class, 'createMember']);
+    $router->put('/{id}',       [AdminController::class, 'updateUser']);
+});
+
+// ------------------------------------------------------------------
 // Admin routes (admin/manager only, tenant-scoped, audited)
 // ------------------------------------------------------------------
 $router->group([
-    'prefix'     => '/api/admin',
+    'prefix'     => '/api/v1/admin',
     'middleware'  => [
         RateLimitMiddleware::class,
         AuthMiddleware::class,
@@ -151,13 +171,14 @@ $router->group([
     $router->put('/users/{id}',  [AdminController::class, 'updateUser']);
     $router->get('/audit-logs',  [AdminController::class, 'auditLogs']);
     $router->get('/reports',     [AdminController::class, 'reports']);
+    $router->get('/loan-stats',  [AdminController::class, 'loanStats']);
 });
 
 // ------------------------------------------------------------------
 // Tenant settings routes (admin only, tenant-scoped)
 // ------------------------------------------------------------------
 $router->group([
-    'prefix'     => '/api/tenant',
+    'prefix'     => '/api/v1/tenant',
     'middleware'  => [
         RateLimitMiddleware::class,
         AuthMiddleware::class,

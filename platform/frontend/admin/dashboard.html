@@ -335,12 +335,35 @@
           headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
         });
         if (!resp.ok) return;
-        const data = await resp.json();
-        if (data.total_members !== undefined) document.getElementById('statMembers').textContent = Number(data.total_members).toLocaleString();
-        if (data.total_deposits !== undefined) document.getElementById('statDeposits').textContent = '$' + (data.total_deposits / 1000000).toFixed(1) + 'M';
-        if (data.active_loans !== undefined) document.getElementById('statLoans').textContent = Number(data.active_loans).toLocaleString();
-        if (data.monthly_revenue !== undefined) document.getElementById('statRevenue').textContent = '$' + (data.monthly_revenue / 1000).toFixed(1) + 'K';
-      } catch (e) {}
+        const json = await resp.json();
+        const d = json.data || json;
+        if (d.members !== undefined) document.getElementById('statMembers').textContent = Number(d.members).toLocaleString();
+        if (d.total_deposits !== undefined) {
+          const dep = d.total_deposits;
+          document.getElementById('statDeposits').textContent = dep >= 1000000 ? '$' + (dep / 1000000).toFixed(1) + 'M' : '$' + (dep / 1000).toFixed(1) + 'K';
+        }
+        if (d.active_loans !== undefined) document.getElementById('statLoans').textContent = Number(d.active_loans).toLocaleString();
+        if (d.total_loan_balance !== undefined) {
+          const rev = d.total_loan_balance;
+          document.getElementById('statRevenue').textContent = rev >= 1000000 ? '$' + (rev / 1000000).toFixed(1) + 'M' : '$' + (rev / 1000).toFixed(1) + 'K';
+        }
+        // Populate recent transactions from API
+        if (d.recent_transactions && d.recent_transactions.length > 0) {
+          const tbody = document.getElementById('recentTransactions');
+          if (tbody) {
+            tbody.innerHTML = d.recent_transactions.map(t => {
+              const date = new Date(t.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+              const isCredit = ['deposit','interest','loan_payment'].includes(t.type);
+              const amtClass = isCredit ? 'text-green' : 'text-red';
+              const amtSign = isCredit ? '+' : '-';
+              const statusClass = t.status === 'completed' ? 'badge-success' : t.status === 'pending' ? 'badge-warning' : 'badge-neutral';
+              return '<tr><td>' + date + '</td><td>' + (t.description || t.type) + '</td><td>' + (t.reference_number || '-') + '</td>' +
+                '<td class="' + amtClass + '">' + amtSign + '$' + Number(t.amount).toLocaleString(undefined,{minimumFractionDigits:2}) + '</td>' +
+                '<td><span class="badge ' + statusClass + '">' + t.status + '</span></td></tr>';
+            }).join('');
+          }
+        }
+      } catch (e) { console.error('Dashboard load error:', e); }
     }
     loadDashboardData();
   </script>

@@ -379,21 +379,52 @@
 
     async function loadTransactions() {
       try {
-        const params = new URLSearchParams({
-          from: document.getElementById('dateFrom').value,
-          to: document.getElementById('dateTo').value,
-          type: document.getElementById('txnTypeFilter').value,
-          status: document.getElementById('txnStatusFilter').value,
-          search: document.getElementById('txnSearch').value
-        });
+        const params = new URLSearchParams();
+        const from = document.getElementById('dateFrom')?.value;
+        const to = document.getElementById('dateTo')?.value;
+        const type = document.getElementById('txnTypeFilter')?.value;
+        const status = document.getElementById('txnStatusFilter')?.value;
+        const search = document.getElementById('txnSearch')?.value;
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+        if (type && type !== 'all') params.set('type', type);
+        if (status && status !== 'all') params.set('status', status);
+        if (search) params.set('search', search);
         const resp = await fetch('/api/v1/transactions?' + params, {
           headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
         });
         if (!resp.ok) return;
-        const data = await resp.json();
-        // renderTransactions(data.transactions || []);
-      } catch (e) { /* API not available */ }
+        const json = await resp.json();
+        const txns = json.data || [];
+        renderTransactions(txns);
+      } catch (e) { console.error('Load transactions error:', e); }
     }
+
+    function renderTransactions(txns) {
+      const tbody = document.getElementById('transactionsTableBody');
+      if (!tbody) return;
+      if (!txns.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">No transactions found</td></tr>';
+        return;
+      }
+      tbody.innerHTML = txns.map(t => {
+        const date = new Date(t.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+        const isCredit = ['deposit','interest','loan_payment'].includes(t.type);
+        const amtClass = isCredit ? 'text-green' : 'text-red';
+        const amtSign = isCredit ? '+' : '-';
+        const statusClass = t.status === 'completed' ? 'badge-success' : t.status === 'pending' ? 'badge-warning' : 'badge-neutral';
+        return '<tr>' +
+          '<td>' + date + '</td>' +
+          '<td>' + (t.reference_number || '-') + '</td>' +
+          '<td>' + t.type + '</td>' +
+          '<td>' + (t.account_name || t.account_number || '-') + '</td>' +
+          '<td>' + (t.member_name || '-') + '</td>' +
+          '<td class="' + amtClass + '">' + amtSign + '$' + Number(t.amount).toLocaleString(undefined,{minimumFractionDigits:2}) + '</td>' +
+          '<td><span class="badge ' + statusClass + '">' + t.status + '</span></td></tr>';
+      }).join('');
+    }
+
+    loadTransactions();
 
     document.getElementById('txnTypeFilter').addEventListener('change', loadTransactions);
     document.getElementById('txnStatusFilter').addEventListener('change', loadTransactions);

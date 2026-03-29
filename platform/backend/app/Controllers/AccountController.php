@@ -27,17 +27,73 @@ final class AccountController
     /**
      * GET /api/accounts
      *
-     * List accounts for the authenticated user.
+     * List accounts. Admins/managers/tellers see all accounts with member names;
+     * regular members see only their own.
      */
     public function index(Request $request): Response
     {
         $userId  = $request->getAttribute('user_id');
+        $role    = $request->getAttribute('role');
         $page    = max(1, (int) ($request->query('page', '1')));
         $perPage = min(100, max(1, (int) ($request->query('per_page', '20'))));
 
-        $result = $this->accounts->getByUser($userId, $page, $perPage);
+        if (in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true)) {
+            $result = $this->adminListAccounts($request, $page, $perPage);
+        } else {
+            $result = $this->accounts->getByUser($userId, $page, $perPage);
+        }
 
         return Response::paginated($result['items'], $result['total'], $page, $perPage);
+    }
+
+    /**
+     * Admin-level account listing with member names and filters.
+     */
+    private function adminListAccounts(Request $request, int $page, int $perPage): array
+    {
+        $db = \App\Core\Database::getInstance();
+        $tenantId = $db->getTenantId();
+        $offset = ($page - 1) * $perPage;
+        $params = [$tenantId];
+        $where = 'WHERE a.tenant_id = ?';
+
+        $type = $request->query('type');
+        if ($type !== null && $type !== '' && $type !== 'all') {
+            $where .= ' AND a.account_type = ?';
+            $params[] = $type;
+        }
+
+        $status = $request->query('status');
+        if ($status !== null && $status !== '' && $status !== 'all') {
+            $where .= ' AND a.status = ?';
+            $params[] = $status;
+        }
+
+        $search = $request->query('search');
+        if ($search !== null && $search !== '') {
+            $where .= ' AND (a.account_number LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ?)';
+            $term = "%{$search}%";
+            $params = [...$params, $term, $term, $term, $term];
+        }
+
+        $items = $db->fetchAll(
+            "SELECT a.*, CONCAT(u.first_name, ' ', u.last_name) AS member_name, u.email AS member_email
+             FROM accounts a
+             LEFT JOIN users u ON u.id = a.user_id AND u.tenant_id = a.tenant_id
+             {$where}
+             ORDER BY a.created_at DESC
+             LIMIT {$perPage} OFFSET {$offset}",
+            $params,
+        );
+
+        $total = (int) $db->fetchColumn(
+            "SELECT COUNT(*) FROM accounts a
+             LEFT JOIN users u ON u.id = a.user_id AND u.tenant_id = a.tenant_id
+             {$where}",
+            $params,
+        );
+
+        return ['items' => $items, 'total' => $total];
     }
 
     /**
@@ -87,7 +143,7 @@ final class AccountController
         }
 
         // Non-admin users can only view their own accounts
-        if ($role !== 'admin' && $account['user_id'] !== $userId) {
+        if (!in_array($role, ['admin', 'super_admin'], true) && $account['user_id'] !== $userId) {
             return Response::error('Forbidden', 403);
         }
 
@@ -111,7 +167,7 @@ final class AccountController
             return Response::error('Account not found', 404);
         }
 
-        if ($role !== 'admin' && $account['user_id'] !== $userId) {
+        if (!in_array($role, ['admin', 'super_admin'], true) && $account['user_id'] !== $userId) {
             return Response::error('Forbidden', 403);
         }
 
@@ -125,7 +181,7 @@ final class AccountController
         }
 
         // Only admins can change status
-        if ($request->has('status') && $role !== 'admin') {
+        if ($request->has('status') && !in_array($role, ['admin', 'super_admin'], true)) {
             return Response::error('Only administrators can change account status', 403);
         }
 
@@ -149,7 +205,7 @@ final class AccountController
         $role      = $request->getAttribute('role');
 
         // Verify ownership or admin
-        if ($role !== 'admin' && !$this->accounts->verifyOwnership($accountId, $userId)) {
+        if (!in_array($role, ['admin', 'super_admin'], true) && !$this->accounts->verifyOwnership($accountId, $userId)) {
             return Response::error('Forbidden', 403);
         }
 

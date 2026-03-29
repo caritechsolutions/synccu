@@ -119,96 +119,7 @@
 
       <!-- Accounts Grid -->
       <div class="accounts-grid" id="accountsGrid">
-        <div class="account-card" data-id="1001">
-          <div class="account-card-header">
-            <span class="account-number">****4821</span>
-            <span class="badge badge-info">Savings</span>
-          </div>
-          <div class="account-card-member">Jane Cooper</div>
-          <div class="account-card-balance">$24,562.80</div>
-          <div class="account-card-footer">
-            <span class="badge badge-success">Active</span>
-            <span class="account-date">
-              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
-              Opened Jan 15, 2024
-            </span>
-          </div>
-        </div>
-        <div class="account-card" data-id="1002">
-          <div class="account-card-header">
-            <span class="account-number">****7392</span>
-            <span class="badge badge-primary">Checking</span>
-          </div>
-          <div class="account-card-member">Robert Fox</div>
-          <div class="account-card-balance">$8,134.20</div>
-          <div class="account-card-footer">
-            <span class="badge badge-success">Active</span>
-            <span class="account-date">
-              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
-              Opened Mar 22, 2023
-            </span>
-          </div>
-        </div>
-        <div class="account-card" data-id="1003">
-          <div class="account-card-header">
-            <span class="account-number">****5610</span>
-            <span class="badge badge-warning">Money Market</span>
-          </div>
-          <div class="account-card-member">Emily Wilson</div>
-          <div class="account-card-balance">$152,340.00</div>
-          <div class="account-card-footer">
-            <span class="badge badge-success">Active</span>
-            <span class="account-date">
-              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
-              Opened Jul 8, 2022
-            </span>
-          </div>
-        </div>
-        <div class="account-card" data-id="1004">
-          <div class="account-card-header">
-            <span class="account-number">****2048</span>
-            <span class="badge badge-info">Savings</span>
-          </div>
-          <div class="account-card-member">Michael Brown</div>
-          <div class="account-card-balance">$3,210.45</div>
-          <div class="account-card-footer">
-            <span class="badge badge-muted">Frozen</span>
-            <span class="account-date">
-              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
-              Opened Nov 3, 2024
-            </span>
-          </div>
-        </div>
-        <div class="account-card" data-id="1005">
-          <div class="account-card-header">
-            <span class="account-number">****9173</span>
-            <span class="badge badge-purple">Certificate</span>
-          </div>
-          <div class="account-card-member">Sarah Davis</div>
-          <div class="account-card-balance">$50,000.00</div>
-          <div class="account-card-footer">
-            <span class="badge badge-success">Active</span>
-            <span class="account-date">
-              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
-              Opened Sep 12, 2025
-            </span>
-          </div>
-        </div>
-        <div class="account-card" data-id="1006">
-          <div class="account-card-header">
-            <span class="account-number">****3847</span>
-            <span class="badge badge-primary">Checking</span>
-          </div>
-          <div class="account-card-member">Patricia Garcia</div>
-          <div class="account-card-balance">$11,892.30</div>
-          <div class="account-card-footer">
-            <span class="badge badge-success">Active</span>
-            <span class="account-date">
-              <svg style="width:14px;height:14px"><use href="#icon-calendar"/></svg>
-              Opened Feb 28, 2025
-            </span>
-          </div>
-        </div>
+        <div class="empty-state"><p>Loading accounts...</p></div>
       </div>
     </main>
   </div>
@@ -324,16 +235,31 @@
     closeSlideOver.addEventListener('click', () => accountSlideOver.classList.remove('active'));
     accountSlideOver.addEventListener('click', (e) => { if (e.target === accountSlideOver) accountSlideOver.classList.remove('active'); });
 
-    // Open detail slide-over on account card click
-    document.querySelectorAll('.account-card').forEach(card => {
-      card.addEventListener('click', () => {
-        document.getElementById('detailAccNum').textContent = card.querySelector('.account-number').textContent;
-        document.getElementById('detailAccType').textContent = card.querySelector('.badge').textContent;
-        document.getElementById('detailAccMember').textContent = card.querySelector('.account-card-member').textContent;
-        document.getElementById('detailAccBalance').textContent = card.querySelector('.account-card-balance').textContent;
-        document.getElementById('detailAccStatus').textContent = card.querySelector('.account-card-footer .badge').textContent;
-        accountSlideOver.classList.add('active');
-      });
+    // Member search for create account form
+    let memberSearchTimeout;
+    document.getElementById('accountMemberSearch').addEventListener('input', (e) => {
+      clearTimeout(memberSearchTimeout);
+      const q = e.target.value.trim();
+      if (q.length < 2) { document.getElementById('memberSearchResults').innerHTML = ''; return; }
+      memberSearchTimeout = setTimeout(async () => {
+        try {
+          const resp = await fetch('/api/v1/members?search=' + encodeURIComponent(q) + '&per_page=5', {
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
+          });
+          if (!resp.ok) return;
+          const json = await resp.json();
+          const members = json.data || [];
+          const el = document.getElementById('memberSearchResults');
+          el.innerHTML = members.map(m => `<div class="search-result-item" data-id="${m.id}">${m.first_name} ${m.last_name} (${m.email})</div>`).join('');
+          el.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('click', () => {
+              document.getElementById('accountMemberId').value = item.dataset.id;
+              document.getElementById('accountMemberSearch').value = item.textContent;
+              el.innerHTML = '';
+            });
+          });
+        } catch (e) { /* ignore */ }
+      }, 300);
     });
 
     accountForm.addEventListener('submit', async (e) => {
@@ -341,14 +267,14 @@
       const formData = new FormData(accountForm);
       const data = Object.fromEntries(formData);
       try {
-        await fetch('/api/v1/accounts', {
+        const resp = await fetch('/api/v1/accounts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
           body: JSON.stringify(data)
         });
         accountModal.classList.remove('active');
         accountForm.reset();
-        loadAccounts();
+        if (resp.ok) loadAccounts();
       } catch (e) { /* handle error */ }
     });
 
@@ -361,16 +287,20 @@
           headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
         });
         if (!resp.ok) return;
-        const data = await resp.json();
-        renderAccounts(data.accounts || []);
+        const json = await resp.json();
+        const accounts = json.data || [];
+        renderAccounts(accounts);
       } catch (e) { /* API not available */ }
     }
 
     function renderAccounts(accounts) {
-      if (!accounts.length) return;
       const grid = document.getElementById('accountsGrid');
-      const typeClasses = { checking: 'badge-primary', savings: 'badge-info', money_market: 'badge-warning', certificate: 'badge-purple' };
-      const statusClasses = { active: 'badge-success', frozen: 'badge-muted', closed: 'badge-danger' };
+      if (!accounts.length) {
+        grid.innerHTML = '<div class="empty-state"><p>No accounts found.</p></div>';
+        return;
+      }
+      const typeClasses = { checking: 'badge-primary', savings: 'badge-info', money_market: 'badge-warning', certificate: 'badge-purple', cd: 'badge-purple' };
+      const statusClasses = { active: 'badge-success', frozen: 'badge-muted', closed: 'badge-danger', dormant: 'badge-warning' };
       grid.innerHTML = accounts.map(a => `
         <div class="account-card" data-id="${a.id}">
           <div class="account-card-header">
@@ -384,6 +314,18 @@
             <span class="account-date">Opened ${new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
           </div>
         </div>`).join('');
+
+      // Re-bind card click for slide-over
+      grid.querySelectorAll('.account-card').forEach(card => {
+        card.addEventListener('click', () => {
+          document.getElementById('detailAccNum').textContent = card.querySelector('.account-number').textContent;
+          document.getElementById('detailAccType').textContent = card.querySelector('.badge').textContent;
+          document.getElementById('detailAccMember').textContent = card.querySelector('.account-card-member').textContent;
+          document.getElementById('detailAccBalance').textContent = card.querySelector('.account-card-balance').textContent;
+          document.getElementById('detailAccStatus').textContent = card.querySelector('.account-card-footer .badge').textContent;
+          accountSlideOver.classList.add('active');
+        });
+      });
     }
 
     document.getElementById('accountTypeFilter').addEventListener('change', loadAccounts);
@@ -392,6 +334,8 @@
     document.getElementById('accountSearch').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadAccounts, 300); });
 
     if (new URLSearchParams(window.location.search).get('action') === 'new') { accountModal.classList.add('active'); }
+
+    loadAccounts();
   </script>
 </body>
 </html>

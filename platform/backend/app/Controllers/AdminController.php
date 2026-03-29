@@ -54,13 +54,13 @@ final class AdminController
         );
 
         $totalLoanBalance = (float) ($this->db->fetchColumn(
-            'SELECT COALESCE(SUM(remaining_balance), 0) FROM loans WHERE tenant_id = ? AND status IN (?, ?)',
+            'SELECT COALESCE(SUM(outstanding_balance), 0) FROM loans WHERE tenant_id = ? AND status IN (?, ?)',
             [$tenantId, 'approved', 'active'],
         ) ?? 0);
 
         $pendingLoans = (int) $this->db->fetchColumn(
             'SELECT COUNT(*) FROM loans WHERE tenant_id = ? AND status = ?',
-            [$tenantId, 'pending'],
+            [$tenantId, 'application'],
         );
 
         $recentTransactions = $this->db->fetchAll(
@@ -88,7 +88,113 @@ final class AdminController
     }
 
     /**
-     * GET /api/admin/users
+     * GET /api/v1/members
+     *
+     * List members (role=member) with account counts for the members admin page.
+     */
+    public function members(Request $request): Response
+    {
+        $page    = max(1, (int) ($request->query('page', '1')));
+        $perPage = min(100, max(1, (int) ($request->query('per_page', '20'))));
+        $status  = $request->query('status');
+        $search  = $request->query('search');
+
+        $tenantId = $this->db->getTenantId();
+        $offset   = ($page - 1) * $perPage;
+        $params   = [$tenantId];
+        $where    = 'WHERE u.tenant_id = ?';
+
+        if ($status !== null && $status !== '' && $status !== 'all') {
+            $where .= ' AND u.status = ?';
+            $params[] = $status;
+        }
+        if ($search !== null && $search !== '') {
+            $where .= ' AND (u.email LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ? OR u.phone LIKE ?)';
+            $term = "%{$search}%";
+            $params = [...$params, $term, $term, $term, $term];
+        }
+
+        $members = $this->db->fetchAll(
+            "SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.role, u.status,
+                    u.last_login_at, u.created_at,
+                    (SELECT COUNT(*) FROM accounts a WHERE a.user_id = u.id AND a.tenant_id = u.tenant_id) AS accounts_count
+             FROM users u {$where}
+             ORDER BY u.created_at DESC
+             LIMIT {$perPage} OFFSET {$offset}",
+            $params,
+        );
+
+        $total = (int) $this->db->fetchColumn(
+            "SELECT COUNT(*) FROM users u {$where}",
+            $params,
+        );
+
+        return Response::paginated($members, $total, $page, $perPage);
+    }
+
+    /**
+     * POST /api/v1/members
+     *
+     * Create a new member/user.
+     */
+    public function createMember(Request $request): Response
+    {
+        $validator = new Validator($request->all(), [
+            'email'      => 'required|email',
+            'first_name' => 'required|string|max:100',
+            'last_name'  => 'required|string|max:100',
+            'phone'      => 'nullable|string|max:20',
+            'role'       => 'nullable|in:member,teller,manager,admin',
+            'status'     => 'nullable|in:active,inactive',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        $data = $validator->validated();
+        $tenantId = $this->db->getTenantId();
+
+        // Check for duplicate email
+        $existing = $this->db->fetchOne(
+            'SELECT id FROM users WHERE email = ? AND tenant_id = ?',
+            [$data['email'], $tenantId],
+        );
+        if ($existing) {
+            return Response::error('A member with this email already exists', 422);
+        }
+
+        $id = sprintf('%s-%s-%s-%s-%s',
+            bin2hex(random_bytes(4)),
+            bin2hex(random_bytes(2)),
+            bin2hex(random_bytes(2)),
+            bin2hex(random_bytes(2)),
+            bin2hex(random_bytes(6))
+        );
+        $now = date('Y-m-d H:i:s');
+        $passwordHash = password_hash('changeme123', PASSWORD_BCRYPT);
+
+        $this->db->execute(
+            'INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, phone, role, status, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $id, $tenantId, $data['email'], $passwordHash,
+                $data['first_name'], $data['last_name'],
+                $data['phone'] ?? null,
+                $data['role'] ?? 'member',
+                $data['status'] ?? 'active',
+                $now, $now,
+            ],
+        );
+
+        $member = $this->db->findScoped('users', ['id' => $id]);
+        unset($member['password_hash']);
+
+        return Response::created($member, 'Member created successfully');
+    }
+
+    /**
+     * GET /api/v1/admin/users
      *
      * List all users for the tenant.
      */
@@ -120,18 +226,18 @@ final class AdminController
         }
 
         $users = $this->db->fetchAll(
-            "SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.status,
-                    u.last_login_at, u.created_at
+            "SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.role, u.status,
+                    u.last_login_at, u.created_at,
+                    (SELECT COUNT(*) FROM accounts a WHERE a.user_id = u.id AND a.tenant_id = u.tenant_id) AS accounts_count
              FROM users u {$where}
              ORDER BY u.created_at DESC
              LIMIT {$perPage} OFFSET {$offset}",
             $params,
         );
 
-        $totalParams = $params; // same filters
         $total = (int) $this->db->fetchColumn(
             "SELECT COUNT(*) FROM users u {$where}",
-            $totalParams,
+            $params,
         );
 
         return Response::paginated($users, $total, $page, $perPage);
@@ -264,6 +370,28 @@ final class AdminController
         ]);
     }
 
+    /**
+     * GET /api/v1/admin/loan-stats
+     *
+     * Loan pipeline status counts.
+     */
+    public function loanStats(Request $request): Response
+    {
+        $tenantId = $this->db->getTenantId();
+
+        $rows = $this->db->fetchAll(
+            'SELECT status, COUNT(*) AS count FROM loans WHERE tenant_id = ? GROUP BY status',
+            [$tenantId],
+        );
+
+        $stats = [];
+        foreach ($rows as $row) {
+            $stats[$row['status']] = (int) $row['count'];
+        }
+
+        return Response::ok($stats);
+    }
+
     // ------------------------------------------------------------------
     // Report Generators
     // ------------------------------------------------------------------
@@ -324,8 +452,8 @@ final class AdminController
     {
         return $this->db->fetchAll(
             'SELECT status, COUNT(*) AS count,
-                    COALESCE(SUM(amount), 0) AS total_amount,
-                    COALESCE(SUM(remaining_balance), 0) AS total_remaining
+                    COALESCE(SUM(principal_amount), 0) AS total_amount,
+                    COALESCE(SUM(outstanding_balance), 0) AS total_remaining
              FROM loans WHERE tenant_id = ?
              GROUP BY status
              ORDER BY count DESC',
@@ -337,7 +465,7 @@ final class AdminController
     {
         return $this->db->fetchAll(
             'SELECT l.id, l.user_id, u.email, u.first_name, u.last_name,
-                    l.loan_type, l.amount, l.remaining_balance,
+                    l.loan_type, l.principal_amount, l.outstanding_balance,
                     l.next_payment_date, DATEDIFF(CURDATE(), l.next_payment_date) AS days_past_due
              FROM loans l
              JOIN users u ON u.id = l.user_id

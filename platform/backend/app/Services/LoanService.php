@@ -37,23 +37,38 @@ final class LoanService
     {
         $loanId = $this->generateUuid();
         $now    = date('Y-m-d H:i:s');
+        $amount = (float) $data['amount'];
+        $rate   = (float) $data['interest_rate'];
+        $term   = (int) $data['term_months'];
+        $monthlyPayment = $this->calculateMonthlyPayment($amount, $rate, $term);
+        $loanNumber = 'LN-' . date('Y') . '-' . str_pad((string) random_int(1, 9999), 4, '0', STR_PAD_LEFT);
+
+        // Get or create a placeholder account_id (user's first account)
+        $userAccount = $this->db->fetchOne(
+            'SELECT id FROM accounts WHERE user_id = ? AND tenant_id = ? AND status = ? LIMIT 1',
+            [$userId, $tenantId, 'active'],
+        );
+        $accountId = $userAccount ? $userAccount['id'] : $this->generateUuid();
 
         $this->db->query(
             'INSERT INTO loans
-                (id, tenant_id, user_id, loan_type, amount, interest_rate, term_months,
-                 purpose, status, application_date, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (id, tenant_id, user_id, account_id, loan_number, loan_type,
+                 principal_amount, interest_rate, term_months, monthly_payment,
+                 outstanding_balance, status, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $loanId,
                 $tenantId,
                 $userId,
+                $accountId,
+                $loanNumber,
                 $data['loan_type'],
-                (float) $data['amount'],
-                (float) $data['interest_rate'],
-                (int) $data['term_months'],
-                $data['purpose'] ?? null,
-                'pending',
-                $now,
+                $amount,
+                $rate,
+                $term,
+                $monthlyPayment,
+                $amount,
+                'application',
                 $now,
                 $now,
             ],
@@ -78,40 +93,33 @@ final class LoanService
             throw new RuntimeException('Loan not found.', 404);
         }
 
-        if ($loan['status'] !== 'pending') {
-            throw new RuntimeException('Only pending loans can be approved.', 422);
+        if (!in_array($loan['status'], ['application', 'pending'], true)) {
+            throw new RuntimeException('Only pending/application loans can be approved.', 422);
         }
 
         return $this->db->transaction(function () use ($loanId, $loan, $approvedBy) {
             $now = date('Y-m-d H:i:s');
+            $principal = (float) $loan['principal_amount'];
 
             // Calculate monthly payment
             $monthlyPayment = $this->calculateMonthlyPayment(
-                (float) $loan['amount'],
+                $principal,
                 (float) $loan['interest_rate'],
                 (int) $loan['term_months'],
             );
 
-            // Create the loan account
-            $loanAccount = $this->accounts->create([
-                'user_id'      => $loan['user_id'],
-                'account_type' => 'loan',
-                'name'         => "Loan - {$loan['loan_type']}",
-                'currency'     => 'USD',
-            ], $loan['tenant_id']);
-
             // Update loan record
             $this->db->updateScoped('loans', [
-                'status'           => 'approved',
-                'approved_by'      => $approvedBy,
-                'approved_date'    => $now,
-                'disbursement_date' => $now,
-                'monthly_payment'  => $monthlyPayment,
-                'remaining_balance' => $loan['amount'],
-                'loan_account_id'  => $loanAccount['id'],
-                'next_payment_date' => date('Y-m-d', strtotime('+1 month')),
-                'maturity_date'    => date('Y-m-d', strtotime("+{$loan['term_months']} months")),
-                'updated_at'       => $now,
+                'status'              => 'approved',
+                'approved_by'         => $approvedBy,
+                'approved_at'         => $now,
+                'disbursed_at'        => $now,
+                'disbursed_amount'    => $principal,
+                'monthly_payment'     => $monthlyPayment,
+                'outstanding_balance' => $principal,
+                'next_payment_date'   => date('Y-m-d', strtotime('+1 month')),
+                'maturity_date'       => date('Y-m-d', strtotime("+{$loan['term_months']} months")),
+                'updated_at'          => $now,
             ], ['id' => $loanId]);
 
             // Create ledger entry for disbursement
@@ -127,9 +135,9 @@ final class LoanService
                     'LN-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4))),
                     'loan_disbursement',
                     'completed',
-                    $loan['amount'],
+                    $principal,
                     'USD',
-                    $loanAccount['id'],
+                    $loan['account_id'],
                     $loan['user_id'],
                     "Loan disbursement - {$loan['loan_type']}",
                     $now,
@@ -143,7 +151,7 @@ final class LoanService
                 "Loan disbursement #{$loanId}",
                 LedgerService::GL_LOAN_RECEIVABLE,
                 LedgerService::GL_MEMBER_DEPOSITS,
-                (float) $loan['amount'],
+                $principal,
             );
 
             // Generate amortisation schedule
@@ -163,15 +171,13 @@ final class LoanService
             throw new RuntimeException('Loan not found.', 404);
         }
 
-        if ($loan['status'] !== 'pending') {
-            throw new RuntimeException('Only pending loans can be denied.', 422);
+        if (!in_array($loan['status'], ['application', 'pending'], true)) {
+            throw new RuntimeException('Only pending/application loans can be denied.', 422);
         }
 
         $this->db->updateScoped('loans', [
-            'status'       => 'denied',
-            'denied_by'    => $deniedBy,
-            'denied_reason' => $reason,
-            'updated_at'   => date('Y-m-d H:i:s'),
+            'status'     => 'cancelled',
+            'updated_at' => date('Y-m-d H:i:s'),
         ], ['id' => $loanId]);
 
         return $this->findById($loanId);
@@ -199,7 +205,7 @@ final class LoanService
             throw new RuntimeException('Loan is not in a payable state.', 422);
         }
 
-        $remainingBalance = (float) $loan['remaining_balance'];
+        $remainingBalance = (float) $loan['outstanding_balance'];
         if ($amount > $remainingBalance) {
             $amount = $remainingBalance; // Cap at remaining balance
         }
@@ -212,27 +218,7 @@ final class LoanService
             $interestPortion  = $this->calculateInterestPortion($loan, $amount);
             $principalPortion = $amount - $interestPortion;
 
-            $newBalance = (float) $loan['remaining_balance'] - $principalPortion;
-
-            // Record payment
-            $this->db->query(
-                'INSERT INTO loan_payments
-                    (id, tenant_id, loan_id, amount, principal, interest, remaining_balance,
-                     from_account_id, payment_date, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [
-                    $paymentId,
-                    $loan['tenant_id'],
-                    $loanId,
-                    $amount,
-                    $principalPortion,
-                    $interestPortion,
-                    max(0, $newBalance),
-                    $fromAccountId,
-                    $now,
-                    $now,
-                ],
-            );
+            $newBalance = (float) $loan['outstanding_balance'] - $principalPortion;
 
             // Debit source account if specified
             if ($fromAccountId !== null) {
@@ -241,16 +227,15 @@ final class LoanService
 
             // Update loan balance
             $updates = [
-                'remaining_balance' => max(0, $newBalance),
-                'last_payment_date' => $now,
-                'next_payment_date' => $newBalance > 0 ? date('Y-m-d', strtotime('+1 month')) : null,
-                'updated_at'        => $now,
+                'outstanding_balance' => max(0, $newBalance),
+                'total_paid'          => (float) ($loan['total_paid'] ?? 0) + $amount,
+                'next_payment_date'   => $newBalance > 0 ? date('Y-m-d', strtotime('+1 month')) : null,
+                'updated_at'          => $now,
             ];
 
             if ($newBalance <= 0.01) {
-                $updates['status']           = 'paid_off';
-                $updates['paid_off_date']    = $now;
-                $updates['remaining_balance'] = 0;
+                $updates['status']             = 'paid_off';
+                $updates['outstanding_balance'] = 0;
             } else {
                 $updates['status'] = 'active';
             }
@@ -356,10 +341,9 @@ final class LoanService
      */
     public function getSchedule(string $loanId): array
     {
-        return $this->db->selectScoped(
-            'loan_schedule',
-            ['loan_id' => $loanId],
-            'month ASC',
+        return $this->db->fetchAll(
+            'SELECT * FROM loan_schedules WHERE loan_id = ? ORDER BY payment_number ASC',
+            [$loanId],
         );
     }
 
@@ -480,7 +464,7 @@ final class LoanService
     private function calculateInterestPortion(array $loan, float $paymentAmount): float
     {
         $monthlyRate = (float) $loan['interest_rate'] / 100 / 12;
-        $interest    = (float) $loan['remaining_balance'] * $monthlyRate;
+        $interest    = (float) $loan['outstanding_balance'] * $monthlyRate;
 
         // Interest cannot exceed total payment
         return round(min($interest, $paymentAmount), 2);
@@ -492,26 +476,24 @@ final class LoanService
     private function generateSchedule(string $loanId, array $loan): void
     {
         $schedule = $this->calculateSchedule(
-            (float) $loan['amount'],
+            (float) $loan['principal_amount'],
             (float) $loan['interest_rate'],
             (int) $loan['term_months'],
         );
 
         foreach ($schedule as $row) {
             $this->db->query(
-                'INSERT INTO loan_schedule
-                    (id, tenant_id, loan_id, month, payment_date, payment, principal, interest, remaining_balance, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+                'INSERT INTO loan_schedules
+                    (id, loan_id, payment_number, due_date, principal_amount, interest_amount, total_amount, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
                 [
                     $this->generateUuid(),
-                    $loan['tenant_id'],
                     $loanId,
                     $row['month'],
                     $row['payment_date'],
-                    $row['payment'],
                     $row['principal'],
                     $row['interest'],
-                    $row['remaining_balance'],
+                    $row['payment'],
                 ],
             );
         }
