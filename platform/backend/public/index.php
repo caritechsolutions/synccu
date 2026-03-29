@@ -94,7 +94,7 @@ set_error_handler(function (int $severity, string $message, string $file, int $l
 });
 
 set_exception_handler(function (\Throwable $e) use ($debug): void {
-    $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+    $code = is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
 
@@ -130,7 +130,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // ---------- CSRF Protection (non-API browser requests) ----------
-session_start();
+// Only start sessions for non-API requests (API uses JWT tokens)
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+if (!str_starts_with($requestPath, '/api/')) {
+    session_start();
+}
 
 function generateCsrfToken(): string
 {
