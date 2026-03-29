@@ -174,8 +174,12 @@ final class Validator
         if ($value === null || $value === '') {
             return null;
         }
-        if (is_string($value) && mb_strlen($value) > $max) {
-            return "The {$label} field must not exceed {$max} characters.";
+        // String values: always check character length (even numeric strings like phone numbers)
+        if (is_string($value)) {
+            if (mb_strlen($value) > $max) {
+                return "The {$label} field must not exceed {$max} characters.";
+            }
+            return null;
         }
         if (is_numeric($value) && (float) $value > $max) {
             return "The {$label} field must not exceed {$max}.";
