@@ -32,17 +32,28 @@ if (!$input) {
     exit;
 }
 
-// Determine action from URL
-$action = basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+// Determine action from URL query string or path
+$action = $_GET['action'] ?? basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
 
-// Database connection
-$envFile = dirname(__DIR__) . '/backend/.env';
+// Database connection - search for .env in known locations
+$envFile = null;
+$searchPaths = [
+    dirname(__DIR__, 2) . '/backend/.env',      // /platform/frontend/api -> /platform/backend/.env
+    dirname(__DIR__) . '/../backend/.env',       // alternative traversal
+    '/var/www/synccu/platform/backend/.env',     // absolute fallback
+];
+foreach ($searchPaths as $path) {
+    if (file_exists($path)) {
+        $envFile = $path;
+        break;
+    }
+}
 $dbHost = 'localhost';
 $dbName = 'synccu';
 $dbUser = 'synccu_user';
 $dbPass = '';
 
-if (file_exists($envFile)) {
+if ($envFile && file_exists($envFile)) {
     $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     foreach ($lines as $line) {
         if (str_starts_with($line, '#')) continue;
