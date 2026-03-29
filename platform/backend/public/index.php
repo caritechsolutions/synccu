@@ -98,8 +98,9 @@ set_exception_handler(function (\Throwable $e) use ($debug): void {
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
 
-    $payload = ['error' => $debug ? $e->getMessage() : 'Internal server error'];
+    $payload = ['error' => $e->getMessage()];
     if ($debug) {
+        $payload['file'] = $e->getFile() . ':' . $e->getLine();
         $payload['trace'] = $e->getTraceAsString();
     }
 
@@ -163,6 +164,11 @@ try {
         $response->send();
     }
 } catch (\Throwable $e) {
-    $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
-    Response::json(['error' => $debug ? $e->getMessage() : 'Internal server error'], $code)->send();
+    $code = is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 500;
+    $payload = ['error' => $e->getMessage()];
+    if ($debug) {
+        $payload['file'] = $e->getFile() . ':' . $e->getLine();
+        $payload['trace'] = $e->getTraceAsString();
+    }
+    Response::json($payload, $code)->send();
 }

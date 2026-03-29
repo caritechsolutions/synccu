@@ -69,10 +69,10 @@ final class AuditMiddleware
 
         $db->query(
             'INSERT INTO audit_logs
-                (id, tenant_id, user_id, action, resource, resource_id, old_values, new_values,
-                 ip_address, user_agent, request_method, request_path, request_payload, response_status, created_at)
+                (id, tenant_id, user_id, action, entity_type, entity_id, old_values, new_values,
+                 ip_address, user_agent, created_at)
              VALUES
-                (UUID(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+                (UUID(), ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
             [
                 $tenantId,
                 $userId,
@@ -83,10 +83,6 @@ final class AuditMiddleware
                 $newValues,
                 $request->ip(),
                 mb_substr($request->userAgent(), 0, 512),
-                $request->method(),
-                $request->path(),
-                json_encode($payload, JSON_UNESCAPED_UNICODE),
-                $response->getStatus(),
             ],
         );
     }
