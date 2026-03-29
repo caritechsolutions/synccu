@@ -66,7 +66,11 @@ final class TenantMiddleware
         $host = $request->header('host', '');
         $subdomain = $this->extractSubdomain($host);
         if ($subdomain !== null) {
-            return $this->resolveTenantBySlug($subdomain);
+            $tenantBySlug = $this->resolveTenantBySlug($subdomain);
+            if ($tenantBySlug !== null) {
+                return $tenantBySlug;
+            }
+            // Fall through to JWT claims if subdomain doesn't match a tenant
         }
 
         // 3. JWT claim (set by AuthMiddleware)

@@ -129,96 +129,15 @@
               </tr>
             </thead>
             <tbody id="membersTableBody">
-              <tr>
-                <td><div class="member-cell"><div class="avatar avatar-sm">JC</div><span>Jane Cooper</span></div></td>
-                <td>jane.cooper@email.com</td>
-                <td>(555) 012-3456</td>
-                <td>3</td>
-                <td><span class="badge badge-success">Active</span></td>
-                <td>
-                  <div class="action-btns">
-                    <button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>
-                    <button class="icon-btn" title="Edit"><svg><use href="#icon-edit"/></svg></button>
-                    <button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <td><div class="member-cell"><div class="avatar avatar-sm">RF</div><span>Robert Fox</span></div></td>
-                <td>robert.fox@email.com</td>
-                <td>(555) 234-5678</td>
-                <td>2</td>
-                <td><span class="badge badge-success">Active</span></td>
-                <td>
-                  <div class="action-btns">
-                    <button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>
-                    <button class="icon-btn" title="Edit"><svg><use href="#icon-edit"/></svg></button>
-                    <button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <td><div class="member-cell"><div class="avatar avatar-sm">EW</div><span>Emily Wilson</span></div></td>
-                <td>emily.wilson@email.com</td>
-                <td>(555) 345-6789</td>
-                <td>1</td>
-                <td><span class="badge badge-success">Active</span></td>
-                <td>
-                  <div class="action-btns">
-                    <button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>
-                    <button class="icon-btn" title="Edit"><svg><use href="#icon-edit"/></svg></button>
-                    <button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <td><div class="member-cell"><div class="avatar avatar-sm">MB</div><span>Michael Brown</span></div></td>
-                <td>michael.brown@email.com</td>
-                <td>(555) 456-7890</td>
-                <td>4</td>
-                <td><span class="badge badge-muted">Inactive</span></td>
-                <td>
-                  <div class="action-btns">
-                    <button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>
-                    <button class="icon-btn" title="Edit"><svg><use href="#icon-edit"/></svg></button>
-                    <button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <td><div class="member-cell"><div class="avatar avatar-sm">SD</div><span>Sarah Davis</span></div></td>
-                <td>sarah.davis@email.com</td>
-                <td>(555) 567-8901</td>
-                <td>2</td>
-                <td><span class="badge badge-success">Active</span></td>
-                <td>
-                  <div class="action-btns">
-                    <button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>
-                    <button class="icon-btn" title="Edit"><svg><use href="#icon-edit"/></svg></button>
-                    <button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>
-                  </div>
-                </td>
-              </tr>
+              <tr><td colspan="6" style="text-align:center;padding:2rem">Loading members...</td></tr>
             </tbody>
           </table>
         </div>
 
         <!-- Pagination -->
-        <div class="pagination">
-          <span class="pagination-info">Showing 1-5 of 2,847 members</span>
-          <div class="pagination-controls">
-            <button class="pagination-btn" disabled>
-              <svg><use href="#icon-arrow-left"/></svg>
-            </button>
-            <button class="pagination-btn active">1</button>
-            <button class="pagination-btn">2</button>
-            <button class="pagination-btn">3</button>
-            <span class="pagination-ellipsis">...</span>
-            <button class="pagination-btn">570</button>
-            <button class="pagination-btn">
-              <svg><use href="#icon-arrow-right"/></svg>
-            </button>
-          </div>
+        <div class="pagination" id="membersPagination">
+          <span class="pagination-info"></span>
+          <div class="pagination-controls"></div>
         </div>
       </div>
     </main>
@@ -322,53 +241,79 @@
       e.preventDefault();
       const formData = new FormData(memberForm);
       const data = Object.fromEntries(formData);
+      const saveBtn = document.getElementById('saveMemberBtn');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
       try {
         const url = editingMemberId ? '/api/v1/members/' + editingMemberId : '/api/v1/members';
         const method = editingMemberId ? 'PUT' : 'POST';
-        await fetch(url, {
+        const resp = await fetch(url, {
           method,
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
           body: JSON.stringify(data)
         });
+        const result = await resp.json();
+        if (!resp.ok) {
+          alert('Error: ' + (result.message || result.error || 'Failed to save member'));
+          return;
+        }
         closeModal();
         loadMembers();
-      } catch (e) { /* handle error */ }
+      } catch (e) {
+        alert('Network error: ' + e.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Member';
+      }
     });
 
-    async function loadMembers() {
+    async function loadMembers(page) {
+      if (page) currentPage = page;
+      const tbody = document.getElementById('membersTableBody');
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem">Loading...</td></tr>';
       try {
         const query = memberSearch.value;
         const status = statusFilter.value;
-        const resp = await fetch('/api/v1/members?page=' + currentPage + '&search=' + encodeURIComponent(query) + '&status=' + status, {
+        const resp = await fetch('/api/v1/members?page=' + currentPage + '&per_page=10&search=' + encodeURIComponent(query) + '&status=' + status, {
           headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
         });
-        if (!resp.ok) return;
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:red">API error ' + resp.status + ': ' + (err.message || err.error || 'Unknown') + '</td></tr>';
+          console.error('Members API error:', resp.status, err);
+          return;
+        }
         const json = await resp.json();
         const members = json.data || [];
         const meta = json.meta || {};
         renderMembers(members);
         renderPagination(meta);
-      } catch (e) { /* API not available, use placeholder data */ }
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:red">Failed to load members: ' + e.message + '</td></tr>';
+        console.error('Members fetch error:', e);
+      }
     }
 
     function renderMembers(members) {
       const tbody = document.getElementById('membersTableBody');
       if (!members.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">No members found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--color-text-muted)">No members found</td></tr>';
         return;
       }
       tbody.innerHTML = members.map(m => {
-        const initials = (m.first_name?.[0] || '') + (m.last_name?.[0] || '');
+        const initials = ((m.first_name || '')[0] || '') + ((m.last_name || '')[0] || '');
         const statusClass = m.status === 'active' ? 'badge-success' : 'badge-muted';
+        const statusLabel = m.status ? m.status.charAt(0).toUpperCase() + m.status.slice(1) : 'Active';
+        const mJson = JSON.stringify(m).replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
         return '<tr>' +
-          '<td><div class="member-cell"><div class="avatar avatar-sm">' + initials.toUpperCase() + '</div><span>' + m.first_name + ' ' + m.last_name + '</span></div></td>' +
-          '<td>' + m.email + '</td>' +
+          '<td><div class="member-cell"><div class="avatar avatar-sm">' + initials.toUpperCase() + '</div><span>' + (m.first_name || '') + ' ' + (m.last_name || '') + '</span></div></td>' +
+          '<td>' + (m.email || '-') + '</td>' +
           '<td>' + (m.phone || '-') + '</td>' +
           '<td>' + (m.accounts_count || 0) + '</td>' +
-          '<td><span class="badge ' + statusClass + '">' + (m.status || 'active') + '</span></td>' +
+          '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
           '<td><div class="action-btns">' +
-            '<button class="icon-btn" title="View"><svg><use href="#icon-eye"/></svg></button>' +
-            '<button class="icon-btn" title="Edit" onclick=\'editMember(' + JSON.stringify(m).replace(/'/g,"&#39;") + ')\'><svg><use href="#icon-edit"/></svg></button>' +
+            '<button class="icon-btn" title="View" onclick="viewMember(\'' + m.id + '\')"><svg><use href="#icon-eye"/></svg></button>' +
+            '<button class="icon-btn" title="Edit" onclick="editMember(' + mJson + ')"><svg><use href="#icon-edit"/></svg></button>' +
             '<button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>' +
           '</div></td></tr>';
       }).join('');
@@ -378,18 +323,44 @@
       openModal(true, member);
     }
 
+    function viewMember(id) {
+      // TODO: implement member detail view
+      alert('View member: ' + id);
+    }
+
     function renderPagination(meta) {
-      const info = document.querySelector('.pagination-info');
-      if (info && meta.total !== undefined) {
-        const start = (meta.page - 1) * meta.per_page + 1;
-        const end = Math.min(meta.page * meta.per_page, meta.total);
-        info.textContent = 'Showing ' + start + '-' + end + ' of ' + Number(meta.total).toLocaleString() + ' members';
+      const pag = document.getElementById('membersPagination');
+      if (!meta || !meta.total) {
+        pag.querySelector('.pagination-info').textContent = '';
+        pag.querySelector('.pagination-controls').innerHTML = '';
+        return;
       }
+      const totalPages = meta.total_pages || Math.ceil(meta.total / meta.per_page);
+      const page = meta.page || 1;
+      const start = (page - 1) * meta.per_page + 1;
+      const end = Math.min(page * meta.per_page, meta.total);
+
+      pag.querySelector('.pagination-info').textContent = 'Showing ' + start + '-' + end + ' of ' + Number(meta.total).toLocaleString() + ' members';
+
+      let btns = '';
+      btns += '<button class="pagination-btn" ' + (page <= 1 ? 'disabled' : 'onclick="loadMembers(' + (page-1) + ')"') + '><svg><use href="#icon-arrow-left"/></svg></button>';
+      // Show up to 5 page buttons
+      let startPage = Math.max(1, page - 2);
+      let endPage = Math.min(totalPages, startPage + 4);
+      if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+      if (startPage > 1) btns += '<button class="pagination-btn" onclick="loadMembers(1)">1</button><span class="pagination-ellipsis">...</span>';
+      for (let i = startPage; i <= endPage; i++) {
+        btns += '<button class="pagination-btn ' + (i === page ? 'active' : '') + '" onclick="loadMembers(' + i + ')">' + i + '</button>';
+      }
+      if (endPage < totalPages) btns += '<span class="pagination-ellipsis">...</span><button class="pagination-btn" onclick="loadMembers(' + totalPages + ')">' + totalPages + '</button>';
+      btns += '<button class="pagination-btn" ' + (page >= totalPages ? 'disabled' : 'onclick="loadMembers(' + (page+1) + ')"') + '><svg><use href="#icon-arrow-right"/></svg></button>';
+
+      pag.querySelector('.pagination-controls').innerHTML = btns;
     }
 
     let searchTimeout;
-    memberSearch.addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadMembers, 300); });
-    statusFilter.addEventListener('change', loadMembers);
+    memberSearch.addEventListener('input', () => { clearTimeout(searchTimeout); currentPage = 1; searchTimeout = setTimeout(() => loadMembers(1), 300); });
+    statusFilter.addEventListener('change', () => { currentPage = 1; loadMembers(1); });
 
     // Load members on page load
     loadMembers();

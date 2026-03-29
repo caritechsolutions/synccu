@@ -54,7 +54,10 @@ final class AuthMiddleware
     {
         $secret = env('JWT_SECRET', '');
         if ($secret === '') {
-            return null;
+            // Use same fallback as frontend/api/auth.php
+            $dbPass = env('DB_PASSWORD', '');
+            $dbName = env('DB_DATABASE', 'synccu');
+            $secret = hash('sha256', $dbPass . $dbName . 'synccu-fallback');
         }
 
         $parts = explode('.', $token);
@@ -108,6 +111,11 @@ final class AuthMiddleware
     public static function createToken(array $payload): string
     {
         $secret = env('JWT_SECRET', '');
+        if ($secret === '') {
+            $dbPass = env('DB_PASSWORD', '');
+            $dbName = env('DB_DATABASE', 'synccu');
+            $secret = hash('sha256', $dbPass . $dbName . 'synccu-fallback');
+        }
 
         $header = self::base64UrlEncode(json_encode([
             'alg' => 'HS256',
