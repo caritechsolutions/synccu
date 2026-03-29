@@ -14,20 +14,21 @@ class ApiClient {
     setTokens(access, refresh) {
         this.accessToken = access;
         this.refreshToken = refresh;
-        if (access) sessionStorage.setItem('access_token', access);
-        if (refresh) sessionStorage.setItem('refresh_token', refresh);
+        if (access) localStorage.setItem('synccu-token', access);
+        if (refresh) localStorage.setItem('synccu-refresh', refresh);
     }
 
     loadTokens() {
-        this.accessToken = sessionStorage.getItem('access_token');
-        this.refreshToken = sessionStorage.getItem('refresh_token');
+        this.accessToken = localStorage.getItem('synccu-token');
+        this.refreshToken = localStorage.getItem('synccu-refresh');
     }
 
     clearTokens() {
         this.accessToken = null;
         this.refreshToken = null;
-        sessionStorage.removeItem('access_token');
-        sessionStorage.removeItem('refresh_token');
+        localStorage.removeItem('synccu-token');
+        localStorage.removeItem('synccu-refresh');
+        localStorage.removeItem('synccu-user');
     }
 
     async request(method, endpoint, data = null, options = {}) {

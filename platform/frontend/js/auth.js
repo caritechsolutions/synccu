@@ -21,6 +21,7 @@ class AuthManager {
 
         this.api.setTokens(response.access_token, response.refresh_token);
         this.user = response.user;
+        localStorage.setItem('synccu-user', JSON.stringify(response.user));
 
         if (rememberMe) {
             localStorage.setItem('remembered_email', email);

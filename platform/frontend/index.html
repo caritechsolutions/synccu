@@ -537,10 +537,10 @@
             return;
           }
 
-          // Store tokens
-          sessionStorage.setItem('access_token', data.access_token);
-          sessionStorage.setItem('refresh_token', data.refresh_token);
-          sessionStorage.setItem('user', JSON.stringify(data.user));
+          // Store tokens (localStorage so they persist across tabs)
+          localStorage.setItem('synccu-token', data.access_token);
+          localStorage.setItem('synccu-refresh', data.refresh_token);
+          localStorage.setItem('synccu-user', JSON.stringify(data.user));
 
           // Redirect based on role
           const role = data.user.role;
