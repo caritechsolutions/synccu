@@ -352,9 +352,8 @@
       const formData = new FormData(txnForm);
       const data = Object.fromEntries(formData);
       try {
-        await fetch('/api/v1/transactions', {
+        await apiFetch('/api/v1/transactions', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
           body: JSON.stringify(data)
         });
         txnModal.classList.remove('active');
@@ -366,9 +365,7 @@
     // Export CSV
     document.getElementById('exportCsvBtn').addEventListener('click', async () => {
       try {
-        const resp = await fetch('/api/v1/transactions/export?format=csv', {
-          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
-        });
+        const resp = await apiFetch('/api/v1/transactions/export?format=csv');
         const blob = await resp.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -390,9 +387,7 @@
         if (type && type !== 'all') params.set('type', type);
         if (status && status !== 'all') params.set('status', status);
         if (search) params.set('search', search);
-        const resp = await fetch('/api/v1/transactions?' + params, {
-          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
-        });
+        const resp = await apiFetch('/api/v1/transactions?' + params);
         if (!resp.ok) return;
         const json = await resp.json();
         const txns = json.data || [];

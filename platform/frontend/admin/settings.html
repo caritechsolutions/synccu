@@ -435,9 +435,8 @@
     // Generate API Key
     document.getElementById('generateKeyBtn').addEventListener('click', async () => {
       try {
-        const resp = await fetch('/api/v1/api-keys', {
+        const resp = await apiFetch('/api/v1/api-keys', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
           body: JSON.stringify({ name: 'New API Key' })
         });
         if (!resp.ok) return;
@@ -460,9 +459,7 @@
     // Load settings from API
     async function loadSettings() {
       try {
-        const resp = await fetch('/api/v1/tenant/settings', {
-          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
-        });
+        const resp = await apiFetch('/api/v1/tenant/settings');
         if (!resp.ok) return;
         const json = await resp.json();
         const d = json.data || {};
@@ -502,9 +499,8 @@
     document.getElementById('generalForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
-        await fetch('/api/v1/tenant/settings', {
+        await apiFetch('/api/v1/tenant/settings', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
           body: JSON.stringify({
             name: document.getElementById('cuName').value,
             timezone: document.getElementById('timezone').value,
@@ -519,9 +515,8 @@
     document.getElementById('brandingForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
-        await fetch('/api/v1/tenant/branding', {
+        await apiFetch('/api/v1/tenant/branding', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
           body: JSON.stringify({
             primary_color: document.getElementById('primaryColorHex').value,
             secondary_color: document.getElementById('secondaryColorHex').value,
@@ -535,9 +530,8 @@
     document.getElementById('securityForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
-        await fetch('/api/v1/tenant/settings', {
+        await apiFetch('/api/v1/tenant/settings', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
           body: JSON.stringify({
             min_password_length: document.getElementById('minPasswordLength').value,
             password_expiry: document.getElementById('passwordExpiry').value,

@@ -304,9 +304,7 @@
       if (q.length < 2) return;
       loanMemberTimeout = setTimeout(async () => {
         try {
-          const resp = await fetch('/api/v1/members?search=' + encodeURIComponent(q) + '&per_page=5', {
-            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
-          });
+          const resp = await apiFetch('/api/v1/members?search=' + encodeURIComponent(q) + '&per_page=5');
           if (!resp.ok) return;
           const json = await resp.json();
           const members = json.data || [];
@@ -351,9 +349,7 @@
 
           // Load amortization schedule
           try {
-            const resp = await fetch('/api/v1/loans/' + loanId + '/schedule', {
-              headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
-            });
+            const resp = await apiFetch('/api/v1/loans/' + loanId + '/schedule');
             if (resp.ok) {
               const json = await resp.json();
               const schedule = (json.data && json.data.schedule) || [];
@@ -384,9 +380,8 @@
       const formData = new FormData(loanForm);
       const data = Object.fromEntries(formData);
       try {
-        const resp = await fetch('/api/v1/loans/apply', {
+        const resp = await apiFetch('/api/v1/loans/apply', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') },
           body: JSON.stringify(data)
         });
         loanModal.classList.remove('active');
@@ -400,9 +395,7 @@
     async function loadLoans(page = 1) {
       currentLoanPage = page;
       try {
-        const resp = await fetch('/api/v1/loans?page=' + page + '&per_page=20', {
-          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
-        });
+        const resp = await apiFetch('/api/v1/loans?page=' + page + '&per_page=20');
         if (!resp.ok) return;
         const json = await resp.json();
         const loans = json.data || [];
@@ -412,9 +405,7 @@
 
       // Load stats
       try {
-        const resp = await fetch('/api/v1/admin/loan-stats', {
-          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
-        });
+        const resp = await apiFetch('/api/v1/admin/loan-stats');
         if (resp.ok) {
           const json = await resp.json();
           const s = json.data || {};

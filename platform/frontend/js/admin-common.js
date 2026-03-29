@@ -1,4 +1,29 @@
-// SyncCU Admin - Common UI interactions (sidebar, theme, dropdown, logout)
+// SyncCU Admin - Common UI interactions (sidebar, theme, dropdown, logout, API)
+
+/**
+ * Wrapper around fetch that auto-attaches the auth token and
+ * redirects to login on 401 responses.
+ */
+async function apiFetch(url, options = {}) {
+  const token = localStorage.getItem('synccu-token');
+  if (!token) {
+    window.location.href = '../index.html';
+    throw new Error('No auth token');
+  }
+  const headers = Object.assign({ 'Authorization': 'Bearer ' + token }, options.headers || {});
+  if (options.body && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const resp = await fetch(url, Object.assign({}, options, { headers }));
+  if (resp.status === 401) {
+    localStorage.removeItem('synccu-token');
+    localStorage.removeItem('synccu-refresh');
+    localStorage.removeItem('synccu-user');
+    window.location.href = '../index.html';
+    throw new Error('Session expired');
+  }
+  return resp;
+}
 
 (function() {
   // ── Sidebar toggle (mobile) ──

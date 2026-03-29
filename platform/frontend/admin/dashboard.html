@@ -331,9 +331,7 @@
     // Load dashboard data from API
     async function loadDashboardData() {
       try {
-        const resp = await fetch('/api/v1/admin/dashboard', {
-          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('synccu-token') }
-        });
+        const resp = await apiFetch('/api/v1/admin/dashboard');
         if (!resp.ok) return;
         const json = await resp.json();
         const d = json.data || json;
