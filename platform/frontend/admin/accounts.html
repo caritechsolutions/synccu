@@ -230,8 +230,12 @@
     cancelAccountBtn.addEventListener('click', () => accountModal.classList.remove('active'));
     accountModal.addEventListener('click', (e) => { if (e.target === accountModal) accountModal.classList.remove('active'); });
 
-    closeSlideOver.addEventListener('click', () => accountSlideOver.classList.remove('active'));
-    accountSlideOver.addEventListener('click', (e) => { if (e.target === accountSlideOver) accountSlideOver.classList.remove('active'); });
+    const slidePanel = accountSlideOver.querySelector('.slideover');
+    function openSlideOver() { accountSlideOver.classList.add('active'); slidePanel.classList.add('active'); }
+    function closeSlideOverFn() { accountSlideOver.classList.remove('active'); slidePanel.classList.remove('active'); }
+
+    closeSlideOver.addEventListener('click', closeSlideOverFn);
+    accountSlideOver.addEventListener('click', (e) => { if (e.target === accountSlideOver) closeSlideOverFn(); });
 
     // Member search for create account form
     let memberSearchTimeout;
@@ -354,8 +358,8 @@
       document.getElementById('detailAccStatus').textContent = '-';
       document.getElementById('detailAccRate').textContent = '-';
       document.getElementById('detailAccOpened').textContent = '-';
-      document.getElementById('detailTransactions').innerHTML = '<p style="color:var(--color-text-muted);font-size:0.875rem">Loading...</p>';
-      accountSlideOver.classList.add('active');
+      document.getElementById('detailTransactions').innerHTML = '<p style="color:var(--text-muted);font-size:0.875rem">Loading...</p>';
+      openSlideOver();
 
       try {
         const resp = await apiFetch('/api/v1/accounts/' + accountId);
