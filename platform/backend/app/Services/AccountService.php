@@ -43,10 +43,12 @@ final class AccountService
         $accountNumber = $this->generateAccountNumber($tenantId);
         $now           = date('Y-m-d H:i:s');
 
+        $interestRate = (float) ($data['interest_rate_value'] ?? 0);
+
         $this->db->query(
             'INSERT INTO accounts
-                (id, tenant_id, user_id, account_number, account_type, name, currency, balance, available_balance, status, opened_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, ?, ?, ?, ?)',
+                (id, tenant_id, user_id, account_number, account_type, name, currency, balance, available_balance, interest_rate, status, opened_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, ?, ?, ?, ?, ?)',
             [
                 $accountId,
                 $tenantId,
@@ -55,6 +57,7 @@ final class AccountService
                 $data['account_type'],
                 $data['name'] ?? $this->defaultAccountName($data['account_type']),
                 $data['currency'] ?? 'USD',
+                $interestRate,
                 'active',
                 $now,
                 $now,

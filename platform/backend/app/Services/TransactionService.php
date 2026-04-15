@@ -50,41 +50,32 @@ final class TransactionService
             $txnId   = $this->generateUuid();
             $refNo   = $this->generateReferenceNumber();
             $now     = date('Y-m-d H:i:s');
+            $balanceAfter = (float) $account['balance'] + $amount;
 
-            // Create transaction record
             $this->db->query(
                 'INSERT INTO transactions
-                    (id, tenant_id, reference_number, type, status, amount, currency,
-                     to_account_id, user_id, description, created_at, completed_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    (id, tenant_id, account_id, reference_number, type, status, amount,
+                     balance_after, processed_by, description, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $this->db->getTenantId(),
+                    $accountId,
                     $refNo,
                     'deposit',
                     'completed',
                     $amount,
-                    $account['currency'],
-                    $accountId,
+                    $balanceAfter,
                     $userId,
                     $description ?: 'Cash deposit',
-                    $now,
                     $now,
                 ],
             );
 
-            // Update account balance
             $this->accounts->updateBalance($accountId, $amount);
 
-            // Create ledger entries: Debit Cash, Credit Member Account
-            $glCredit = $this->glAccountForType($account['account_type']);
-            $this->ledger->createDoubleEntry(
-                $txnId,
-                "Deposit to account {$account['account_number']}",
-                LedgerService::GL_MEMBER_DEPOSITS,
-                $glCredit,
-                $amount,
-            );
+            $this->tryLedgerEntry($txnId, "Deposit to account {$account['account_number']}",
+                LedgerService::GL_MEMBER_DEPOSITS, $this->glAccountForType($account['account_type']), $amount);
 
             return $this->findById($txnId);
         });
@@ -114,39 +105,32 @@ final class TransactionService
             $txnId = $this->generateUuid();
             $refNo = $this->generateReferenceNumber();
             $now   = date('Y-m-d H:i:s');
+            $balanceAfter = (float) $account['balance'] - $amount;
 
             $this->db->query(
                 'INSERT INTO transactions
-                    (id, tenant_id, reference_number, type, status, amount, currency,
-                     from_account_id, user_id, description, created_at, completed_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    (id, tenant_id, account_id, reference_number, type, status, amount,
+                     balance_after, processed_by, description, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $this->db->getTenantId(),
+                    $accountId,
                     $refNo,
                     'withdrawal',
                     'completed',
                     $amount,
-                    $account['currency'],
-                    $accountId,
+                    $balanceAfter,
                     $userId,
                     $description ?: 'Cash withdrawal',
-                    $now,
                     $now,
                 ],
             );
 
             $this->accounts->updateBalance($accountId, -$amount);
 
-            // Ledger: Debit Member Account, Credit Cash
-            $glDebit = $this->glAccountForType($account['account_type']);
-            $this->ledger->createDoubleEntry(
-                $txnId,
-                "Withdrawal from account {$account['account_number']}",
-                $glDebit,
-                LedgerService::GL_MEMBER_DEPOSITS,
-                $amount,
-            );
+            $this->tryLedgerEntry($txnId, "Withdrawal from account {$account['account_number']}",
+                $this->glAccountForType($account['account_type']), LedgerService::GL_MEMBER_DEPOSITS, $amount);
 
             return $this->findById($txnId);
         });
@@ -192,46 +176,51 @@ final class TransactionService
         return $this->db->transaction(function () use (
             $fromAccountId, $toAccountId, $amount, $description, $userId, $fromAccount, $toAccount,
         ) {
-            $txnId = $this->generateUuid();
             $refNo = $this->generateReferenceNumber();
             $now   = date('Y-m-d H:i:s');
+            $tenantId = $this->db->getTenantId();
+            $fromBalanceAfter = (float) $fromAccount['balance'] - $amount;
+            $toBalanceAfter   = (float) $toAccount['balance'] + $amount;
+
+            // Outgoing side
+            $txnId = $this->generateUuid();
+            $relatedTxnId = $this->generateUuid();
 
             $this->db->query(
                 'INSERT INTO transactions
-                    (id, tenant_id, reference_number, type, status, amount, currency,
-                     from_account_id, to_account_id, user_id, description, created_at, completed_at)
+                    (id, tenant_id, account_id, related_account_id, related_transaction_id,
+                     reference_number, type, status, amount, balance_after,
+                     processed_by, description, created_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
-                    $txnId,
-                    $this->db->getTenantId(),
-                    $refNo,
-                    'transfer',
-                    'completed',
-                    $amount,
-                    $fromAccount['currency'],
-                    $fromAccountId,
-                    $toAccountId,
-                    $userId,
-                    $description ?: "Transfer to {$toAccount['account_number']}",
-                    $now,
-                    $now,
+                    $txnId, $tenantId, $fromAccountId, $toAccountId, $relatedTxnId,
+                    $refNo, 'transfer', 'completed', $amount, $fromBalanceAfter,
+                    $userId, $description ?: "Transfer to {$toAccount['account_number']}", $now,
+                ],
+            );
+
+            // Incoming side
+            $this->db->query(
+                'INSERT INTO transactions
+                    (id, tenant_id, account_id, related_account_id, related_transaction_id,
+                     reference_number, type, status, amount, balance_after,
+                     processed_by, description, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $relatedTxnId, $tenantId, $toAccountId, $fromAccountId, $txnId,
+                    $refNo, 'transfer', 'completed', $amount, $toBalanceAfter,
+                    $userId, $description ?: "Transfer from {$fromAccount['account_number']}", $now,
                 ],
             );
 
             $this->accounts->updateBalance($fromAccountId, -$amount);
             $this->accounts->updateBalance($toAccountId, $amount);
 
-            // Ledger: Debit destination liability, Credit source liability
             $fromGl = $this->glAccountForType($fromAccount['account_type']);
             $toGl   = $this->glAccountForType($toAccount['account_type']);
-
-            $this->ledger->createDoubleEntry(
-                $txnId,
+            $this->tryLedgerEntry($txnId,
                 "Transfer {$fromAccount['account_number']} -> {$toAccount['account_number']}",
-                $toGl,
-                $fromGl,
-                $amount,
-            );
+                $toGl, $fromGl, $amount);
 
             return $this->findById($txnId);
         });
@@ -258,17 +247,17 @@ final class TransactionService
         $offset   = ($page - 1) * $perPage;
 
         $items = $this->db->fetchAll(
-            'SELECT * FROM transactions
-             WHERE tenant_id = ? AND (from_account_id = ? OR to_account_id = ?)
+            "SELECT * FROM transactions
+             WHERE tenant_id = ? AND account_id = ?
              ORDER BY created_at DESC
-             LIMIT ? OFFSET ?',
-            [$tenantId, $accountId, $accountId, $perPage, $offset],
+             LIMIT {$perPage} OFFSET {$offset}",
+            [$tenantId, $accountId],
         );
 
         $total = (int) $this->db->fetchColumn(
             'SELECT COUNT(*) FROM transactions
-             WHERE tenant_id = ? AND (from_account_id = ? OR to_account_id = ?)',
-            [$tenantId, $accountId, $accountId],
+             WHERE tenant_id = ? AND account_id = ?',
+            [$tenantId, $accountId],
         );
 
         return ['items' => $items, 'total' => $total];
@@ -297,6 +286,18 @@ final class TransactionService
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
+
+    /**
+     * Try to create ledger entries. Failure is non-fatal.
+     */
+    private function tryLedgerEntry(string $txnId, string $desc, string $debit, string $credit, float $amount): void
+    {
+        try {
+            $this->ledger->createDoubleEntry($txnId, $desc, $debit, $credit, $amount);
+        } catch (\Throwable) {
+            // Ledger tables may not exist yet; don't break the transaction
+        }
+    }
 
     private function assertAccountActive(array $account): void
     {

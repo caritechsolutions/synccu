@@ -103,10 +103,16 @@ final class AccountController
      */
     public function store(Request $request): Response
     {
+        $role = $request->getAttribute('role');
+        $isAdmin = in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true);
+
         $validator = new Validator($request->all(), [
-            'account_type' => 'required|in:checking,savings,money_market,cd,shares',
-            'name'         => 'nullable|string|max:100',
-            'currency'     => 'nullable|in:USD,EUR,GBP,CAD',
+            'member_id'       => $isAdmin ? 'required|string' : 'nullable|string',
+            'account_type'    => 'required|in:checking,savings,loan,certificate',
+            'name'            => 'nullable|string|max:100',
+            'currency'        => 'nullable|in:USD,EUR,GBP,CAD',
+            'initial_deposit' => 'nullable|string|max:20',
+            'interest_rate'   => 'nullable|string|max:10',
         ]);
 
         if ($validator->fails()) {
@@ -115,13 +121,43 @@ final class AccountController
 
         try {
             $data = $validator->validated();
-            $data['user_id'] = $request->getAttribute('user_id');
 
-            $account = $this->accounts->create($data, $request->getAttribute('tenant_id'));
+            // Admin creates accounts for members; members create for themselves
+            $data['user_id'] = $isAdmin && !empty($data['member_id'])
+                ? $data['member_id']
+                : $request->getAttribute('user_id');
+            unset($data['member_id']);
+
+            $tenantId = $request->getAttribute('tenant_id');
+            $initialDeposit = (float) ($data['initial_deposit'] ?? 0);
+            $interestRate = (float) ($data['interest_rate'] ?? 0);
+            unset($data['initial_deposit'], $data['interest_rate']);
+
+            $data['interest_rate_value'] = $interestRate;
+
+            $account = $this->accounts->create($data, $tenantId);
+
+            // Process initial deposit if specified
+            if ($initialDeposit > 0 && $account) {
+                try {
+                    $this->transactions->deposit(
+                        $account['id'],
+                        $initialDeposit,
+                        'Initial deposit',
+                        $request->getAttribute('user_id'),
+                    );
+                    // Refresh account to get updated balance
+                    $account = $this->accounts->findById($account['id']);
+                } catch (\Throwable $e) {
+                    // Account was created but deposit failed - still return the account
+                    $account['_deposit_error'] = $e->getMessage();
+                }
+            }
 
             return Response::created($account, 'Account created successfully');
         } catch (\RuntimeException $e) {
-            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+            $code = is_int($e->getCode()) && $e->getCode() >= 400 ? $e->getCode() : 400;
+            return Response::error($e->getMessage(), $code);
         }
     }
 
