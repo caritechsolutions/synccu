@@ -561,12 +561,20 @@
           }
           try {
             const token = localStorage.getItem('synccu-token');
-            await fetch('/api/v1/documents', {
+            const docResp = await fetch('/api/v1/documents', {
               method: 'POST',
               headers: { 'Authorization': 'Bearer ' + token },
               body: formData,
             });
-          } catch (e) { console.warn('SOF document upload failed:', e); }
+            if (!docResp.ok) {
+              const docErr = await docResp.json().catch(() => ({}));
+              console.warn('SOF document upload failed:', docErr);
+              alert('Transaction processed but document upload failed: ' + (docErr.error || 'Unknown error'));
+            }
+          } catch (e) {
+            console.warn('SOF document upload failed:', e);
+            alert('Transaction processed but document upload failed: ' + e.message);
+          }
         }
 
         txnModal.classList.remove('active');
@@ -842,7 +850,10 @@
           headers: { 'Authorization': 'Bearer ' + token },
           body: formData,
         });
-        if (!resp.ok) { alert('Upload failed'); }
+        if (!resp.ok) {
+          const errBody = await resp.json().catch(() => ({}));
+          alert('Upload failed: ' + (errBody.error || resp.statusText));
+        }
         await loadDetailDocs(currentDetailTxn.id);
       } catch (err) { alert('Upload error: ' + err.message); }
       finally {

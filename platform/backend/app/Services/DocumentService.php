@@ -34,6 +34,33 @@ final class DocumentService
     {
         $this->db = Database::getInstance();
         $this->storagePath = dirname(__DIR__, 2) . '/storage/documents';
+        $this->ensureTable();
+    }
+
+    /**
+     * Create the documents table if it doesn't exist (handles first deploy).
+     */
+    private function ensureTable(): void
+    {
+        $this->db->query(
+            "CREATE TABLE IF NOT EXISTS `documents` (
+                `id` CHAR(36) NOT NULL PRIMARY KEY,
+                `tenant_id` CHAR(36) NOT NULL,
+                `uploaded_by` CHAR(36) DEFAULT NULL,
+                `entity_type` VARCHAR(50) NOT NULL,
+                `entity_id` CHAR(36) NOT NULL,
+                `category` VARCHAR(50) DEFAULT NULL,
+                `original_name` VARCHAR(255) NOT NULL,
+                `stored_name` VARCHAR(255) NOT NULL,
+                `mime_type` VARCHAR(100) NOT NULL,
+                `file_size` INT UNSIGNED NOT NULL,
+                `metadata` JSON DEFAULT NULL,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX `idx_documents_entity` (`entity_type`, `entity_id`),
+                INDEX `idx_documents_tenant` (`tenant_id`)
+            ) ENGINE=InnoDB",
+            [],
+        );
     }
 
     /**
@@ -58,12 +85,19 @@ final class DocumentService
         // Ensure storage directory exists (tenant-scoped)
         $dir = $this->storagePath . '/' . $tenantId;
         if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
+            if (!@mkdir($dir, 0777, true) && !is_dir($dir)) {
+                throw new RuntimeException('Cannot create storage directory: ' . $dir, 500);
+            }
         }
 
         $destPath = $dir . '/' . $storedName;
-        if (!move_uploaded_file($file['tmp_name'], $destPath)) {
-            throw new RuntimeException('Failed to store uploaded file.', 500);
+        // move_uploaded_file is preferred, but fall back to copy for edge cases
+        $moved = @move_uploaded_file($file['tmp_name'], $destPath);
+        if (!$moved) {
+            $moved = @copy($file['tmp_name'], $destPath);
+        }
+        if (!$moved) {
+            throw new RuntimeException('Failed to store uploaded file. Check storage directory permissions.', 500);
         }
 
         $this->db->query(
@@ -143,7 +177,7 @@ final class DocumentService
 
     private function validateFile(array $file): void
     {
-        if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        if (empty($file['tmp_name']) || !file_exists($file['tmp_name'])) {
             throw new RuntimeException('Invalid upload.', 422);
         }
 
