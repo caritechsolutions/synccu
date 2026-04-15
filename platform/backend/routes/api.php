@@ -22,6 +22,7 @@ use App\Controllers\AuthController;
 use App\Controllers\LoanController;
 use App\Controllers\TransactionController;
 use App\Controllers\TenantController;
+use App\Controllers\DocumentController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\TenantMiddleware;
 use App\Middleware\RBACMiddleware;
@@ -107,6 +108,23 @@ $router->group([
     $router->post('/withdraw',  [TransactionController::class, 'withdraw']);
     $router->post('/transfer',  [TransactionController::class, 'transfer']);
     $router->get('/{id}',       [TransactionController::class, 'show']);
+});
+
+// ------------------------------------------------------------------
+// Document routes (authenticated, tenant-scoped)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/documents',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/',                [DocumentController::class, 'index']);
+    $router->post('/',               [DocumentController::class, 'upload']);
+    $router->get('/{id}/download',   [DocumentController::class, 'download']);
+    $router->delete('/{id}',         [DocumentController::class, 'destroy']);
 });
 
 // ------------------------------------------------------------------

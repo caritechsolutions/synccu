@@ -252,6 +252,38 @@ CREATE TABLE `notifications` (
   INDEX `idx_notifications_read` (`read_at`)
 ) ENGINE=InnoDB;
 
+-- Tenant Settings (key-value per tenant)
+CREATE TABLE `tenant_settings` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `setting_key` VARCHAR(100) NOT NULL,
+  `setting_value` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  UNIQUE KEY `unique_tenant_setting` (`tenant_id`, `setting_key`)
+) ENGINE=InnoDB;
+
+-- Documents / Attachments
+CREATE TABLE `documents` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `uploaded_by` CHAR(36) DEFAULT NULL,
+  `entity_type` VARCHAR(50) NOT NULL COMMENT 'transaction, loan, member, account',
+  `entity_id` CHAR(36) NOT NULL,
+  `category` VARCHAR(50) DEFAULT NULL COMMENT 'sof, id_verification, proof_of_address, etc',
+  `original_name` VARCHAR(255) NOT NULL,
+  `stored_name` VARCHAR(255) NOT NULL,
+  `mime_type` VARCHAR(100) NOT NULL,
+  `file_size` INT UNSIGNED NOT NULL,
+  `metadata` JSON DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`uploaded_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+  INDEX `idx_documents_entity` (`entity_type`, `entity_id`),
+  INDEX `idx_documents_tenant` (`tenant_id`)
+) ENGINE=InnoDB;
+
 -- Seed default tenant and super admin
 INSERT INTO `tenants` (`id`, `name`, `slug`, `status`) VALUES
 ('00000000-0000-0000-0000-000000000001', 'Default Credit Union', 'default', 'active');

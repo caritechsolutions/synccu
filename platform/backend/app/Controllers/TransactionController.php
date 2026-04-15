@@ -119,11 +119,13 @@ final class TransactionController
     public function deposit(Request $request): Response
     {
         $validator = new Validator($request->all(), [
-            'account_id'     => 'required|string',
-            'amount'         => 'required|numeric|positive',
-            'description'    => 'nullable|string|max:255',
-            'funding_source' => 'nullable|in:cash,check,wire,ach,internal',
-            'check_number'   => 'nullable|string|max:50',
+            'account_id'       => 'required|string',
+            'amount'           => 'required|numeric|positive',
+            'description'      => 'nullable|string|max:255',
+            'funding_source'   => 'nullable|in:cash,check,wire,ach,internal',
+            'sof_source'       => 'nullable|string|max:100',
+            'sof_details'      => 'nullable|string|max:1000',
+            'sof_declared'     => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -152,6 +154,17 @@ final class TransactionController
                     'amount' => (float) ($c['amount'] ?? 0),
                 ], $checksInput);
                 $metadata['check_count'] = count($metadata['checks']);
+            }
+
+            // Source of Funds declaration
+            $sofSource = $request->input('sof_source');
+            if ($sofSource !== null && $sofSource !== '') {
+                $metadata['sof'] = [
+                    'source'   => $sofSource,
+                    'details'  => $request->input('sof_details', ''),
+                    'declared' => $request->input('sof_declared') === '1',
+                    'declared_at' => date('Y-m-d H:i:s'),
+                ];
             }
 
             $result = $this->transactions->deposit(

@@ -233,6 +233,41 @@
             <label for="txnDescription">Description</label>
             <input type="text" id="txnDescription" name="description" class="form-input" placeholder="Transaction description...">
           </div>
+          <!-- Source of Funds Declaration -->
+          <div id="sofSection" style="display:none;border:1px solid var(--border-color);border-radius:var(--radius-md);padding:var(--space-4);margin-top:var(--space-3);background:var(--bg-secondary)">
+            <h4 style="margin:0 0 var(--space-1) 0;font-size:var(--text-sm)">Source of Funds Declaration</h4>
+            <p style="font-size:var(--text-xs);color:var(--text-muted);margin:0 0 var(--space-3) 0">Required for deposits over the reporting threshold.</p>
+            <div class="form-group">
+              <label for="sofSource">Source of Funds</label>
+              <select id="sofSource" class="form-select">
+                <option value="">Select source...</option>
+                <option value="employment">Employment / Salary</option>
+                <option value="business_income">Business Income</option>
+                <option value="investment">Investment Returns</option>
+                <option value="sale_of_property">Sale of Property</option>
+                <option value="inheritance">Inheritance</option>
+                <option value="gift">Gift</option>
+                <option value="loan_proceeds">Loan Proceeds</option>
+                <option value="insurance">Insurance Payout</option>
+                <option value="government">Government Benefits</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sofDetails">Additional Details</label>
+              <textarea id="sofDetails" class="form-input" rows="2" placeholder="Provide details about the source of funds..." style="resize:vertical"></textarea>
+            </div>
+            <div class="form-group">
+              <label style="font-weight:600;font-size:var(--text-sm)">Supporting Documents</label>
+              <p style="font-size:var(--text-xs);color:var(--text-muted);margin:0 0 var(--space-2) 0">Upload pay stubs, bank statements, sale contracts, etc. (PDF, images, max 10MB each)</p>
+              <input type="file" id="sofFiles" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx" style="font-size:var(--text-sm)">
+              <div id="sofFileList" style="margin-top:var(--space-2)"></div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:var(--space-2);margin-top:var(--space-2)">
+              <input type="checkbox" id="sofDeclared" style="margin-top:3px">
+              <label for="sofDeclared" style="font-size:var(--text-xs);color:var(--text-secondary);cursor:pointer">I declare that the information provided regarding the source of funds is true and accurate to the best of my knowledge. I understand that providing false information may result in account closure and legal action.</label>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="cancelTxnBtn">Cancel</button>
@@ -269,6 +304,19 @@
             <thead><tr><th>Check #</th><th style="text-align:right">Amount</th></tr></thead>
             <tbody id="detailChecksList"></tbody>
           </table>
+        </div>
+        <div class="detail-section" id="detailSofSection" style="display:none;margin-top:1.5rem;border:1px solid var(--border-color);border-radius:var(--radius-md);padding:var(--space-4);background:var(--bg-secondary)">
+          <h4 style="margin:0 0 var(--space-3) 0;font-size:var(--text-sm)">Source of Funds Declaration</h4>
+          <dl class="detail-list detail-list-grid">
+            <dt>Source</dt><dd id="detailSofSource">-</dd>
+            <dt>Details</dt><dd id="detailSofDetails">-</dd>
+            <dt>Declared</dt><dd id="detailSofDeclared">-</dd>
+            <dt>Declared At</dt><dd id="detailSofDate">-</dd>
+          </dl>
+        </div>
+        <div class="detail-section" id="detailDocsSection" style="display:none;margin-top:1.5rem">
+          <h4 style="margin:0 0 var(--space-3) 0;font-size:var(--text-sm)">Supporting Documents</h4>
+          <div id="detailDocsList"></div>
         </div>
       </div>
       <div class="modal-footer">
@@ -344,6 +392,7 @@
       document.getElementById('checksTotal').textContent = '$' + total.toLocaleString('en-US', {minimumFractionDigits:2});
       document.getElementById('checkCount').textContent = checks.length;
       document.getElementById('txnAmount').value = total > 0 ? total.toFixed(2) : '';
+      checkSofRequired();
     }
     function removeCheck(i) {
       checks.splice(i, 1);
@@ -367,6 +416,29 @@
     // Allow Enter key in check inputs to add
     document.getElementById('newCheckNumber').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('newCheckAmount').focus(); } });
     document.getElementById('newCheckAmount').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addCheckBtn').click(); } });
+
+    // --- Source of Funds ---
+    const SOF_THRESHOLD = 10000; // Default $10,000 - TODO: load from tenant settings
+    function checkSofRequired() {
+      const isDeposit = txnType.value === 'deposit';
+      const amount = parseFloat(document.getElementById('txnAmount').value) || 0;
+      const sofSection = document.getElementById('sofSection');
+      sofSection.style.display = (isDeposit && amount >= SOF_THRESHOLD) ? '' : 'none';
+    }
+    document.getElementById('txnAmount').addEventListener('input', checkSofRequired);
+    // Also check when type changes
+    txnType.addEventListener('change', checkSofRequired);
+
+    // File preview for SOF uploads
+    document.getElementById('sofFiles').addEventListener('change', (e) => {
+      const list = document.getElementById('sofFileList');
+      const files = e.target.files;
+      if (!files.length) { list.innerHTML = ''; return; }
+      list.innerHTML = Array.from(files).map(f =>
+        '<div style="font-size:var(--text-xs);padding:var(--space-1) 0;color:var(--text-secondary)">' +
+        f.name + ' <span style="color:var(--text-muted)">(' + (f.size / 1024).toFixed(0) + ' KB)</span></div>'
+      ).join('');
+    });
 
     // --- Account Search Autocomplete ---
     function setupAccountSearch(inputId, resultsId, hiddenId) {
@@ -439,6 +511,16 @@
           if (!checks.length) { alert('Please add at least one check.'); return; }
           payload.checks = checks;
         }
+        // SOF declaration
+        const sofVisible = document.getElementById('sofSection').style.display !== 'none';
+        if (sofVisible) {
+          const sofSource = document.getElementById('sofSource').value;
+          if (!sofSource) { alert('Please select a source of funds.'); return; }
+          if (!document.getElementById('sofDeclared').checked) { alert('Please confirm the source of funds declaration.'); return; }
+          payload.sof_source = sofSource;
+          payload.sof_details = document.getElementById('sofDetails').value;
+          payload.sof_declared = '1';
+        }
       }
       if (type === 'withdrawal') {
         payload.disbursement_method = document.getElementById('txnDisbursement').value;
@@ -455,6 +537,27 @@
           alert(msg);
           return;
         }
+
+        // Upload SOF documents if any
+        const sofFiles = document.getElementById('sofFiles').files;
+        if (sofFiles.length > 0 && result.data && result.data.id) {
+          const formData = new FormData();
+          formData.append('entity_type', 'transaction');
+          formData.append('entity_id', result.data.id);
+          formData.append('category', 'sof');
+          for (let i = 0; i < sofFiles.length; i++) {
+            formData.append('files[]', sofFiles[i]);
+          }
+          try {
+            const token = localStorage.getItem('synccu-token');
+            await fetch('/api/v1/documents', {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + token },
+              body: formData,
+            });
+          } catch (e) { console.warn('SOF document upload failed:', e); }
+        }
+
         txnModal.classList.remove('active');
         txnForm.reset();
         document.getElementById('txnAccountId').value = '';
@@ -466,6 +569,12 @@
         document.getElementById('txnWdCheckGroup').style.display = 'none';
         document.getElementById('txnAmount').readOnly = false;
         document.getElementById('txnAmount').style.background = '';
+        document.getElementById('sofSection').style.display = 'none';
+        document.getElementById('sofSource').value = '';
+        document.getElementById('sofDetails').value = '';
+        document.getElementById('sofDeclared').checked = false;
+        document.getElementById('sofFiles').value = '';
+        document.getElementById('sofFileList').innerHTML = '';
         checks = [];
         renderChecks();
         recalcChecksTotal();
@@ -600,6 +709,8 @@
       document.getElementById('detailMethod').textContent = '-';
       document.getElementById('detailProcessedBy').textContent = '-';
       document.getElementById('detailChecksSection').style.display = 'none';
+      document.getElementById('detailSofSection').style.display = 'none';
+      document.getElementById('detailDocsSection').style.display = 'none';
       txnDetailModal.classList.add('active');
 
       try {
@@ -638,7 +749,59 @@
           checksSection.style.display = 'none';
           checksTbody.innerHTML = '';
         }
+        // Show SOF declaration if present
+        const sofSection = document.getElementById('detailSofSection');
+        if (meta.sof && meta.sof.source) {
+          sofSection.style.display = '';
+          const sofLabels = { employment: 'Employment / Salary', business_income: 'Business Income', investment: 'Investment Returns', sale_of_property: 'Sale of Property', inheritance: 'Inheritance', gift: 'Gift', loan_proceeds: 'Loan Proceeds', insurance: 'Insurance Payout', government: 'Government Benefits', other: 'Other' };
+          document.getElementById('detailSofSource').textContent = sofLabels[meta.sof.source] || meta.sof.source;
+          document.getElementById('detailSofDetails').textContent = meta.sof.details || '-';
+          document.getElementById('detailSofDeclared').innerHTML = meta.sof.declared
+            ? '<span class="badge badge-success">Confirmed</span>'
+            : '<span class="badge badge-warning">Not confirmed</span>';
+          document.getElementById('detailSofDate').textContent = meta.sof.declared_at || '-';
+        } else {
+          sofSection.style.display = 'none';
+        }
+        // Fetch and show attached documents
+        const docsSection = document.getElementById('detailDocsSection');
+        const docsList = document.getElementById('detailDocsList');
+        docsSection.style.display = 'none';
+        docsList.innerHTML = '';
+        try {
+          const docsResp = await apiFetch('/api/v1/documents?entity_type=transaction&entity_id=' + id);
+          if (docsResp.ok) {
+            const docsJson = await docsResp.json();
+            const docs = docsJson.data || [];
+            if (docs.length) {
+              docsSection.style.display = '';
+              docsList.innerHTML = docs.map(d =>
+                '<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-2);border:1px solid var(--border-color);border-radius:var(--radius-sm);margin-bottom:var(--space-2);background:var(--bg-card)">' +
+                '<div style="min-width:0;flex:1">' +
+                '<div style="font-size:var(--text-sm);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (d.original_name || 'Document') + '</div>' +
+                '<div style="font-size:var(--text-xs);color:var(--text-muted)">' + (d.category || '') + ' &middot; ' + ((d.file_size / 1024).toFixed(0)) + ' KB &middot; ' + (d.created_at || '') + '</div>' +
+                '</div>' +
+                '<button class="btn btn-secondary btn-sm" style="margin-left:var(--space-2);flex-shrink:0" title="Download" onclick="downloadDoc(\'' + d.id + '\',\'' + (d.original_name || 'file').replace(/'/g, "\\'") + '\')">' +
+                '<svg style="width:14px;height:14px"><use href="#icon-download"/></svg></button>' +
+                '</div>'
+              ).join('');
+            }
+          }
+        } catch (e) { /* documents fetch failed silently */ }
       } catch (e) { document.getElementById('detailRef').textContent = 'Error'; }
+    }
+
+    // --- Download Document (authenticated) ---
+    async function downloadDoc(docId, filename) {
+      try {
+        const resp = await apiFetch('/api/v1/documents/' + docId + '/download');
+        if (!resp.ok) { alert('Download failed'); return; }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) { alert('Download error: ' + e.message); }
     }
 
     // --- Filter Listeners ---

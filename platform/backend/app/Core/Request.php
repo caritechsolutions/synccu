@@ -263,6 +263,74 @@ final class Request
         return $_POST;
     }
 
+    // ------------------------------------------------------------------
+    // File Uploads
+    // ------------------------------------------------------------------
+
+    /**
+     * Check if a file was uploaded for the given key.
+     */
+    public function hasFile(string $key): bool
+    {
+        return isset($_FILES[$key]) && $_FILES[$key]['error'] !== UPLOAD_ERR_NO_FILE;
+    }
+
+    /**
+     * Get uploaded file info by key. Returns null if no file.
+     */
+    public function file(string $key): ?array
+    {
+        if (!$this->hasFile($key)) {
+            return null;
+        }
+        $f = $_FILES[$key];
+        if ($f['error'] !== UPLOAD_ERR_OK) {
+            return null;
+        }
+        return [
+            'tmp_name'      => $f['tmp_name'],
+            'original_name' => $f['name'],
+            'mime_type'     => $f['type'],
+            'size'          => $f['size'],
+            'error'         => $f['error'],
+        ];
+    }
+
+    /**
+     * Get multiple uploaded files by key (for file[] inputs).
+     */
+    public function files(string $key): array
+    {
+        if (!isset($_FILES[$key])) {
+            return [];
+        }
+        $f = $_FILES[$key];
+        // Single file
+        if (!is_array($f['name'])) {
+            $file = $this->file($key);
+            return $file ? [$file] : [];
+        }
+        // Multiple files
+        $files = [];
+        for ($i = 0, $count = count($f['name']); $i < $count; $i++) {
+            if ($f['error'][$i] !== UPLOAD_ERR_OK) {
+                continue;
+            }
+            $files[] = [
+                'tmp_name'      => $f['tmp_name'][$i],
+                'original_name' => $f['name'][$i],
+                'mime_type'     => $f['type'][$i],
+                'size'          => $f['size'][$i],
+                'error'         => $f['error'][$i],
+            ];
+        }
+        return $files;
+    }
+
+    // ------------------------------------------------------------------
+    // Sanitize
+    // ------------------------------------------------------------------
+
     /**
      * Sanitise a value to prevent XSS when echoed in non-API contexts.
      */
