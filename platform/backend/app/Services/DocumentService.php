@@ -10,13 +10,12 @@ use RuntimeException;
 /**
  * Document storage and retrieval service.
  *
- * Handles file uploads to disk, document metadata in DB,
- * and retrieval/download of stored files.
+ * Stores files as BLOBs in the database for portability —
+ * no filesystem dependencies, backups travel with the DB.
  */
 final class DocumentService
 {
     private Database $db;
-    private string $storagePath;
 
     private const ALLOWED_MIME_TYPES = [
         'application/pdf',
@@ -33,12 +32,11 @@ final class DocumentService
     public function __construct()
     {
         $this->db = Database::getInstance();
-        $this->storagePath = dirname(__DIR__, 2) . '/storage/documents';
         $this->ensureTable();
     }
 
     /**
-     * Create the documents table if it doesn't exist (handles first deploy).
+     * Create the documents table if it doesn't exist.
      */
     private function ensureTable(): void
     {
@@ -51,10 +49,9 @@ final class DocumentService
                 `entity_id` CHAR(36) NOT NULL,
                 `category` VARCHAR(50) DEFAULT NULL,
                 `original_name` VARCHAR(255) NOT NULL,
-                `stored_name` VARCHAR(255) NOT NULL,
                 `mime_type` VARCHAR(100) NOT NULL,
                 `file_size` INT UNSIGNED NOT NULL,
-                `metadata` JSON DEFAULT NULL,
+                `file_data` LONGBLOB NOT NULL,
                 `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX `idx_documents_entity` (`entity_type`, `entity_id`),
                 INDEX `idx_documents_tenant` (`tenant_id`)
@@ -64,7 +61,7 @@ final class DocumentService
     }
 
     /**
-     * Store an uploaded file and create a document record.
+     * Store an uploaded file in the database.
      *
      * @param array{tmp_name: string, original_name: string, mime_type: string, size: int} $file
      */
@@ -77,33 +74,18 @@ final class DocumentService
     ): array {
         $this->validateFile($file);
 
-        $tenantId  = $this->db->getTenantId();
-        $docId     = $this->generateUuid();
-        $ext       = pathinfo($file['original_name'], PATHINFO_EXTENSION) ?: 'bin';
-        $storedName = $docId . '.' . strtolower($ext);
+        $tenantId = $this->db->getTenantId();
+        $docId    = $this->generateUuid();
+        $content  = file_get_contents($file['tmp_name']);
 
-        // Ensure storage directory exists (tenant-scoped)
-        $dir = $this->storagePath . '/' . $tenantId;
-        if (!is_dir($dir)) {
-            if (!@mkdir($dir, 0777, true) && !is_dir($dir)) {
-                throw new RuntimeException('Cannot create storage directory: ' . $dir, 500);
-            }
-        }
-
-        $destPath = $dir . '/' . $storedName;
-        // move_uploaded_file is preferred, but fall back to copy for edge cases
-        $moved = @move_uploaded_file($file['tmp_name'], $destPath);
-        if (!$moved) {
-            $moved = @copy($file['tmp_name'], $destPath);
-        }
-        if (!$moved) {
-            throw new RuntimeException('Failed to store uploaded file. Check storage directory permissions.', 500);
+        if ($content === false) {
+            throw new RuntimeException('Could not read uploaded file.', 500);
         }
 
         $this->db->query(
             'INSERT INTO documents
                 (id, tenant_id, uploaded_by, entity_type, entity_id, category,
-                 original_name, stored_name, mime_type, file_size, created_at)
+                 original_name, mime_type, file_size, file_data, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
             [
                 $docId,
@@ -113,9 +95,9 @@ final class DocumentService
                 $entityId,
                 $category,
                 $file['original_name'],
-                $storedName,
                 $file['mime_type'],
                 $file['size'],
+                $content,
             ],
         );
 
@@ -123,46 +105,55 @@ final class DocumentService
     }
 
     /**
-     * Get a document by ID.
+     * Get document metadata by ID (without file_data).
      */
     public function findById(string $id): ?array
     {
-        return $this->db->findScoped('documents', ['id' => $id]);
-    }
-
-    /**
-     * Get all documents for a given entity.
-     */
-    public function getByEntity(string $entityType, string $entityId): array
-    {
-        return $this->db->selectScoped(
-            'documents',
-            ['entity_type' => $entityType, 'entity_id' => $entityId],
-            'created_at ASC',
+        $tenantId = $this->db->getTenantId();
+        return $this->db->fetchOne(
+            'SELECT id, tenant_id, uploaded_by, entity_type, entity_id, category,
+                    original_name, mime_type, file_size, created_at
+             FROM documents WHERE id = ? AND tenant_id = ?',
+            [$id, $tenantId],
         );
     }
 
     /**
-     * Get the full filesystem path for a document.
+     * Get all document metadata for a given entity (without file_data).
      */
-    public function getFilePath(array $document): string
+    public function getByEntity(string $entityType, string $entityId): array
     {
-        return $this->storagePath . '/' . $document['tenant_id'] . '/' . $document['stored_name'];
+        $tenantId = $this->db->getTenantId();
+        return $this->db->fetchAll(
+            'SELECT id, tenant_id, uploaded_by, entity_type, entity_id, category,
+                    original_name, mime_type, file_size, created_at
+             FROM documents
+             WHERE entity_type = ? AND entity_id = ? AND tenant_id = ?
+             ORDER BY created_at ASC',
+            [$entityType, $entityId, $tenantId],
+        );
     }
 
     /**
-     * Delete a document (file + record).
+     * Get the raw file content for download.
+     */
+    public function getFileContent(string $id): ?string
+    {
+        $tenantId = $this->db->getTenantId();
+        return $this->db->fetchColumn(
+            'SELECT file_data FROM documents WHERE id = ? AND tenant_id = ?',
+            [$id, $tenantId],
+        );
+    }
+
+    /**
+     * Delete a document record.
      */
     public function delete(string $id): void
     {
         $doc = $this->findById($id);
         if ($doc === null) {
             throw new RuntimeException('Document not found.', 404);
-        }
-
-        $path = $this->getFilePath($doc);
-        if (file_exists($path)) {
-            unlink($path);
         }
 
         $this->db->execute(

@@ -88,7 +88,7 @@ RUN if [ -f composer.json ]; then \
     fi
 
 # Create required directories
-RUN mkdir -p storage/logs storage/documents storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
+RUN mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
 
 # Set ownership to www-data
 RUN chown -R www-data:www-data /var/www/synccu/backend

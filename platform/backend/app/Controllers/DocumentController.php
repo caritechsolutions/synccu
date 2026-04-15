@@ -86,7 +86,7 @@ final class DocumentController
     /**
      * GET /api/v1/documents/{id}/download
      *
-     * Download a document file.
+     * Download a document file from the database.
      */
     public function download(Request $request): Response
     {
@@ -97,12 +97,10 @@ final class DocumentController
             return Response::error('Document not found', 404);
         }
 
-        $path = $this->documents->getFilePath($doc);
-        if (!file_exists($path)) {
-            return Response::error('File not found on disk', 404);
+        $content = $this->documents->getFileContent($docId);
+        if ($content === null) {
+            return Response::error('File data not found', 404);
         }
-
-        $content = file_get_contents($path);
 
         return Response::raw($content, 200, [
             'Content-Type' => $doc['mime_type'],
