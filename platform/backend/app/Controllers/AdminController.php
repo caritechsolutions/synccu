@@ -194,6 +194,114 @@ final class AdminController
     }
 
     /**
+     * GET /api/v1/members/{id}
+     *
+     * Get a single member with their accounts and loans.
+     */
+    public function showMember(Request $request): Response
+    {
+        $memberId = $request->param('id');
+        $member = $this->db->findScoped('users', ['id' => $memberId]);
+
+        if ($member === null) {
+            return Response::error('Member not found', 404);
+        }
+
+        unset($member['password_hash'], $member['two_factor_secret'], $member['failed_login_attempts'], $member['locked_until'], $member['last_failed_login_at']);
+
+        $tenantId = $this->db->getTenantId();
+
+        $accounts = $this->db->fetchAll(
+            'SELECT id, account_number, account_type, name, balance, available_balance, currency, status, opened_at
+             FROM accounts WHERE user_id = ? AND tenant_id = ?
+             ORDER BY opened_at DESC',
+            [$memberId, $tenantId],
+        );
+
+        $loans = $this->db->fetchAll(
+            'SELECT id, loan_number, loan_type, principal_amount, outstanding_balance, interest_rate,
+                    status, term_months, monthly_payment, start_date, maturity_date
+             FROM loans WHERE user_id = ? AND tenant_id = ?
+             ORDER BY created_at DESC',
+            [$memberId, $tenantId],
+        );
+
+        $recentTransactions = $this->db->fetchAll(
+            'SELECT t.id, t.reference_number, t.type, t.amount, t.status, t.description, t.created_at,
+                    a.account_number, a.name AS account_name
+             FROM transactions t
+             JOIN accounts a ON a.id = t.account_id
+             WHERE a.user_id = ? AND t.tenant_id = ?
+             ORDER BY t.created_at DESC LIMIT 20',
+            [$memberId, $tenantId],
+        );
+
+        $member['accounts'] = $accounts;
+        $member['loans'] = $loans;
+        $member['recent_transactions'] = $recentTransactions;
+
+        return Response::ok($member);
+    }
+
+    /**
+     * DELETE /api/v1/members/{id}
+     *
+     * Deactivate (soft-delete) a member. Sets status to inactive.
+     */
+    public function deleteMember(Request $request): Response
+    {
+        $memberId = $request->param('id');
+        $member = $this->db->findScoped('users', ['id' => $memberId]);
+
+        if ($member === null) {
+            return Response::error('Member not found', 404);
+        }
+
+        // Prevent deleting yourself
+        $currentUserId = $request->getAttribute('user_id');
+        if ($memberId === $currentUserId) {
+            return Response::error('You cannot delete your own account', 422);
+        }
+
+        // Prevent deleting the last admin
+        if ($member['role'] === 'admin') {
+            $adminCount = $this->db->countScoped('users', ['role' => 'admin']);
+            if ($adminCount <= 1) {
+                return Response::error('Cannot delete the last administrator', 422);
+            }
+        }
+
+        // Check for active accounts with balances
+        $tenantId = $this->db->getTenantId();
+        $activeBalance = (float) ($this->db->fetchColumn(
+            'SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE user_id = ? AND tenant_id = ? AND status = ?',
+            [$memberId, $tenantId, 'active'],
+        ) ?? 0);
+
+        if ($activeBalance > 0) {
+            return Response::error('Cannot delete member with active account balances. Close or zero out accounts first.', 422);
+        }
+
+        // Check for active loans
+        $activeLoans = (int) $this->db->fetchColumn(
+            'SELECT COUNT(*) FROM loans WHERE user_id = ? AND tenant_id = ? AND status IN (?, ?, ?)',
+            [$memberId, $tenantId, 'active', 'approved', 'application'],
+        );
+
+        if ($activeLoans > 0) {
+            return Response::error('Cannot delete member with active or pending loans. Resolve loans first.', 422);
+        }
+
+        // Soft-delete: set status to inactive
+        $this->db->updateScoped('users', [
+            'status' => 'inactive',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], ['id' => $memberId]);
+
+        return Response::ok(null, 'Member deactivated successfully');
+    }
+
+    /**
      * GET /api/v1/admin/users
      *
      * List all users for the tenant.
@@ -253,10 +361,12 @@ final class AdminController
         $userId = $request->param('id');
 
         $validator = new Validator($request->all(), [
-            'role'   => 'nullable|in:admin,manager,teller,member',
-            'status' => 'nullable|in:active,inactive,suspended',
+            'email'      => 'nullable|email',
             'first_name' => 'nullable|string|max:100',
             'last_name'  => 'nullable|string|max:100',
+            'phone'      => 'nullable|string|max:20',
+            'role'       => 'nullable|in:admin,manager,teller,member',
+            'status'     => 'nullable|in:active,inactive,suspended',
         ]);
 
         if ($validator->fails()) {
@@ -271,6 +381,18 @@ final class AdminController
         $user = $this->db->findScoped('users', ['id' => $userId]);
         if ($user === null) {
             return Response::error('User not found', 404);
+        }
+
+        // Check email uniqueness if changing email
+        if (isset($data['email']) && $data['email'] !== $user['email']) {
+            $tenantId = $this->db->getTenantId();
+            $existing = $this->db->fetchOne(
+                'SELECT id FROM users WHERE email = ? AND tenant_id = ? AND id != ?',
+                [$data['email'], $tenantId, $userId],
+            );
+            if ($existing) {
+                return Response::error('A member with this email already exists', 422);
+            }
         }
 
         // Prevent demoting the last admin

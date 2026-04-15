@@ -197,6 +197,22 @@
     </div>
   </div>
 
+  <!-- View Member Detail Modal -->
+  <div class="modal-overlay" id="viewMemberModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>Member Details</h3>
+        <button class="icon-btn modal-close" onclick="document.getElementById('viewMemberModal').classList.remove('active')"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <div class="modal-body" id="viewMemberBody">
+        <div style="text-align:center;padding:2rem">Loading...</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('viewMemberModal').classList.remove('active')">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="../js/admin-common.js"></script>
   <script>
     // Member page logic
@@ -313,7 +329,7 @@
           '<td><div class="action-btns">' +
             '<button class="icon-btn" title="View" onclick="viewMember(\'' + m.id + '\')"><svg><use href="#icon-eye"/></svg></button>' +
             '<button class="icon-btn" title="Edit" onclick="editMember(' + mJson + ')"><svg><use href="#icon-edit"/></svg></button>' +
-            '<button class="icon-btn icon-btn-danger" title="Delete"><svg><use href="#icon-trash"/></svg></button>' +
+            '<button class="icon-btn icon-btn-danger" title="Delete" onclick="deleteMember(\'' + m.id + '\', \'' + ((m.first_name || '') + ' ' + (m.last_name || '')).replace(/'/g, "\\'") + '\')"><svg><use href="#icon-trash"/></svg></button>' +
           '</div></td></tr>';
       }).join('');
     }
@@ -322,9 +338,112 @@
       openModal(true, member);
     }
 
-    function viewMember(id) {
-      // TODO: implement member detail view
-      alert('View member: ' + id);
+    async function deleteMember(id, name) {
+      if (!confirm('Are you sure you want to deactivate "' + name.trim() + '"?\n\nThis will set their status to inactive. Members with active balances or loans cannot be deleted.')) return;
+      try {
+        const resp = await apiFetch('/api/v1/members/' + id, { method: 'DELETE' });
+        const result = await resp.json();
+        if (!resp.ok) {
+          alert(result.error || result.message || 'Failed to delete member');
+          return;
+        }
+        loadMembers();
+      } catch (e) {
+        alert('Network error: ' + e.message);
+      }
+    }
+
+    async function viewMember(id) {
+      const modal = document.getElementById('viewMemberModal');
+      const body = document.getElementById('viewMemberBody');
+      body.innerHTML = '<div style="text-align:center;padding:2rem">Loading member details...</div>';
+      modal.classList.add('active');
+      try {
+        const resp = await apiFetch('/api/v1/members/' + id);
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          body.innerHTML = '<div style="text-align:center;padding:2rem;color:red">Error: ' + (err.error || 'Failed to load') + '</div>';
+          return;
+        }
+        const json = await resp.json();
+        const m = json.data || {};
+        renderMemberDetail(m);
+      } catch (e) {
+        body.innerHTML = '<div style="text-align:center;padding:2rem;color:red">' + e.message + '</div>';
+      }
+    }
+
+    function renderMemberDetail(m) {
+      const body = document.getElementById('viewMemberBody');
+      const statusClass = m.status === 'active' ? 'badge-success' : m.status === 'inactive' ? 'badge-muted' : 'badge-warning';
+      const initials = ((m.first_name || '')[0] || '') + ((m.last_name || '')[0] || '');
+
+      let html = '<div class="member-detail-header">';
+      html += '<div class="avatar avatar-lg">' + initials.toUpperCase() + '</div>';
+      html += '<div><h3>' + (m.first_name || '') + ' ' + (m.last_name || '') + '</h3>';
+      html += '<span class="badge ' + statusClass + '">' + (m.status || 'unknown') + '</span> ';
+      html += '<span class="badge badge-info">' + (m.role || 'member') + '</span></div></div>';
+
+      html += '<div class="member-detail-grid">';
+      html += '<div class="detail-item"><label>Email</label><span>' + (m.email || '-') + '</span></div>';
+      html += '<div class="detail-item"><label>Phone</label><span>' + (m.phone || '-') + '</span></div>';
+      html += '<div class="detail-item"><label>Last Login</label><span>' + (m.last_login_at ? new Date(m.last_login_at).toLocaleDateString() : 'Never') + '</span></div>';
+      html += '<div class="detail-item"><label>Member Since</label><span>' + (m.created_at ? new Date(m.created_at).toLocaleDateString() : '-') + '</span></div>';
+      html += '</div>';
+
+      // Accounts
+      const accounts = m.accounts || [];
+      html += '<h4 style="margin-top:1.5rem;margin-bottom:0.5rem">Accounts (' + accounts.length + ')</h4>';
+      if (accounts.length === 0) {
+        html += '<p style="color:var(--color-text-muted);font-size:0.875rem">No accounts</p>';
+      } else {
+        html += '<div class="table-responsive"><table class="data-table data-table-sm"><thead><tr><th>Account</th><th>Type</th><th>Balance</th><th>Status</th></tr></thead><tbody>';
+        accounts.forEach(function(a) {
+          var aStatus = a.status === 'active' ? 'badge-success' : 'badge-muted';
+          html += '<tr><td>' + (a.account_number || '') + ' <small style="color:var(--color-text-muted)">' + (a.name || '') + '</small></td>';
+          html += '<td>' + (a.account_type || '') + '</td>';
+          html += '<td>$' + Number(a.balance || 0).toLocaleString(undefined, {minimumFractionDigits:2}) + '</td>';
+          html += '<td><span class="badge ' + aStatus + '">' + (a.status || '') + '</span></td></tr>';
+        });
+        html += '</tbody></table></div>';
+      }
+
+      // Loans
+      const loans = m.loans || [];
+      html += '<h4 style="margin-top:1.5rem;margin-bottom:0.5rem">Loans (' + loans.length + ')</h4>';
+      if (loans.length === 0) {
+        html += '<p style="color:var(--color-text-muted);font-size:0.875rem">No loans</p>';
+      } else {
+        html += '<div class="table-responsive"><table class="data-table data-table-sm"><thead><tr><th>Loan #</th><th>Type</th><th>Principal</th><th>Outstanding</th><th>Status</th></tr></thead><tbody>';
+        loans.forEach(function(l) {
+          var lStatus = l.status === 'active' ? 'badge-success' : l.status === 'application' ? 'badge-warning' : 'badge-muted';
+          html += '<tr><td>' + (l.loan_number || '-') + '</td>';
+          html += '<td>' + (l.loan_type || '') + '</td>';
+          html += '<td>$' + Number(l.principal_amount || 0).toLocaleString(undefined, {minimumFractionDigits:2}) + '</td>';
+          html += '<td>$' + Number(l.outstanding_balance || 0).toLocaleString(undefined, {minimumFractionDigits:2}) + '</td>';
+          html += '<td><span class="badge ' + lStatus + '">' + (l.status || '') + '</span></td></tr>';
+        });
+        html += '</tbody></table></div>';
+      }
+
+      // Recent Transactions
+      const txns = m.recent_transactions || [];
+      html += '<h4 style="margin-top:1.5rem;margin-bottom:0.5rem">Recent Transactions (' + txns.length + ')</h4>';
+      if (txns.length === 0) {
+        html += '<p style="color:var(--color-text-muted);font-size:0.875rem">No transactions</p>';
+      } else {
+        html += '<div class="table-responsive"><table class="data-table data-table-sm"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Account</th><th>Status</th></tr></thead><tbody>';
+        txns.forEach(function(t) {
+          html += '<tr><td>' + (t.created_at ? new Date(t.created_at).toLocaleDateString() : '-') + '</td>';
+          html += '<td>' + (t.type || '') + '</td>';
+          html += '<td>$' + Number(t.amount || 0).toLocaleString(undefined, {minimumFractionDigits:2}) + '</td>';
+          html += '<td>' + (t.account_number || '') + '</td>';
+          html += '<td>' + (t.status || '') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+      }
+
+      body.innerHTML = html;
     }
 
     function renderPagination(meta) {
@@ -360,6 +479,11 @@
     let searchTimeout;
     memberSearch.addEventListener('input', () => { clearTimeout(searchTimeout); currentPage = 1; searchTimeout = setTimeout(() => loadMembers(1), 300); });
     statusFilter.addEventListener('change', () => { currentPage = 1; loadMembers(1); });
+
+    // View modal backdrop click
+    document.getElementById('viewMemberModal').addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('active');
+    });
 
     // Load members on page load
     loadMembers();

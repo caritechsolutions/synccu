@@ -150,7 +150,9 @@ $router->group([
 ], function ($router) {
     $router->get('/',            [AdminController::class, 'members']);
     $router->post('/',           [AdminController::class, 'createMember']);
+    $router->get('/{id}',        [AdminController::class, 'showMember']);
     $router->put('/{id}',       [AdminController::class, 'updateUser']);
+    $router->delete('/{id}',    [AdminController::class, 'deleteMember']);
 });
 
 // ------------------------------------------------------------------
