@@ -329,7 +329,7 @@
           '<td><div class="action-btns">' +
             '<button class="icon-btn" title="View" onclick="viewMember(\'' + m.id + '\')"><svg><use href="#icon-eye"/></svg></button>' +
             '<button class="icon-btn" title="Edit" onclick="editMember(' + mJson + ')"><svg><use href="#icon-edit"/></svg></button>' +
-            '<button class="icon-btn icon-btn-danger" title="Delete" onclick="deleteMember(\'' + m.id + '\', \'' + ((m.first_name || '') + ' ' + (m.last_name || '')).replace(/'/g, "\\'") + '\')"><svg><use href="#icon-trash"/></svg></button>' +
+            (m.status === 'active' ? '<button class="icon-btn icon-btn-danger" title="Deactivate" onclick="deleteMember(\'' + m.id + '\', \'' + ((m.first_name || '') + ' ' + (m.last_name || '')).replace(/'/g, "\\'") + '\')"><svg><use href="#icon-trash"/></svg></button>' : '') +
           '</div></td></tr>';
       }).join('');
     }
