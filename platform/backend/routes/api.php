@@ -101,6 +101,7 @@ $router->group([
     ],
 ], function ($router) {
     $router->get('/',           [TransactionController::class, 'index']);
+    $router->get('/export',     [TransactionController::class, 'export']);
     $router->post('/',          [TransactionController::class, 'store']);
     $router->post('/deposit',   [TransactionController::class, 'deposit']);
     $router->post('/withdraw',  [TransactionController::class, 'withdraw']);

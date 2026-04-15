@@ -75,6 +75,14 @@ final class Response
     }
 
     /**
+     * Raw (non-JSON) response for file downloads, CSV exports, etc.
+     */
+    public static function raw(string $body, int $status = 200, array $headers = []): self
+    {
+        return new self($body, $status, $headers + ['X-Raw' => '1']);
+    }
+
+    /**
      * Paginated list response.
      */
     public static function paginated(
@@ -113,6 +121,13 @@ final class Response
         }
 
         if ($this->status === 204) {
+            return;
+        }
+
+        // Raw responses (CSV, file downloads) bypass JSON encoding
+        if (isset($this->headers['X-Raw']) && is_string($this->body)) {
+            header_remove('X-Raw');
+            echo $this->body;
             return;
         }
 

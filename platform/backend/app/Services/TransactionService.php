@@ -264,7 +264,7 @@ final class TransactionService
     }
 
     /**
-     * Get transactions by user.
+     * Get transactions processed by a user.
      */
     public function getByUser(string $userId, int $page = 1, int $perPage = 20): array
     {
@@ -272,13 +272,13 @@ final class TransactionService
 
         $items = $this->db->selectScoped(
             'transactions',
-            ['user_id' => $userId],
+            ['processed_by' => $userId],
             'created_at DESC',
             $perPage,
             $offset,
         );
 
-        $total = $this->db->countScoped('transactions', ['user_id' => $userId]);
+        $total = $this->db->countScoped('transactions', ['processed_by' => $userId]);
 
         return ['items' => $items, 'total' => $total];
     }

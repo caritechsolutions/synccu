@@ -139,88 +139,21 @@
                 <th>Date/Time</th>
                 <th>Reference #</th>
                 <th>Type</th>
-                <th>From Account</th>
-                <th>To Account</th>
+                <th>Account</th>
+                <th>Related Account</th>
                 <th>Amount</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody id="transactionsTableBody">
-              <tr>
-                <td>Mar 27, 2026 09:14 AM</td>
-                <td class="font-mono">TXN-20260327-001</td>
-                <td><span class="badge badge-success">Deposit</span></td>
-                <td>External</td>
-                <td>****4821</td>
-                <td class="text-green">+$3,240.00</td>
-                <td><span class="badge badge-success">Completed</span></td>
-                <td><button class="icon-btn" title="View Details" data-txn="1"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>Mar 27, 2026 08:42 AM</td>
-                <td class="font-mono">TXN-20260327-002</td>
-                <td><span class="badge badge-danger">Withdrawal</span></td>
-                <td>****7392</td>
-                <td>External</td>
-                <td class="text-red">-$1,500.00</td>
-                <td><span class="badge badge-success">Completed</span></td>
-                <td><button class="icon-btn" title="View Details" data-txn="2"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>Mar 26, 2026 04:30 PM</td>
-                <td class="font-mono">TXN-20260326-003</td>
-                <td><span class="badge badge-info">Transfer</span></td>
-                <td>****5610</td>
-                <td>****4821</td>
-                <td>$500.00</td>
-                <td><span class="badge badge-success">Completed</span></td>
-                <td><button class="icon-btn" title="View Details" data-txn="3"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>Mar 26, 2026 02:15 PM</td>
-                <td class="font-mono">TXN-20260326-004</td>
-                <td><span class="badge badge-warning">Payment</span></td>
-                <td>****2048</td>
-                <td>Loan #LN-0482</td>
-                <td class="text-red">-$842.50</td>
-                <td><span class="badge badge-warning">Pending</span></td>
-                <td><button class="icon-btn" title="View Details" data-txn="4"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>Mar 26, 2026 10:00 AM</td>
-                <td class="font-mono">TXN-20260326-005</td>
-                <td><span class="badge badge-danger">Withdrawal</span></td>
-                <td>****9173</td>
-                <td>External</td>
-                <td class="text-red">-$200.00</td>
-                <td><span class="badge badge-success">Completed</span></td>
-                <td><button class="icon-btn" title="View Details" data-txn="5"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
-              <tr>
-                <td>Mar 25, 2026 03:45 PM</td>
-                <td class="font-mono">TXN-20260325-006</td>
-                <td><span class="badge badge-info">Transfer</span></td>
-                <td>****3847</td>
-                <td>****7392</td>
-                <td>$5,000.00</td>
-                <td><span class="badge badge-danger">Failed</span></td>
-                <td><button class="icon-btn" title="View Details" data-txn="6"><svg><use href="#icon-eye"/></svg></button></td>
-              </tr>
+              <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">Loading transactions...</td></tr>
             </tbody>
           </table>
         </div>
-        <div class="pagination">
-          <span class="pagination-info">Showing 1-6 of 12,483 transactions</span>
-          <div class="pagination-controls">
-            <button class="pagination-btn" disabled><svg><use href="#icon-arrow-left"/></svg></button>
-            <button class="pagination-btn active">1</button>
-            <button class="pagination-btn">2</button>
-            <button class="pagination-btn">3</button>
-            <span class="pagination-ellipsis">...</span>
-            <button class="pagination-btn">2081</button>
-            <button class="pagination-btn"><svg><use href="#icon-arrow-right"/></svg></button>
-          </div>
+        <div class="pagination" id="txnPagination" style="display:none">
+          <span class="pagination-info" id="txnPaginationInfo"></span>
+          <div class="pagination-controls" id="txnPaginationControls"></div>
         </div>
       </div>
     </main>
@@ -245,12 +178,16 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="txnAccount">Account</label>
-            <input type="text" id="txnAccount" name="account" class="form-input" placeholder="Search account by number or member..." required>
+            <label for="txnAccountSearch" id="txnAccountLabel">Account</label>
+            <input type="text" id="txnAccountSearch" class="form-input" placeholder="Search account by number or member..." autocomplete="off" required>
+            <input type="hidden" id="txnAccountId" name="account_id">
+            <div class="search-results" id="txnAccountResults"></div>
           </div>
           <div class="form-group" id="txnDestGroup" style="display:none">
-            <label for="txnDestAccount">Destination Account</label>
-            <input type="text" id="txnDestAccount" name="destination_account" class="form-input" placeholder="Search destination account...">
+            <label for="txnDestSearch">Destination Account</label>
+            <input type="text" id="txnDestSearch" class="form-input" placeholder="Search destination account..." autocomplete="off">
+            <input type="hidden" id="txnDestId" name="to_account_id">
+            <div class="search-results" id="txnDestResults"></div>
           </div>
           <div class="form-group">
             <label for="txnAmount">Amount</label>
@@ -263,7 +200,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="cancelTxnBtn">Cancel</button>
-          <button type="submit" class="btn btn-primary">Process Transaction</button>
+          <button type="submit" class="btn btn-primary" id="txnSubmitBtn">Process Transaction</button>
         </div>
       </form>
     </div>
@@ -282,23 +219,13 @@
           <dt>Date/Time</dt><dd id="detailDate">-</dd>
           <dt>Type</dt><dd id="detailType">-</dd>
           <dt>Status</dt><dd id="detailStatus">-</dd>
-          <dt>From Account</dt><dd id="detailFrom">-</dd>
-          <dt>To Account</dt><dd id="detailTo">-</dd>
+          <dt>Account</dt><dd id="detailFrom">-</dd>
+          <dt>Related Account</dt><dd id="detailTo">-</dd>
           <dt>Amount</dt><dd id="detailAmount">-</dd>
+          <dt>Balance After</dt><dd id="detailBalanceAfter">-</dd>
           <dt>Description</dt><dd id="detailDesc">-</dd>
+          <dt>Processed By</dt><dd id="detailProcessedBy">-</dd>
         </dl>
-        <div class="detail-section" style="margin-top:1.5rem">
-          <h4>Ledger Entries</h4>
-          <table class="data-table data-table-sm">
-            <thead>
-              <tr><th>Account</th><th>Debit</th><th>Credit</th><th>Balance After</th></tr>
-            </thead>
-            <tbody id="ledgerEntries">
-              <tr><td>****4821 (Member Savings)</td><td>-</td><td>$3,240.00</td><td>$24,562.80</td></tr>
-              <tr><td>Cash / External</td><td>$3,240.00</td><td>-</td><td>-</td></tr>
-            </tbody>
-          </table>
-        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="closeTxnDetailBtn">Close</button>
@@ -310,125 +237,267 @@
   <script>
     const txnModal = document.getElementById('txnModal');
     const txnDetailModal = document.getElementById('txnDetailModal');
-    const newTransactionBtn = document.getElementById('newTransactionBtn');
-    const closeTxnModal = document.getElementById('closeTxnModal');
-    const cancelTxnBtn = document.getElementById('cancelTxnBtn');
-    const closeTxnDetailModal = document.getElementById('closeTxnDetailModal');
-    const closeTxnDetailBtn = document.getElementById('closeTxnDetailBtn');
     const txnForm = document.getElementById('txnForm');
     const txnType = document.getElementById('txnType');
+    let currentPage = 1;
+    const perPage = 20;
 
-    newTransactionBtn.addEventListener('click', () => txnModal.classList.add('active'));
-    closeTxnModal.addEventListener('click', () => txnModal.classList.remove('active'));
-    cancelTxnBtn.addEventListener('click', () => txnModal.classList.remove('active'));
+    // Modal open/close
+    document.getElementById('newTransactionBtn').addEventListener('click', () => txnModal.classList.add('active'));
+    document.getElementById('closeTxnModal').addEventListener('click', () => txnModal.classList.remove('active'));
+    document.getElementById('cancelTxnBtn').addEventListener('click', () => txnModal.classList.remove('active'));
     txnModal.addEventListener('click', (e) => { if (e.target === txnModal) txnModal.classList.remove('active'); });
-    closeTxnDetailModal.addEventListener('click', () => txnDetailModal.classList.remove('active'));
-    closeTxnDetailBtn.addEventListener('click', () => txnDetailModal.classList.remove('active'));
+    document.getElementById('closeTxnDetailModal').addEventListener('click', () => txnDetailModal.classList.remove('active'));
+    document.getElementById('closeTxnDetailBtn').addEventListener('click', () => txnDetailModal.classList.remove('active'));
     txnDetailModal.addEventListener('click', (e) => { if (e.target === txnDetailModal) txnDetailModal.classList.remove('active'); });
 
-    // Show/hide destination account for transfers
+    // Show/hide destination account for transfers, update label
     txnType.addEventListener('change', () => {
-      document.getElementById('txnDestGroup').style.display = txnType.value === 'transfer' ? '' : 'none';
+      const isTransfer = txnType.value === 'transfer';
+      document.getElementById('txnDestGroup').style.display = isTransfer ? '' : 'none';
+      document.getElementById('txnAccountLabel').textContent = isTransfer ? 'From Account' : 'Account';
     });
 
-    // View detail buttons
-    document.querySelectorAll('[data-txn]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const row = btn.closest('tr');
-        const cells = row.querySelectorAll('td');
-        document.getElementById('detailDate').textContent = cells[0].textContent;
-        document.getElementById('detailRef').textContent = cells[1].textContent;
-        document.getElementById('detailType').textContent = cells[2].textContent.trim();
-        document.getElementById('detailFrom').textContent = cells[3].textContent;
-        document.getElementById('detailTo').textContent = cells[4].textContent;
-        document.getElementById('detailAmount').textContent = cells[5].textContent;
-        document.getElementById('detailStatus').textContent = cells[6].textContent.trim();
-        txnDetailModal.classList.add('active');
+    // --- Account Search Autocomplete ---
+    function setupAccountSearch(inputId, resultsId, hiddenId) {
+      const input = document.getElementById(inputId);
+      const results = document.getElementById(resultsId);
+      const hidden = document.getElementById(hiddenId);
+      let timeout;
+      input.addEventListener('input', () => {
+        clearTimeout(timeout);
+        hidden.value = '';
+        const q = input.value.trim();
+        if (q.length < 2) { results.innerHTML = ''; return; }
+        timeout = setTimeout(async () => {
+          try {
+            const resp = await apiFetch('/api/v1/accounts?search=' + encodeURIComponent(q) + '&per_page=8');
+            if (!resp.ok) return;
+            const json = await resp.json();
+            const accts = json.data || [];
+            results.innerHTML = accts.map(a =>
+              '<div class="search-result-item" data-id="' + a.id + '">' +
+              a.account_number + ' - ' + (a.member_name || a.name || 'Unknown') +
+              ' <span style="color:var(--text-muted);font-size:var(--text-xs)">(' + a.account_type + ' $' + Number(a.balance || 0).toLocaleString('en-US', {minimumFractionDigits:2}) + ')</span></div>'
+            ).join('');
+            results.querySelectorAll('.search-result-item').forEach(item => {
+              item.addEventListener('click', () => {
+                hidden.value = item.dataset.id;
+                input.value = item.textContent;
+                results.innerHTML = '';
+              });
+            });
+          } catch (e) { /* ignore */ }
+        }, 300);
       });
-    });
+      // Close results on outside click
+      document.addEventListener('click', (e) => { if (!input.contains(e.target) && !results.contains(e.target)) results.innerHTML = ''; });
+    }
+    setupAccountSearch('txnAccountSearch', 'txnAccountResults', 'txnAccountId');
+    setupAccountSearch('txnDestSearch', 'txnDestResults', 'txnDestId');
 
+    // --- Form Submit ---
     txnForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const formData = new FormData(txnForm);
-      const data = Object.fromEntries(formData);
+      const type = txnType.value;
+      const accountId = document.getElementById('txnAccountId').value;
+      const destId = document.getElementById('txnDestId').value;
+
+      if (!accountId) { alert('Please select an account from the search results.'); return; }
+      if (type === 'transfer' && !destId) { alert('Please select a destination account from the search results.'); return; }
+
+      const submitBtn = document.getElementById('txnSubmitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Processing...';
+
+      const payload = {
+        type: type,
+        amount: document.getElementById('txnAmount').value,
+        description: document.getElementById('txnDescription').value,
+      };
+
+      if (type === 'transfer') {
+        payload.from_account_id = accountId;
+        payload.to_account_id = destId;
+      } else {
+        payload.account_id = accountId;
+      }
+
       try {
-        await apiFetch('/api/v1/transactions', {
-          method: 'POST',
-          body: JSON.stringify(data)
-        });
+        const resp = await apiFetch('/api/v1/transactions', { method: 'POST', body: JSON.stringify(payload) });
+        const result = await resp.json();
+        if (!resp.ok) {
+          let msg = result.error || result.message || 'Transaction failed';
+          if (result.errors) msg += '\n\n' + Object.entries(result.errors).map(([f,m]) => f + ': ' + (Array.isArray(m) ? m.join(', ') : m)).join('\n');
+          alert(msg);
+          return;
+        }
         txnModal.classList.remove('active');
         txnForm.reset();
+        document.getElementById('txnAccountId').value = '';
+        document.getElementById('txnDestId').value = '';
+        document.getElementById('txnDestGroup').style.display = 'none';
         loadTransactions();
-      } catch (e) { /* handle error */ }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Process Transaction';
+      }
     });
 
-    // Export CSV
+    // --- Export CSV ---
     document.getElementById('exportCsvBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('exportCsvBtn');
+      btn.disabled = true;
       try {
-        const resp = await apiFetch('/api/v1/transactions/export?format=csv');
+        const params = buildFilterParams();
+        const resp = await apiFetch('/api/v1/transactions/export?' + params);
+        if (!resp.ok) { alert('Export failed'); return; }
         const blob = await resp.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = 'transactions.csv'; a.click();
+        a.href = url; a.download = 'transactions-' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
         URL.revokeObjectURL(url);
-      } catch (e) { /* handle error */ }
+      } catch (e) { alert('Export error: ' + e.message); }
+      finally { btn.disabled = false; }
     });
+
+    // --- Load & Render Transactions ---
+    function buildFilterParams() {
+      const params = new URLSearchParams();
+      const from = document.getElementById('dateFrom').value;
+      const to = document.getElementById('dateTo').value;
+      const type = document.getElementById('txnTypeFilter').value;
+      const status = document.getElementById('txnStatusFilter').value;
+      const search = document.getElementById('txnSearch').value;
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      if (type && type !== 'all') params.set('type', type);
+      if (status && status !== 'all') params.set('status', status);
+      if (search) params.set('search', search);
+      return params;
+    }
 
     async function loadTransactions() {
       try {
-        const params = new URLSearchParams();
-        const from = document.getElementById('dateFrom')?.value;
-        const to = document.getElementById('dateTo')?.value;
-        const type = document.getElementById('txnTypeFilter')?.value;
-        const status = document.getElementById('txnStatusFilter')?.value;
-        const search = document.getElementById('txnSearch')?.value;
-        if (from) params.set('from', from);
-        if (to) params.set('to', to);
-        if (type && type !== 'all') params.set('type', type);
-        if (status && status !== 'all') params.set('status', status);
-        if (search) params.set('search', search);
+        const params = buildFilterParams();
+        params.set('page', currentPage);
+        params.set('per_page', perPage);
         const resp = await apiFetch('/api/v1/transactions?' + params);
         if (!resp.ok) return;
         const json = await resp.json();
         const txns = json.data || [];
+        const meta = json.meta || {};
         renderTransactions(txns);
+        renderPagination(meta);
       } catch (e) { console.error('Load transactions error:', e); }
     }
 
     function renderTransactions(txns) {
       const tbody = document.getElementById('transactionsTableBody');
-      if (!tbody) return;
       if (!txns.length) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">No transactions found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">No transactions found</td></tr>';
         return;
       }
+      const typeClasses = { deposit: 'badge-success', withdrawal: 'badge-danger', transfer: 'badge-info', payment: 'badge-warning', fee: 'badge-muted', interest: 'badge-purple', adjustment: 'badge-muted' };
+      const statusClasses = { completed: 'badge-success', pending: 'badge-warning', failed: 'badge-danger', reversed: 'badge-muted', cancelled: 'badge-muted' };
+
       tbody.innerHTML = txns.map(t => {
-        const date = new Date(t.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
-        const isCredit = ['deposit','interest','loan_payment'].includes(t.type);
-        const amtClass = isCredit ? 'text-green' : 'text-red';
-        const amtSign = isCredit ? '+' : '-';
-        const statusClass = t.status === 'completed' ? 'badge-success' : t.status === 'pending' ? 'badge-warning' : 'badge-neutral';
+        const dt = t.created_at ? new Date(t.created_at) : null;
+        const date = dt ? dt.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) + ' ' + dt.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '-';
+        const isCredit = ['deposit','interest'].includes(t.type);
+        const amtClass = isCredit ? 'text-green' : t.type === 'transfer' ? '' : 'text-red';
+        const amtSign = isCredit ? '+' : (t.type === 'transfer' ? '' : '-');
+        const acctDisplay = t.account_number || '-';
+        const relatedDisplay = t.related_account_number || (t.type === 'deposit' ? 'External' : t.type === 'withdrawal' ? 'External' : '-');
         return '<tr>' +
           '<td>' + date + '</td>' +
-          '<td>' + (t.reference_number || '-') + '</td>' +
-          '<td>' + t.type + '</td>' +
-          '<td>' + (t.account_name || t.account_number || '-') + '</td>' +
-          '<td>' + (t.member_name || '-') + '</td>' +
-          '<td class="' + amtClass + '">' + amtSign + '$' + Number(t.amount).toLocaleString(undefined,{minimumFractionDigits:2}) + '</td>' +
-          '<td><span class="badge ' + statusClass + '">' + t.status + '</span></td></tr>';
+          '<td style="font-family:var(--font-mono);font-size:var(--text-xs)">' + (t.reference_number || '-') + '</td>' +
+          '<td><span class="badge ' + (typeClasses[t.type] || 'badge-muted') + '">' + t.type + '</span></td>' +
+          '<td>' + acctDisplay + '</td>' +
+          '<td>' + relatedDisplay + '</td>' +
+          '<td class="' + amtClass + '" style="font-weight:600">' + amtSign + '$' + Number(t.amount).toLocaleString('en-US',{minimumFractionDigits:2}) + '</td>' +
+          '<td><span class="badge ' + (statusClasses[t.status] || 'badge-muted') + '">' + t.status + '</span></td>' +
+          '<td><button class="icon-btn" title="View Details" onclick="viewTransaction(\'' + t.id + '\')"><svg><use href="#icon-eye"/></svg></button></td>' +
+          '</tr>';
       }).join('');
     }
 
-    loadTransactions();
+    function renderPagination(meta) {
+      const el = document.getElementById('txnPagination');
+      if (!meta.total || meta.total === 0) { el.style.display = 'none'; return; }
+      el.style.display = '';
+      const start = (meta.page - 1) * meta.per_page + 1;
+      const end = Math.min(meta.page * meta.per_page, meta.total);
+      document.getElementById('txnPaginationInfo').textContent = 'Showing ' + start + '-' + end + ' of ' + meta.total.toLocaleString() + ' transactions';
 
-    document.getElementById('txnTypeFilter').addEventListener('change', loadTransactions);
-    document.getElementById('txnStatusFilter').addEventListener('change', loadTransactions);
-    document.getElementById('dateFrom').addEventListener('change', loadTransactions);
-    document.getElementById('dateTo').addEventListener('change', loadTransactions);
+      const totalPages = meta.total_pages || 1;
+      let controls = '';
+      controls += '<button class="pagination-btn"' + (meta.page <= 1 ? ' disabled' : ' onclick="goPage(' + (meta.page - 1) + ')"') + '><svg><use href="#icon-arrow-left"/></svg></button>';
+      const pages = [];
+      if (totalPages <= 5) { for (let i = 1; i <= totalPages; i++) pages.push(i); }
+      else {
+        pages.push(1);
+        if (meta.page > 3) pages.push('...');
+        for (let i = Math.max(2, meta.page - 1); i <= Math.min(totalPages - 1, meta.page + 1); i++) pages.push(i);
+        if (meta.page < totalPages - 2) pages.push('...');
+        pages.push(totalPages);
+      }
+      pages.forEach(p => {
+        if (p === '...') { controls += '<span class="pagination-ellipsis">...</span>'; }
+        else { controls += '<button class="pagination-btn' + (p === meta.page ? ' active' : '') + '" onclick="goPage(' + p + ')">' + p + '</button>'; }
+      });
+      controls += '<button class="pagination-btn"' + (meta.page >= totalPages ? ' disabled' : ' onclick="goPage(' + (meta.page + 1) + ')"') + '><svg><use href="#icon-arrow-right"/></svg></button>';
+      document.getElementById('txnPaginationControls').innerHTML = controls;
+    }
+
+    function goPage(page) { currentPage = page; loadTransactions(); }
+
+    // --- View Transaction Detail ---
+    async function viewTransaction(id) {
+      document.getElementById('detailRef').textContent = 'Loading...';
+      document.getElementById('detailDate').textContent = '-';
+      document.getElementById('detailType').textContent = '-';
+      document.getElementById('detailStatus').textContent = '-';
+      document.getElementById('detailFrom').textContent = '-';
+      document.getElementById('detailTo').textContent = '-';
+      document.getElementById('detailAmount').textContent = '-';
+      document.getElementById('detailBalanceAfter').textContent = '-';
+      document.getElementById('detailDesc').textContent = '-';
+      document.getElementById('detailProcessedBy').textContent = '-';
+      txnDetailModal.classList.add('active');
+
+      try {
+        const resp = await apiFetch('/api/v1/transactions/' + id);
+        if (!resp.ok) { document.getElementById('detailRef').textContent = 'Error loading'; return; }
+        const json = await resp.json();
+        const t = json.data || {};
+        const dt = t.created_at ? new Date(t.created_at) : null;
+        document.getElementById('detailRef').textContent = t.reference_number || '-';
+        document.getElementById('detailDate').textContent = dt ? dt.toLocaleString() : '-';
+        document.getElementById('detailType').textContent = t.type || '-';
+        document.getElementById('detailStatus').textContent = t.status || '-';
+        document.getElementById('detailFrom').textContent = t.account_number ? t.account_number + (t.account_name ? ' (' + t.account_name + ')' : '') : '-';
+        document.getElementById('detailTo').textContent = t.related_account_number ? t.related_account_number + (t.related_account_name ? ' (' + t.related_account_name + ')' : '') : (t.type === 'deposit' || t.type === 'withdrawal' ? 'External' : '-');
+        document.getElementById('detailAmount').textContent = '$' + Number(t.amount || 0).toLocaleString('en-US', {minimumFractionDigits:2});
+        document.getElementById('detailBalanceAfter').textContent = '$' + Number(t.balance_after || 0).toLocaleString('en-US', {minimumFractionDigits:2});
+        document.getElementById('detailDesc').textContent = t.description || '-';
+        document.getElementById('detailProcessedBy').textContent = t.member_name || t.processed_by || '-';
+      } catch (e) { document.getElementById('detailRef').textContent = 'Error'; }
+    }
+
+    // --- Filter Listeners ---
+    document.getElementById('txnTypeFilter').addEventListener('change', () => { currentPage = 1; loadTransactions(); });
+    document.getElementById('txnStatusFilter').addEventListener('change', () => { currentPage = 1; loadTransactions(); });
+    document.getElementById('dateFrom').addEventListener('change', () => { currentPage = 1; loadTransactions(); });
+    document.getElementById('dateTo').addEventListener('change', () => { currentPage = 1; loadTransactions(); });
     let searchTimeout;
-    document.getElementById('txnSearch').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadTransactions, 300); });
+    document.getElementById('txnSearch').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { currentPage = 1; loadTransactions(); }, 300); });
 
     if (new URLSearchParams(window.location.search).get('action') === 'new') { txnModal.classList.add('active'); }
+
+    loadTransactions();
   </script>
 </body>
 </html>

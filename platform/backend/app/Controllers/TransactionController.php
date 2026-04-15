@@ -73,13 +73,15 @@ final class TransactionController
         }
 
         $transactions = $db->fetchAll(
-            "SELECT t.id, t.account_id, t.type, t.amount, t.balance_after,
-                    t.description, t.reference_number, t.status, t.created_at,
+            "SELECT t.id, t.account_id, t.related_account_id, t.type, t.amount, t.balance_after,
+                    t.description, t.reference_number, t.status, t.processed_by, t.created_at,
                     a.account_number, a.name AS account_name,
-                    CONCAT(u.first_name, ' ', u.last_name) AS member_name
+                    CONCAT(u.first_name, ' ', u.last_name) AS member_name,
+                    ra.account_number AS related_account_number
              FROM transactions t
              LEFT JOIN accounts a ON a.id = t.account_id
              LEFT JOIN users u ON u.id = a.user_id
+             LEFT JOIN accounts ra ON ra.id = t.related_account_id
              {$where}
              ORDER BY t.created_at DESC
              LIMIT {$perPage} OFFSET {$offset}",
@@ -238,17 +240,104 @@ final class TransactionController
         $userId        = $request->getAttribute('user_id');
         $role          = $request->getAttribute('role');
 
-        $transaction = $this->transactions->findById($transactionId);
+        $db = \App\Core\Database::getInstance();
+        $tenantId = $db->getTenantId();
+
+        $transaction = $db->fetchOne(
+            "SELECT t.*, a.account_number, a.name AS account_name,
+                    CONCAT(u.first_name, ' ', u.last_name) AS member_name,
+                    ra.account_number AS related_account_number,
+                    ra.name AS related_account_name
+             FROM transactions t
+             LEFT JOIN accounts a ON a.id = t.account_id
+             LEFT JOIN users u ON u.id = a.user_id
+             LEFT JOIN accounts ra ON ra.id = t.related_account_id
+             WHERE t.id = ? AND t.tenant_id = ?",
+            [$transactionId, $tenantId],
+        );
 
         if ($transaction === null) {
             return Response::error('Transaction not found', 404);
         }
 
-        // Non-admin users can only view their own transactions
-        if ($role !== 'admin' && ($transaction['user_id'] ?? null) !== $userId) {
-            return Response::error('Forbidden', 403);
+        // Non-admin users can only view transactions on their own accounts
+        if (!in_array($role, ['admin', 'super_admin', 'teller'], true)) {
+            if (!$this->accounts->verifyOwnership($transaction['account_id'], $userId)) {
+                return Response::error('Forbidden', 403);
+            }
         }
 
         return Response::ok($transaction);
+    }
+
+    /**
+     * GET /api/v1/transactions/export
+     */
+    public function export(Request $request): Response
+    {
+        $db       = \App\Core\Database::getInstance();
+        $tenantId = $db->getTenantId();
+        $params   = [$tenantId];
+        $where    = 'WHERE t.tenant_id = ?';
+
+        $type = $request->query('type');
+        if ($type !== null && $type !== '' && $type !== 'all') {
+            $where .= ' AND t.type = ?';
+            $params[] = $type;
+        }
+
+        $status = $request->query('status');
+        if ($status !== null && $status !== '' && $status !== 'all') {
+            $where .= ' AND t.status = ?';
+            $params[] = $status;
+        }
+
+        $from = $request->query('from');
+        if ($from !== null && $from !== '') {
+            $where .= ' AND t.created_at >= ?';
+            $params[] = $from;
+        }
+
+        $to = $request->query('to');
+        if ($to !== null && $to !== '') {
+            $where .= ' AND t.created_at <= ?';
+            $params[] = $to . ' 23:59:59';
+        }
+
+        $rows = $db->fetchAll(
+            "SELECT t.reference_number, t.created_at, t.type, t.amount, t.balance_after,
+                    t.description, t.status,
+                    a.account_number, CONCAT(u.first_name, ' ', u.last_name) AS member_name,
+                    ra.account_number AS related_account_number
+             FROM transactions t
+             LEFT JOIN accounts a ON a.id = t.account_id
+             LEFT JOIN users u ON u.id = a.user_id
+             LEFT JOIN accounts ra ON ra.id = t.related_account_id
+             {$where}
+             ORDER BY t.created_at DESC
+             LIMIT 10000",
+            $params,
+        );
+
+        $csv = "Reference,Date,Type,Account,Member,Amount,Balance After,Related Account,Description,Status\n";
+        foreach ($rows as $r) {
+            $csv .= implode(',', [
+                $r['reference_number'],
+                $r['created_at'],
+                $r['type'],
+                $r['account_number'] ?? '',
+                '"' . str_replace('"', '""', $r['member_name'] ?? '') . '"',
+                $r['amount'],
+                $r['balance_after'],
+                $r['related_account_number'] ?? '',
+                '"' . str_replace('"', '""', $r['description'] ?? '') . '"',
+                $r['status'],
+            ]) . "\n";
+        }
+
+        return Response::raw($csv, 200, [
+            'Content-Type' => 'text/csv; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="transactions-' . date('Y-m-d') . '.csv"',
+        ]);
     }
 }
