@@ -189,27 +189,59 @@
   <div class="slideover-overlay" id="accountSlideOver">
     <div class="slideover">
       <div class="slideover-header">
-        <h3>Account Details</h3>
+        <h3 id="slideOverTitle">Account Details</h3>
         <button class="icon-btn" id="closeSlideOver"><svg><use href="#icon-x"/></svg></button>
       </div>
       <div class="slideover-body" id="slideOverBody">
-        <div class="detail-section">
-          <h4>Account Information</h4>
-          <dl class="detail-list">
-            <dt>Account Number</dt><dd id="detailAccNum">-</dd>
-            <dt>Type</dt><dd id="detailAccType">-</dd>
-            <dt>Member</dt><dd id="detailAccMember">-</dd>
-            <dt>Status</dt><dd id="detailAccStatus">-</dd>
-            <dt>Balance</dt><dd id="detailAccBalance">-</dd>
-            <dt>Interest Rate</dt><dd id="detailAccRate">-</dd>
-            <dt>Opened</dt><dd id="detailAccOpened">-</dd>
-          </dl>
-        </div>
-        <div class="detail-section">
-          <h4>Recent Transactions</h4>
-          <div class="mini-table" id="detailTransactions">
-            <p style="color:var(--color-text-muted);font-size:0.875rem">Select an account to view transactions</p>
+        <!-- Detail View -->
+        <div id="accountDetailView">
+          <div class="detail-section">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)">
+              <h4 style="margin:0">Account Information</h4>
+              <button class="btn btn-secondary btn-sm" id="editAccountBtn">Edit</button>
+            </div>
+            <dl class="detail-list">
+              <dt>Account Number</dt><dd id="detailAccNum">-</dd>
+              <dt>Type</dt><dd id="detailAccType">-</dd>
+              <dt>Member</dt><dd id="detailAccMember">-</dd>
+              <dt>Status</dt><dd id="detailAccStatus">-</dd>
+              <dt>Balance</dt><dd id="detailAccBalance">-</dd>
+              <dt>Interest Rate</dt><dd id="detailAccRate">-</dd>
+              <dt>Opened</dt><dd id="detailAccOpened">-</dd>
+            </dl>
           </div>
+          <div class="detail-section">
+            <h4>Recent Transactions</h4>
+            <div class="mini-table" id="detailTransactions">
+              <p style="color:var(--text-muted);font-size:0.875rem">Select an account to view transactions</p>
+            </div>
+          </div>
+        </div>
+        <!-- Edit View -->
+        <div id="accountEditView" style="display:none">
+          <form id="editAccountForm">
+            <div class="form-group">
+              <label>Account Name</label>
+              <input type="text" id="editAccName" name="name" class="form-input" maxlength="100">
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select id="editAccStatus" name="status" class="form-select">
+                <option value="active">Active</option>
+                <option value="frozen">Frozen</option>
+                <option value="dormant">Dormant</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Interest Rate (%)</label>
+              <input type="number" id="editAccRate" name="interest_rate" class="form-input" step="0.01" min="0">
+            </div>
+            <div style="display:flex;gap:var(--space-3);margin-top:var(--space-4)">
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+              <button type="button" class="btn btn-secondary" id="cancelEditBtn">Cancel</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -231,11 +263,71 @@
     accountModal.addEventListener('click', (e) => { if (e.target === accountModal) accountModal.classList.remove('active'); });
 
     const slidePanel = accountSlideOver.querySelector('.slideover');
+    const detailView = document.getElementById('accountDetailView');
+    const editView = document.getElementById('accountEditView');
+    let currentAccountId = null;
+
     function openSlideOver() { accountSlideOver.classList.add('active'); slidePanel.classList.add('active'); }
-    function closeSlideOverFn() { accountSlideOver.classList.remove('active'); slidePanel.classList.remove('active'); }
+    function closeSlideOverFn() {
+      accountSlideOver.classList.remove('active');
+      slidePanel.classList.remove('active');
+      showDetailView();
+    }
+    function showDetailView() {
+      detailView.style.display = '';
+      editView.style.display = 'none';
+      document.getElementById('slideOverTitle').textContent = 'Account Details';
+    }
+    function showEditView() {
+      detailView.style.display = 'none';
+      editView.style.display = '';
+      document.getElementById('slideOverTitle').textContent = 'Edit Account';
+    }
 
     closeSlideOver.addEventListener('click', closeSlideOverFn);
     accountSlideOver.addEventListener('click', (e) => { if (e.target === accountSlideOver) closeSlideOverFn(); });
+
+    document.getElementById('editAccountBtn').addEventListener('click', () => {
+      // Populate edit form from current detail values
+      const accName = document.getElementById('detailAccNum').dataset.name || '';
+      const accStatus = document.getElementById('detailAccStatus').dataset.value || 'active';
+      const accRate = document.getElementById('detailAccRate').dataset.value || '0';
+      document.getElementById('editAccName').value = accName;
+      document.getElementById('editAccStatus').value = accStatus;
+      document.getElementById('editAccRate').value = accRate;
+      showEditView();
+    });
+
+    document.getElementById('cancelEditBtn').addEventListener('click', showDetailView);
+
+    document.getElementById('editAccountForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentAccountId) return;
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving...';
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData);
+      try {
+        const resp = await apiFetch('/api/v1/accounts/' + currentAccountId, {
+          method: 'PUT',
+          body: JSON.stringify(data)
+        });
+        const result = await resp.json();
+        if (!resp.ok) {
+          alert(result.error || result.message || 'Failed to update account');
+          return;
+        }
+        showDetailView();
+        openAccountDetail(currentAccountId);
+        loadAccounts();
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Changes';
+      }
+    });
 
     // Member search for create account form
     let memberSearchTimeout;
@@ -351,6 +443,8 @@
     }
 
     async function openAccountDetail(accountId) {
+      currentAccountId = accountId;
+      showDetailView();
       document.getElementById('detailAccNum').textContent = 'Loading...';
       document.getElementById('detailAccType').textContent = '-';
       document.getElementById('detailAccMember').textContent = '-';
@@ -366,12 +460,19 @@
         if (!resp.ok) { document.getElementById('detailAccNum').textContent = 'Error loading'; return; }
         const json = await resp.json();
         const a = json.data || {};
-        document.getElementById('detailAccNum').textContent = a.account_number || '-';
+        const ratePercent = a.interest_rate ? (Number(a.interest_rate) * 100).toFixed(2) : '0';
+        const numEl = document.getElementById('detailAccNum');
+        numEl.textContent = a.account_number || '-';
+        numEl.dataset.name = a.name || '';
         document.getElementById('detailAccType').textContent = a.account_type || '-';
         document.getElementById('detailAccMember').textContent = a.member_name || a.name || '-';
         document.getElementById('detailAccBalance').textContent = '$' + Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
-        document.getElementById('detailAccStatus').textContent = a.status || '-';
-        document.getElementById('detailAccRate').textContent = a.interest_rate ? (Number(a.interest_rate) * 100).toFixed(2) + '%' : '0%';
+        const statusEl = document.getElementById('detailAccStatus');
+        statusEl.textContent = a.status || '-';
+        statusEl.dataset.value = a.status || 'active';
+        const rateEl = document.getElementById('detailAccRate');
+        rateEl.textContent = ratePercent + '%';
+        rateEl.dataset.value = ratePercent;
         document.getElementById('detailAccOpened').textContent = a.opened_at ? new Date(a.opened_at).toLocaleDateString() : '-';
       } catch (e) {
         document.getElementById('detailAccNum').textContent = 'Error';
@@ -385,7 +486,7 @@
         const txns = txJson.data || [];
         const txEl = document.getElementById('detailTransactions');
         if (!txns.length) {
-          txEl.innerHTML = '<p style="color:var(--color-text-muted);font-size:0.875rem">No transactions yet</p>';
+          txEl.innerHTML = '<p style="color:var(--text-muted);font-size:0.875rem">No transactions yet</p>';
           return;
         }
         txEl.innerHTML = txns.map(t => {

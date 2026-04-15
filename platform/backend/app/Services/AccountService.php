@@ -147,6 +147,9 @@ final class AccountService
             $this->validateStatusTransition($account['status'], $data['status']);
             $updatable['status'] = $data['status'];
         }
+        if (isset($data['interest_rate'])) {
+            $updatable['interest_rate'] = $data['interest_rate'];
+        }
 
         if (empty($updatable)) {
             return $account;

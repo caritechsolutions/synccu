@@ -133,7 +133,7 @@ final class AccountController
             $interestRate = (float) ($data['interest_rate'] ?? 0);
             unset($data['initial_deposit'], $data['interest_rate']);
 
-            $data['interest_rate_value'] = $interestRate;
+            $data['interest_rate_value'] = $interestRate / 100;
 
             $account = $this->accounts->create($data, $tenantId);
 
@@ -208,8 +208,9 @@ final class AccountController
         }
 
         $validator = new Validator($request->all(), [
-            'name'   => 'nullable|string|max:100',
-            'status' => 'nullable|in:active,frozen,dormant,closed',
+            'name'          => 'nullable|string|max:100',
+            'status'        => 'nullable|in:active,frozen,dormant,closed',
+            'interest_rate' => 'nullable|string|max:10',
         ]);
 
         if ($validator->fails()) {
@@ -222,7 +223,14 @@ final class AccountController
         }
 
         try {
-            $updated = $this->accounts->update($accountId, $validator->validated());
+            $data = $validator->validated();
+
+            // Convert interest rate from percentage to decimal
+            if (isset($data['interest_rate'])) {
+                $data['interest_rate'] = (float) $data['interest_rate'] / 100;
+            }
+
+            $updated = $this->accounts->update($accountId, $data);
             return Response::ok($updated, 'Account updated successfully');
         } catch (\RuntimeException $e) {
             return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
