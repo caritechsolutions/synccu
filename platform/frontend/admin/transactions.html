@@ -208,9 +208,22 @@
               <option value="ach">ACH / Electronic</option>
             </select>
           </div>
-          <div class="form-group" id="txnCheckGroup" style="display:none">
-            <label for="txnCheckNumber">Check Number</label>
-            <input type="text" id="txnCheckNumber" name="check_number" class="form-input" placeholder="Check #" maxlength="50">
+          <div class="form-group" id="txnWdCheckGroup" style="display:none">
+            <label for="txnWdCheckNumber">Check Number</label>
+            <input type="text" id="txnWdCheckNumber" class="form-input" placeholder="Check #" maxlength="50">
+          </div>
+          <div id="txnChecksGroup" style="display:none">
+            <label style="font-weight:600;font-size:var(--text-sm);margin-bottom:var(--space-2);display:block">Checks</label>
+            <div id="checksList"></div>
+            <div style="display:flex;gap:var(--space-2);margin-bottom:var(--space-3)">
+              <input type="text" id="newCheckNumber" class="form-input" placeholder="Check #" style="flex:1">
+              <input type="number" id="newCheckAmount" class="form-input" placeholder="Amount" step="0.01" min="0.01" style="flex:1">
+              <button type="button" class="btn btn-secondary btn-sm" id="addCheckBtn">Add</button>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-sm);font-weight:600;padding:var(--space-2) 0;border-top:1px solid var(--border-color)">
+              <span>Total (<span id="checkCount">0</span> checks)</span>
+              <span id="checksTotal">$0.00</span>
+            </div>
           </div>
           <div class="form-group">
             <label for="txnAmount">Amount</label>
@@ -250,6 +263,13 @@
           <dt>Method</dt><dd id="detailMethod">-</dd>
           <dt>Processed By</dt><dd id="detailProcessedBy">-</dd>
         </dl>
+        <div class="detail-section" id="detailChecksSection" style="display:none;margin-top:1.5rem">
+          <h4>Checks</h4>
+          <table class="data-table data-table-sm">
+            <thead><tr><th>Check #</th><th style="text-align:right">Amount</th></tr></thead>
+            <tbody id="detailChecksList"></tbody>
+          </table>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="closeTxnDetailBtn">Close</button>
@@ -282,18 +302,71 @@
       document.getElementById('txnFundingGroup').style.display = val === 'deposit' ? '' : 'none';
       document.getElementById('txnDisbursementGroup').style.display = val === 'withdrawal' ? '' : 'none';
       document.getElementById('txnAccountLabel').textContent = val === 'transfer' ? 'From Account' : 'Account';
-      updateCheckVisibility();
+      updateMethodVisibility();
     });
 
-    // Show check number when check is selected as funding source or disbursement
-    document.getElementById('txnFundingSource').addEventListener('change', updateCheckVisibility);
-    document.getElementById('txnDisbursement').addEventListener('change', updateCheckVisibility);
-    function updateCheckVisibility() {
+    document.getElementById('txnFundingSource').addEventListener('change', updateMethodVisibility);
+    document.getElementById('txnDisbursement').addEventListener('change', updateMethodVisibility);
+
+    function updateMethodVisibility() {
       const val = txnType.value;
-      const showCheck = (val === 'deposit' && document.getElementById('txnFundingSource').value === 'check')
-                     || (val === 'withdrawal' && document.getElementById('txnDisbursement').value === 'check');
-      document.getElementById('txnCheckGroup').style.display = showCheck ? '' : 'none';
+      const isDepositCheck = val === 'deposit' && document.getElementById('txnFundingSource').value === 'check';
+      const isWithdrawCheck = val === 'withdrawal' && document.getElementById('txnDisbursement').value === 'check';
+      document.getElementById('txnChecksGroup').style.display = isDepositCheck ? '' : 'none';
+      document.getElementById('txnWdCheckGroup').style.display = isWithdrawCheck ? '' : 'none';
+      // When deposit checks are shown, lock the amount field (auto-calculated)
+      const amtInput = document.getElementById('txnAmount');
+      if (isDepositCheck) {
+        amtInput.readOnly = true;
+        amtInput.style.background = 'var(--bg-secondary)';
+        recalcChecksTotal();
+      } else {
+        amtInput.readOnly = false;
+        amtInput.style.background = '';
+      }
     }
+
+    // --- Bulk Checks ---
+    let checks = [];
+    function renderChecks() {
+      const el = document.getElementById('checksList');
+      if (!checks.length) { el.innerHTML = ''; return; }
+      el.innerHTML = checks.map((c, i) =>
+        '<div style="display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) 0;border-bottom:1px solid var(--border-color);font-size:var(--text-sm)">' +
+        '<span style="flex:1;font-family:var(--font-mono)">#' + c.number + '</span>' +
+        '<span style="flex:1;text-align:right;font-weight:600">$' + Number(c.amount).toLocaleString('en-US', {minimumFractionDigits:2}) + '</span>' +
+        '<button type="button" class="icon-btn" style="color:var(--danger);padding:2px" onclick="removeCheck(' + i + ')" title="Remove"><svg style="width:14px;height:14px"><use href="#icon-x"/></svg></button>' +
+        '</div>'
+      ).join('');
+    }
+    function recalcChecksTotal() {
+      const total = checks.reduce((s, c) => s + c.amount, 0);
+      document.getElementById('checksTotal').textContent = '$' + total.toLocaleString('en-US', {minimumFractionDigits:2});
+      document.getElementById('checkCount').textContent = checks.length;
+      document.getElementById('txnAmount').value = total > 0 ? total.toFixed(2) : '';
+    }
+    function removeCheck(i) {
+      checks.splice(i, 1);
+      renderChecks();
+      recalcChecksTotal();
+    }
+    document.getElementById('addCheckBtn').addEventListener('click', () => {
+      const numInput = document.getElementById('newCheckNumber');
+      const amtInput = document.getElementById('newCheckAmount');
+      const number = numInput.value.trim();
+      const amount = parseFloat(amtInput.value);
+      if (!number) { numInput.focus(); return; }
+      if (!amount || amount <= 0) { amtInput.focus(); return; }
+      checks.push({ number, amount });
+      numInput.value = '';
+      amtInput.value = '';
+      numInput.focus();
+      renderChecks();
+      recalcChecksTotal();
+    });
+    // Allow Enter key in check inputs to add
+    document.getElementById('newCheckNumber').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('newCheckAmount').focus(); } });
+    document.getElementById('newCheckAmount').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addCheckBtn').click(); } });
 
     // --- Account Search Autocomplete ---
     function setupAccountSearch(inputId, resultsId, hiddenId) {
@@ -362,12 +435,16 @@
 
       if (type === 'deposit') {
         payload.funding_source = document.getElementById('txnFundingSource').value;
+        if (payload.funding_source === 'check') {
+          if (!checks.length) { alert('Please add at least one check.'); return; }
+          payload.checks = checks;
+        }
       }
       if (type === 'withdrawal') {
         payload.disbursement_method = document.getElementById('txnDisbursement').value;
+        const checkNum = document.getElementById('txnWdCheckNumber').value.trim();
+        if (checkNum) payload.check_number = checkNum;
       }
-      const checkNum = document.getElementById('txnCheckNumber').value.trim();
-      if (checkNum) payload.check_number = checkNum;
 
       try {
         const resp = await apiFetch('/api/v1/transactions', { method: 'POST', body: JSON.stringify(payload) });
@@ -385,7 +462,13 @@
         document.getElementById('txnDestGroup').style.display = 'none';
         document.getElementById('txnFundingGroup').style.display = 'none';
         document.getElementById('txnDisbursementGroup').style.display = 'none';
-        document.getElementById('txnCheckGroup').style.display = 'none';
+        document.getElementById('txnChecksGroup').style.display = 'none';
+        document.getElementById('txnWdCheckGroup').style.display = 'none';
+        document.getElementById('txnAmount').readOnly = false;
+        document.getElementById('txnAmount').style.background = '';
+        checks = [];
+        renderChecks();
+        recalcChecksTotal();
         loadTransactions();
       } catch (err) {
         alert('Network error: ' + err.message);
@@ -516,6 +599,7 @@
       document.getElementById('detailDesc').textContent = '-';
       document.getElementById('detailMethod').textContent = '-';
       document.getElementById('detailProcessedBy').textContent = '-';
+      document.getElementById('detailChecksSection').style.display = 'none';
       txnDetailModal.classList.add('active');
 
       try {
@@ -538,8 +622,22 @@
         const methodLabel = { cash: 'Cash', check: 'Check', wire: 'Wire Transfer', ach: 'ACH / Electronic', internal: 'Internal Transfer' };
         let methodText = methodLabel[method] || method;
         if (meta.check_number) methodText += ' #' + meta.check_number;
+        if (meta.check_count) methodText += ' (' + meta.check_count + ' checks)';
         document.getElementById('detailMethod').textContent = methodText;
         document.getElementById('detailProcessedBy').textContent = t.member_name || t.processed_by || '-';
+        // Show checks table if present
+        const checksSection = document.getElementById('detailChecksSection');
+        const checksTbody = document.getElementById('detailChecksList');
+        if (Array.isArray(meta.checks) && meta.checks.length) {
+          checksSection.style.display = '';
+          checksTbody.innerHTML = meta.checks.map(c =>
+            '<tr><td style="font-family:var(--font-mono)">#' + (c.number || '-') + '</td>' +
+            '<td style="text-align:right;font-weight:600">$' + Number(c.amount || 0).toLocaleString('en-US', {minimumFractionDigits:2}) + '</td></tr>'
+          ).join('');
+        } else {
+          checksSection.style.display = 'none';
+          checksTbody.innerHTML = '';
+        }
       } catch (e) { document.getElementById('detailRef').textContent = 'Error'; }
     }
 

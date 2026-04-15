@@ -143,8 +143,16 @@ final class TransactionController
         try {
             $metadata = array_filter([
                 'funding_source' => $request->input('funding_source', 'cash'),
-                'check_number'   => $request->input('check_number'),
             ]);
+
+            $checksInput = $request->input('checks');
+            if (is_array($checksInput) && !empty($checksInput)) {
+                $metadata['checks'] = array_map(fn($c) => [
+                    'number' => (string) ($c['number'] ?? ''),
+                    'amount' => (float) ($c['amount'] ?? 0),
+                ], $checksInput);
+                $metadata['check_count'] = count($metadata['checks']);
+            }
 
             $result = $this->transactions->deposit(
                 $request->input('account_id'),
