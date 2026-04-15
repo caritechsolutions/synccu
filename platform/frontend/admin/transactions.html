@@ -313,8 +313,15 @@
           </dl>
         </div>
         <div class="detail-section" id="detailDocsSection" style="display:none;margin-top:1.5rem">
-          <h4 style="margin:0 0 var(--space-3) 0;font-size:var(--text-sm)">Supporting Documents</h4>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)">
+            <h4 style="margin:0;font-size:var(--text-sm)">Supporting Documents</h4>
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0">
+              <svg style="width:14px;height:14px;margin-right:4px"><use href="#icon-plus"/></svg> Add Files
+              <input type="file" id="detailDocUpload" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx" style="display:none">
+            </label>
+          </div>
           <div id="detailDocsList"></div>
+          <div id="detailDocUploading" style="display:none;font-size:var(--text-xs);color:var(--text-muted);padding:var(--space-2) 0">Uploading...</div>
         </div>
       </div>
       <div class="modal-footer">
@@ -331,6 +338,7 @@
     const txnType = document.getElementById('txnType');
     let currentPage = 1;
     const perPage = 20;
+    let currentDetailTxn = { id: '', ref: '' }; // tracks the transaction in the detail modal
 
     // Modal open/close
     document.getElementById('newTransactionBtn').addEventListener('click', () => txnModal.classList.add('active'));
@@ -762,32 +770,43 @@
         } else {
           sofSection.style.display = 'none';
         }
-        // Fetch and show attached documents
+        // Store current transaction for uploads/downloads
+        currentDetailTxn = { id: id, ref: t.reference_number || id };
+        // Show documents section for deposits (always) or when docs exist
         const docsSection = document.getElementById('detailDocsSection');
-        const docsList = document.getElementById('detailDocsList');
-        docsSection.style.display = 'none';
-        docsList.innerHTML = '';
-        try {
-          const docsResp = await apiFetch('/api/v1/documents?entity_type=transaction&entity_id=' + id);
-          if (docsResp.ok) {
-            const docsJson = await docsResp.json();
-            const docs = docsJson.data || [];
-            if (docs.length) {
-              docsSection.style.display = '';
-              docsList.innerHTML = docs.map(d =>
-                '<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-2);border:1px solid var(--border-color);border-radius:var(--radius-sm);margin-bottom:var(--space-2);background:var(--bg-card)">' +
-                '<div style="min-width:0;flex:1">' +
-                '<div style="font-size:var(--text-sm);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (d.original_name || 'Document') + '</div>' +
-                '<div style="font-size:var(--text-xs);color:var(--text-muted)">' + (d.category || '') + ' &middot; ' + ((d.file_size / 1024).toFixed(0)) + ' KB &middot; ' + (d.created_at || '') + '</div>' +
-                '</div>' +
-                '<button class="btn btn-secondary btn-sm" style="margin-left:var(--space-2);flex-shrink:0" title="Download" onclick="downloadDoc(\'' + d.id + '\',\'' + (d.original_name || 'file').replace(/'/g, "\\'") + '\')">' +
-                '<svg style="width:14px;height:14px"><use href="#icon-download"/></svg></button>' +
-                '</div>'
-              ).join('');
-            }
-          }
-        } catch (e) { /* documents fetch failed silently */ }
+        docsSection.style.display = t.type === 'deposit' ? '' : 'none';
+        await loadDetailDocs(id);
       } catch (e) { document.getElementById('detailRef').textContent = 'Error'; }
+    }
+
+    async function loadDetailDocs(txnId) {
+      const docsList = document.getElementById('detailDocsList');
+      const docsSection = document.getElementById('detailDocsSection');
+      docsList.innerHTML = '';
+      try {
+        const docsResp = await apiFetch('/api/v1/documents?entity_type=transaction&entity_id=' + txnId);
+        if (!docsResp.ok) return;
+        const docsJson = await docsResp.json();
+        const docs = docsJson.data || [];
+        if (docs.length) {
+          docsSection.style.display = '';
+          const ref = currentDetailTxn.ref;
+          docsList.innerHTML = docs.map((d, i) => {
+            const ext = (d.original_name || '').split('.').pop() || 'bin';
+            const dlName = ref + '_' + (i + 1) + '.' + ext;
+            return '<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-2);border:1px solid var(--border-color);border-radius:var(--radius-sm);margin-bottom:var(--space-2);background:var(--bg-card)">' +
+              '<div style="min-width:0;flex:1">' +
+              '<div style="font-size:var(--text-sm);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (d.original_name || 'Document') + '</div>' +
+              '<div style="font-size:var(--text-xs);color:var(--text-muted)">' + (d.category || '') + ' &middot; ' + ((d.file_size / 1024).toFixed(0)) + ' KB &middot; ' + (d.created_at || '') + '</div>' +
+              '</div>' +
+              '<button class="btn btn-secondary btn-sm" style="margin-left:var(--space-2);flex-shrink:0" title="Download" onclick="downloadDoc(\'' + d.id + '\',\'' + dlName.replace(/'/g, "\\'") + '\')">' +
+              '<svg style="width:14px;height:14px"><use href="#icon-download"/></svg></button>' +
+              '</div>';
+          }).join('');
+        } else if (docsSection.style.display !== 'none') {
+          docsList.innerHTML = '<div style="font-size:var(--text-xs);color:var(--text-muted);padding:var(--space-2) 0">No documents attached.</div>';
+        }
+      } catch (e) { /* documents fetch failed silently */ }
     }
 
     // --- Download Document (authenticated) ---
@@ -802,6 +821,35 @@
         URL.revokeObjectURL(url);
       } catch (e) { alert('Download error: ' + e.message); }
     }
+
+    // --- Upload Documents from Detail Modal ---
+    document.getElementById('detailDocUpload').addEventListener('change', async (e) => {
+      const files = e.target.files;
+      if (!files.length || !currentDetailTxn.id) return;
+      const uploading = document.getElementById('detailDocUploading');
+      uploading.style.display = '';
+      const formData = new FormData();
+      formData.append('entity_type', 'transaction');
+      formData.append('entity_id', currentDetailTxn.id);
+      formData.append('category', 'sof');
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files[]', files[i]);
+      }
+      try {
+        const token = localStorage.getItem('synccu-token');
+        const resp = await fetch('/api/v1/documents', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token },
+          body: formData,
+        });
+        if (!resp.ok) { alert('Upload failed'); }
+        await loadDetailDocs(currentDetailTxn.id);
+      } catch (err) { alert('Upload error: ' + err.message); }
+      finally {
+        uploading.style.display = 'none';
+        e.target.value = '';
+      }
+    });
 
     // --- Filter Listeners ---
     document.getElementById('txnTypeFilter').addEventListener('change', () => { currentPage = 1; loadTransactions(); });
