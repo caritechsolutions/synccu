@@ -34,7 +34,7 @@ final class TransactionService
     /**
      * Deposit funds into an account.
      */
-    public function deposit(string $accountId, float $amount, string $description = '', ?string $userId = null): array
+    public function deposit(string $accountId, float $amount, string $description = '', ?string $userId = null, array $metadata = []): array
     {
         if ($amount <= 0) {
             throw new RuntimeException('Deposit amount must be positive.', 422);
@@ -46,17 +46,18 @@ final class TransactionService
         }
         $this->assertAccountActive($account);
 
-        return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account) {
+        return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account, $metadata) {
             $txnId   = $this->generateUuid();
             $refNo   = $this->generateReferenceNumber();
             $now     = date('Y-m-d H:i:s');
             $balanceAfter = (float) $account['balance'] + $amount;
+            $metaJson = !empty($metadata) ? json_encode($metadata) : null;
 
             $this->db->query(
                 'INSERT INTO transactions
                     (id, tenant_id, account_id, reference_number, type, status, amount,
-                     balance_after, processed_by, description, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     balance_after, processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $this->db->getTenantId(),
@@ -68,6 +69,7 @@ final class TransactionService
                     $balanceAfter,
                     $userId,
                     $description ?: 'Cash deposit',
+                    $metaJson,
                     $now,
                 ],
             );
@@ -88,7 +90,7 @@ final class TransactionService
     /**
      * Withdraw funds from an account.
      */
-    public function withdraw(string $accountId, float $amount, string $description = '', ?string $userId = null): array
+    public function withdraw(string $accountId, float $amount, string $description = '', ?string $userId = null, array $metadata = []): array
     {
         if ($amount <= 0) {
             throw new RuntimeException('Withdrawal amount must be positive.', 422);
@@ -101,17 +103,18 @@ final class TransactionService
         $this->assertAccountActive($account);
         $this->assertSufficientBalance($account, $amount);
 
-        return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account) {
+        return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account, $metadata) {
             $txnId = $this->generateUuid();
             $refNo = $this->generateReferenceNumber();
             $now   = date('Y-m-d H:i:s');
             $balanceAfter = (float) $account['balance'] - $amount;
+            $metaJson = !empty($metadata) ? json_encode($metadata) : null;
 
             $this->db->query(
                 'INSERT INTO transactions
                     (id, tenant_id, account_id, reference_number, type, status, amount,
-                     balance_after, processed_by, description, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     balance_after, processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $this->db->getTenantId(),
@@ -123,6 +126,7 @@ final class TransactionService
                     $balanceAfter,
                     $userId,
                     $description ?: 'Cash withdrawal',
+                    $metaJson,
                     $now,
                 ],
             );

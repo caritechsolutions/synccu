@@ -119,9 +119,11 @@ final class TransactionController
     public function deposit(Request $request): Response
     {
         $validator = new Validator($request->all(), [
-            'account_id'  => 'required|string',
-            'amount'      => 'required|numeric|positive',
-            'description' => 'nullable|string|max:255',
+            'account_id'     => 'required|string',
+            'amount'         => 'required|numeric|positive',
+            'description'    => 'nullable|string|max:255',
+            'funding_source' => 'nullable|in:cash,check,wire,ach,internal',
+            'check_number'   => 'nullable|string|max:50',
         ]);
 
         if ($validator->fails()) {
@@ -139,11 +141,17 @@ final class TransactionController
         }
 
         try {
+            $metadata = array_filter([
+                'funding_source' => $request->input('funding_source', 'cash'),
+                'check_number'   => $request->input('check_number'),
+            ]);
+
             $result = $this->transactions->deposit(
                 $request->input('account_id'),
                 (float) $request->input('amount'),
                 $request->input('description', ''),
                 $userId,
+                $metadata,
             );
 
             return Response::created($result, 'Deposit successful');
@@ -158,9 +166,11 @@ final class TransactionController
     public function withdraw(Request $request): Response
     {
         $validator = new Validator($request->all(), [
-            'account_id'  => 'required|string',
-            'amount'      => 'required|numeric|positive',
-            'description' => 'nullable|string|max:255',
+            'account_id'          => 'required|string',
+            'amount'              => 'required|numeric|positive',
+            'description'         => 'nullable|string|max:255',
+            'disbursement_method' => 'required|in:cash,check,wire,ach',
+            'check_number'        => 'nullable|string|max:50',
         ]);
 
         if ($validator->fails()) {
@@ -177,11 +187,17 @@ final class TransactionController
         }
 
         try {
+            $metadata = array_filter([
+                'disbursement_method' => $request->input('disbursement_method'),
+                'check_number'        => $request->input('check_number'),
+            ]);
+
             $result = $this->transactions->withdraw(
                 $request->input('account_id'),
                 (float) $request->input('amount'),
                 $request->input('description', ''),
                 $userId,
+                $metadata,
             );
 
             return Response::created($result, 'Withdrawal successful');

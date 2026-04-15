@@ -189,6 +189,29 @@
             <input type="hidden" id="txnDestId" name="to_account_id">
             <div class="search-results" id="txnDestResults"></div>
           </div>
+          <div class="form-group" id="txnFundingGroup" style="display:none">
+            <label for="txnFundingSource">Funding Source</label>
+            <select id="txnFundingSource" name="funding_source" class="form-select">
+              <option value="cash">Cash</option>
+              <option value="check">Check</option>
+              <option value="wire">Wire Transfer</option>
+              <option value="ach">ACH / Direct Deposit</option>
+              <option value="internal">Internal Transfer</option>
+            </select>
+          </div>
+          <div class="form-group" id="txnDisbursementGroup" style="display:none">
+            <label for="txnDisbursement">Disbursement Method</label>
+            <select id="txnDisbursement" name="disbursement_method" class="form-select">
+              <option value="cash">Cash</option>
+              <option value="check">Check</option>
+              <option value="wire">Wire Transfer</option>
+              <option value="ach">ACH / Electronic</option>
+            </select>
+          </div>
+          <div class="form-group" id="txnCheckGroup" style="display:none">
+            <label for="txnCheckNumber">Check Number</label>
+            <input type="text" id="txnCheckNumber" name="check_number" class="form-input" placeholder="Check #" maxlength="50">
+          </div>
           <div class="form-group">
             <label for="txnAmount">Amount</label>
             <input type="number" id="txnAmount" name="amount" class="form-input" placeholder="0.00" min="0.01" step="0.01" required>
@@ -224,6 +247,7 @@
           <dt>Amount</dt><dd id="detailAmount">-</dd>
           <dt>Balance After</dt><dd id="detailBalanceAfter">-</dd>
           <dt>Description</dt><dd id="detailDesc">-</dd>
+          <dt>Method</dt><dd id="detailMethod">-</dd>
           <dt>Processed By</dt><dd id="detailProcessedBy">-</dd>
         </dl>
       </div>
@@ -251,12 +275,25 @@
     document.getElementById('closeTxnDetailBtn').addEventListener('click', () => txnDetailModal.classList.remove('active'));
     txnDetailModal.addEventListener('click', (e) => { if (e.target === txnDetailModal) txnDetailModal.classList.remove('active'); });
 
-    // Show/hide destination account for transfers, update label
+    // Show/hide fields based on transaction type
     txnType.addEventListener('change', () => {
-      const isTransfer = txnType.value === 'transfer';
-      document.getElementById('txnDestGroup').style.display = isTransfer ? '' : 'none';
-      document.getElementById('txnAccountLabel').textContent = isTransfer ? 'From Account' : 'Account';
+      const val = txnType.value;
+      document.getElementById('txnDestGroup').style.display = val === 'transfer' ? '' : 'none';
+      document.getElementById('txnFundingGroup').style.display = val === 'deposit' ? '' : 'none';
+      document.getElementById('txnDisbursementGroup').style.display = val === 'withdrawal' ? '' : 'none';
+      document.getElementById('txnAccountLabel').textContent = val === 'transfer' ? 'From Account' : 'Account';
+      updateCheckVisibility();
     });
+
+    // Show check number when check is selected as funding source or disbursement
+    document.getElementById('txnFundingSource').addEventListener('change', updateCheckVisibility);
+    document.getElementById('txnDisbursement').addEventListener('change', updateCheckVisibility);
+    function updateCheckVisibility() {
+      const val = txnType.value;
+      const showCheck = (val === 'deposit' && document.getElementById('txnFundingSource').value === 'check')
+                     || (val === 'withdrawal' && document.getElementById('txnDisbursement').value === 'check');
+      document.getElementById('txnCheckGroup').style.display = showCheck ? '' : 'none';
+    }
 
     // --- Account Search Autocomplete ---
     function setupAccountSearch(inputId, resultsId, hiddenId) {
@@ -323,6 +360,15 @@
         payload.account_id = accountId;
       }
 
+      if (type === 'deposit') {
+        payload.funding_source = document.getElementById('txnFundingSource').value;
+      }
+      if (type === 'withdrawal') {
+        payload.disbursement_method = document.getElementById('txnDisbursement').value;
+      }
+      const checkNum = document.getElementById('txnCheckNumber').value.trim();
+      if (checkNum) payload.check_number = checkNum;
+
       try {
         const resp = await apiFetch('/api/v1/transactions', { method: 'POST', body: JSON.stringify(payload) });
         const result = await resp.json();
@@ -337,6 +383,9 @@
         document.getElementById('txnAccountId').value = '';
         document.getElementById('txnDestId').value = '';
         document.getElementById('txnDestGroup').style.display = 'none';
+        document.getElementById('txnFundingGroup').style.display = 'none';
+        document.getElementById('txnDisbursementGroup').style.display = 'none';
+        document.getElementById('txnCheckGroup').style.display = 'none';
         loadTransactions();
       } catch (err) {
         alert('Network error: ' + err.message);
@@ -465,6 +514,7 @@
       document.getElementById('detailAmount').textContent = '-';
       document.getElementById('detailBalanceAfter').textContent = '-';
       document.getElementById('detailDesc').textContent = '-';
+      document.getElementById('detailMethod').textContent = '-';
       document.getElementById('detailProcessedBy').textContent = '-';
       txnDetailModal.classList.add('active');
 
@@ -474,6 +524,7 @@
         const json = await resp.json();
         const t = json.data || {};
         const dt = t.created_at ? new Date(t.created_at) : null;
+        const meta = typeof t.metadata === 'string' ? JSON.parse(t.metadata || '{}') : (t.metadata || {});
         document.getElementById('detailRef').textContent = t.reference_number || '-';
         document.getElementById('detailDate').textContent = dt ? dt.toLocaleString() : '-';
         document.getElementById('detailType').textContent = t.type || '-';
@@ -483,6 +534,11 @@
         document.getElementById('detailAmount').textContent = '$' + Number(t.amount || 0).toLocaleString('en-US', {minimumFractionDigits:2});
         document.getElementById('detailBalanceAfter').textContent = '$' + Number(t.balance_after || 0).toLocaleString('en-US', {minimumFractionDigits:2});
         document.getElementById('detailDesc').textContent = t.description || '-';
+        const method = meta.disbursement_method || meta.funding_source || '-';
+        const methodLabel = { cash: 'Cash', check: 'Check', wire: 'Wire Transfer', ach: 'ACH / Electronic', internal: 'Internal Transfer' };
+        let methodText = methodLabel[method] || method;
+        if (meta.check_number) methodText += ' #' + meta.check_number;
+        document.getElementById('detailMethod').textContent = methodText;
         document.getElementById('detailProcessedBy').textContent = t.member_name || t.processed_by || '-';
       } catch (e) { document.getElementById('detailRef').textContent = 'Error'; }
     }
