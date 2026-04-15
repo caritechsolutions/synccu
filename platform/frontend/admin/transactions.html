@@ -235,8 +235,11 @@
           </div>
           <!-- Source of Funds Declaration -->
           <div id="sofSection" style="display:none;border:1px solid var(--border-color);border-radius:var(--radius-md);padding:var(--space-4);margin-top:var(--space-3);background:var(--bg-secondary)">
-            <h4 style="margin:0 0 var(--space-1) 0;font-size:var(--text-sm)">Source of Funds Declaration</h4>
-            <p style="font-size:var(--text-xs);color:var(--text-muted);margin:0 0 var(--space-3) 0">Required for deposits over the reporting threshold.</p>
+            <div style="display:flex;align-items:center;gap:var(--space-2);margin:0 0 var(--space-1) 0">
+              <h4 style="margin:0;font-size:var(--text-sm)">Source of Funds Declaration</h4>
+              <span id="sofRequiredLabel" class="badge badge-danger" style="display:none;font-size:10px">REQUIRED</span>
+            </div>
+            <p style="font-size:var(--text-xs);color:var(--text-muted);margin:0 0 var(--space-3) 0">Mandatory for deposits of $10,000 or more. Optional for smaller amounts.</p>
             <div class="form-group">
               <label for="sofSource">Source of Funds</label>
               <select id="sofSource" class="form-select">
@@ -419,11 +422,15 @@
 
     // --- Source of Funds ---
     const SOF_THRESHOLD = 10000; // Default $10,000 - TODO: load from tenant settings
+    let sofRequired = false;
     function checkSofRequired() {
       const isDeposit = txnType.value === 'deposit';
       const amount = parseFloat(document.getElementById('txnAmount').value) || 0;
       const sofSection = document.getElementById('sofSection');
-      sofSection.style.display = (isDeposit && amount >= SOF_THRESHOLD) ? '' : 'none';
+      sofSection.style.display = isDeposit ? '' : 'none';
+      sofRequired = isDeposit && amount >= SOF_THRESHOLD;
+      const reqLabel = document.getElementById('sofRequiredLabel');
+      if (reqLabel) reqLabel.style.display = sofRequired ? '' : 'none';
     }
     document.getElementById('txnAmount').addEventListener('input', checkSofRequired);
     // Also check when type changes
@@ -511,15 +518,18 @@
           if (!checks.length) { alert('Please add at least one check.'); return; }
           payload.checks = checks;
         }
-        // SOF declaration
-        const sofVisible = document.getElementById('sofSection').style.display !== 'none';
-        if (sofVisible) {
-          const sofSource = document.getElementById('sofSource').value;
-          if (!sofSource) { alert('Please select a source of funds.'); return; }
-          if (!document.getElementById('sofDeclared').checked) { alert('Please confirm the source of funds declaration.'); return; }
+        // SOF declaration - required if over threshold, optional otherwise
+        const sofSource = document.getElementById('sofSource').value;
+        const sofHasData = sofSource || document.getElementById('sofDetails').value.trim();
+        if (sofRequired) {
+          if (!sofSource) { alert('Source of Funds declaration is required for deposits of $10,000 or more.\nPlease select a source of funds.'); submitBtn.disabled = false; submitBtn.textContent = 'Process Transaction'; return; }
+          if (!document.getElementById('sofDeclared').checked) { alert('Please confirm the source of funds declaration.'); submitBtn.disabled = false; submitBtn.textContent = 'Process Transaction'; return; }
+        }
+        if (sofHasData) {
+          if (sofSource && !document.getElementById('sofDeclared').checked) { alert('Please confirm the source of funds declaration.'); submitBtn.disabled = false; submitBtn.textContent = 'Process Transaction'; return; }
           payload.sof_source = sofSource;
           payload.sof_details = document.getElementById('sofDetails').value;
-          payload.sof_declared = '1';
+          payload.sof_declared = document.getElementById('sofDeclared').checked ? '1' : '0';
         }
       }
       if (type === 'withdrawal') {
