@@ -285,6 +285,10 @@ final class AccountService
 
     private function validateStatusTransition(string $current, string $new): void
     {
+        if ($current === $new) {
+            return;
+        }
+
         $allowed = [
             'active'    => ['frozen', 'dormant', 'closed'],
             'frozen'    => ['active', 'closed'],
