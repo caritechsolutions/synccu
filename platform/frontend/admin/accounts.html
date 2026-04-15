@@ -117,9 +117,26 @@
         </div>
       </div>
 
-      <!-- Accounts Grid -->
-      <div class="accounts-grid" id="accountsGrid">
-        <div class="empty-state"><p>Loading accounts...</p></div>
+      <!-- Accounts Table -->
+      <div class="card">
+        <div class="table-responsive">
+          <table class="data-table" id="accountsTable">
+            <thead>
+              <tr>
+                <th>Account Number</th>
+                <th>Type</th>
+                <th>Name</th>
+                <th>Balance</th>
+                <th>Interest Rate</th>
+                <th>Status</th>
+                <th>Opened</th>
+              </tr>
+            </thead>
+            <tbody id="accountsBody">
+              <tr><td colspan="7" class="empty-state">Loading accounts...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </main>
   </div>
@@ -289,29 +306,43 @@
     }
 
     function renderAccounts(accounts) {
-      const grid = document.getElementById('accountsGrid');
+      const tbody = document.getElementById('accountsBody');
       if (!accounts.length) {
-        grid.innerHTML = '<div class="empty-state"><p>No accounts found.</p></div>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No accounts found.</td></tr>';
         return;
       }
       const typeClasses = { checking: 'badge-primary', savings: 'badge-info', loan: 'badge-warning', certificate: 'badge-purple' };
       const statusClasses = { active: 'badge-success', frozen: 'badge-muted', closed: 'badge-danger', dormant: 'badge-warning' };
-      grid.innerHTML = accounts.map(a => `
-        <div class="account-card" data-id="${a.id}">
-          <div class="account-card-header">
-            <span class="account-number">${a.account_number || '---'}</span>
-            <span class="badge ${typeClasses[a.account_type] || 'badge-info'}">${a.account_type}</span>
-          </div>
-          <div class="account-card-member">${a.member_name || a.name || 'Unknown'}</div>
-          <div class="account-card-balance">$${Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-          <div class="account-card-footer">
-            <span class="badge ${statusClasses[a.status] || 'badge-muted'}">${a.status}</span>
-            <span class="account-date">Opened ${a.opened_at ? new Date(a.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-'}</span>
-          </div>
-        </div>`).join('');
 
-      grid.querySelectorAll('.account-card').forEach(card => {
-        card.addEventListener('click', () => openAccountDetail(card.dataset.id));
+      // Group accounts by member
+      const grouped = {};
+      accounts.forEach(a => {
+        const key = a.user_id || 'unknown';
+        if (!grouped[key]) grouped[key] = { name: a.member_name || 'Unknown', email: a.member_email || '', accounts: [] };
+        grouped[key].accounts.push(a);
+      });
+
+      let html = '';
+      Object.values(grouped).forEach(member => {
+        html += `<tr class="member-group-header"><td colspan="7"><strong>${member.name}</strong>${member.email ? ' <span style="color:var(--text-muted);font-size:var(--text-xs)">' + member.email + '</span>' : ''}</td></tr>`;
+        member.accounts.forEach(a => {
+          const rate = a.interest_rate ? (Number(a.interest_rate) * 100).toFixed(2) + '%' : '0%';
+          const opened = a.opened_at ? new Date(a.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
+          html += `<tr class="account-row" data-id="${a.id}" style="cursor:pointer">
+            <td><span style="font-family:var(--font-mono)">${a.account_number || '---'}</span></td>
+            <td><span class="badge ${typeClasses[a.account_type] || 'badge-info'}">${a.account_type}</span></td>
+            <td>${a.name || '-'}</td>
+            <td style="font-weight:600">$${Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td>${rate}</td>
+            <td><span class="badge ${statusClasses[a.status] || 'badge-muted'}">${a.status}</span></td>
+            <td>${opened}</td>
+          </tr>`;
+        });
+      });
+      tbody.innerHTML = html;
+
+      tbody.querySelectorAll('.account-row').forEach(row => {
+        row.addEventListener('click', () => openAccountDetail(row.dataset.id));
       });
     }
 

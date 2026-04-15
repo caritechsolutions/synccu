@@ -81,7 +81,7 @@ final class AccountController
              FROM accounts a
              LEFT JOIN users u ON u.id = a.user_id AND u.tenant_id = a.tenant_id
              {$where}
-             ORDER BY a.created_at DESC
+             ORDER BY member_name ASC, a.account_type ASC, a.created_at DESC
              LIMIT {$perPage} OFFSET {$offset}",
             $params,
         );
