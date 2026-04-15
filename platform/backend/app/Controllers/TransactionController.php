@@ -132,7 +132,7 @@ final class TransactionController
         $role   = $request->getAttribute('role');
 
         // Members can only deposit to their own accounts
-        if ($role !== 'admin' && $role !== 'teller') {
+        if (!in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true)) {
             if (!$this->accounts->verifyOwnership($request->input('account_id'), $userId)) {
                 return Response::error('You can only deposit to your own accounts', 403);
             }
@@ -170,7 +170,7 @@ final class TransactionController
         $userId = $request->getAttribute('user_id');
         $role   = $request->getAttribute('role');
 
-        if ($role !== 'admin' && $role !== 'teller') {
+        if (!in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true)) {
             if (!$this->accounts->verifyOwnership($request->input('account_id'), $userId)) {
                 return Response::error('You can only withdraw from your own accounts', 403);
             }
@@ -210,7 +210,7 @@ final class TransactionController
         $role   = $request->getAttribute('role');
 
         // Members can only transfer from their own accounts
-        if ($role !== 'admin' && $role !== 'teller') {
+        if (!in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true)) {
             if (!$this->accounts->verifyOwnership($request->input('from_account_id'), $userId)) {
                 return Response::error('You can only transfer from your own accounts', 403);
             }
