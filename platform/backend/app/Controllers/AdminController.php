@@ -220,7 +220,7 @@ final class AdminController
 
         $loans = $this->db->fetchAll(
             'SELECT id, loan_number, loan_type, principal_amount, outstanding_balance, interest_rate,
-                    status, term_months, monthly_payment, start_date, maturity_date
+                    status, term_months, monthly_payment, disbursed_at, maturity_date
              FROM loans WHERE user_id = ? AND tenant_id = ?
              ORDER BY created_at DESC',
             [$memberId, $tenantId],
