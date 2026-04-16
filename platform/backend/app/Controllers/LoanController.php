@@ -60,6 +60,12 @@ final class LoanController
             $params[] = $status;
         }
 
+        $type = $request->query('type');
+        if ($type !== null && $type !== '' && $type !== 'all') {
+            $where .= ' AND l.loan_type = ?';
+            $params[] = $type;
+        }
+
         $search = $request->query('search');
         if ($search !== null && $search !== '') {
             $where .= ' AND (l.loan_number LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ?)';
@@ -256,5 +262,161 @@ final class LoanController
             'loan_id'  => $loanId,
             'schedule' => $schedule,
         ]);
+    }
+
+    /**
+     * GET /api/v1/loans/{id}/payments
+     *
+     * Get payment history for a loan.
+     */
+    public function paymentHistory(Request $request): Response
+    {
+        $loanId = $request->param('id');
+        $userId = $request->getAttribute('user_id');
+        $role   = $request->getAttribute('role');
+
+        $loan = $this->loans->findById($loanId);
+        if ($loan === null) {
+            return Response::error('Loan not found', 404);
+        }
+
+        if (!in_array($role, ['admin', 'super_admin', 'manager'], true) && $loan['user_id'] !== $userId) {
+            return Response::error('Forbidden', 403);
+        }
+
+        $payments = $this->loans->getPaymentHistory($loanId);
+
+        return Response::ok($payments);
+    }
+
+    /**
+     * GET /api/v1/loans/{id}/payoff
+     *
+     * Get a payoff quote for a loan.
+     */
+    public function payoffQuote(Request $request): Response
+    {
+        $loanId = $request->param('id');
+        $userId = $request->getAttribute('user_id');
+        $role   = $request->getAttribute('role');
+
+        $loan = $this->loans->findById($loanId);
+        if ($loan === null) {
+            return Response::error('Loan not found', 404);
+        }
+
+        if (!in_array($role, ['admin', 'super_admin', 'manager'], true) && $loan['user_id'] !== $userId) {
+            return Response::error('Forbidden', 403);
+        }
+
+        try {
+            $quote = $this->loans->getPayoffQuote($loanId);
+            return Response::ok($quote);
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+        }
+    }
+
+    /**
+     * GET /api/v1/loans/export
+     *
+     * Export loans as CSV.
+     */
+    public function export(Request $request): Response
+    {
+        $db       = \App\Core\Database::getInstance();
+        $tenantId = $db->getTenantId();
+        $params   = [$tenantId];
+        $where    = 'WHERE l.tenant_id = ?';
+
+        $status = $request->query('status');
+        if ($status !== null && $status !== '' && $status !== 'all') {
+            $where .= ' AND l.status = ?';
+            $params[] = $status;
+        }
+
+        $type = $request->query('type');
+        if ($type !== null && $type !== '' && $type !== 'all') {
+            $where .= ' AND l.loan_type = ?';
+            $params[] = $type;
+        }
+
+        $search = $request->query('search');
+        if ($search !== null && $search !== '') {
+            $where .= ' AND (l.loan_number LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ?)';
+            $term = "%{$search}%";
+            $params = [...$params, $term, $term, $term];
+        }
+
+        $rows = $db->fetchAll(
+            "SELECT l.*, CONCAT(u.first_name, ' ', u.last_name) AS member_name
+             FROM loans l
+             LEFT JOIN users u ON u.id = l.user_id AND u.tenant_id = l.tenant_id
+             {$where}
+             ORDER BY l.created_at DESC
+             LIMIT 10000",
+            $params,
+        );
+
+        $csv = "Loan #,Member,Type,Amount,Rate,Term,Outstanding,Monthly Payment,Status,Next Payment,Created\n";
+        foreach ($rows as $r) {
+            $csv .= implode(',', [
+                $r['loan_number'],
+                '"' . str_replace('"', '""', $r['member_name'] ?? '') . '"',
+                $r['loan_type'],
+                $r['principal_amount'],
+                $r['interest_rate'],
+                $r['term_months'],
+                $r['outstanding_balance'],
+                $r['monthly_payment'],
+                $r['status'],
+                $r['next_payment_date'] ?? '',
+                $r['created_at'],
+            ]) . "\n";
+        }
+
+        return Response::raw($csv, 200, [
+            'Content-Type' => 'text/csv; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="loans-' . date('Y-m-d') . '.csv"',
+        ]);
+    }
+
+    /**
+     * PUT /api/v1/loans/{id}
+     *
+     * Update loan details (collateral, metadata, purpose, co-signer).
+     */
+    public function update(Request $request): Response
+    {
+        $validator = new Validator($request->all(), [
+            'collateral'  => 'nullable',
+            'metadata'    => 'nullable',
+            'purpose'     => 'nullable|string|max:500',
+            'co_signer_id' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        $loanId = $request->param('id');
+        $userId = $request->getAttribute('user_id');
+        $role   = $request->getAttribute('role');
+
+        $loan = $this->loans->findById($loanId);
+        if ($loan === null) {
+            return Response::error('Loan not found', 404);
+        }
+
+        if (!in_array($role, ['admin', 'super_admin', 'manager'], true) && $loan['user_id'] !== $userId) {
+            return Response::error('Forbidden', 403);
+        }
+
+        try {
+            $updated = $this->loans->updateLoan($loanId, $validator->validated());
+            return Response::ok($updated, 'Loan updated');
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+        }
     }
 }

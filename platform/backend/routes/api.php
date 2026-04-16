@@ -140,8 +140,12 @@ $router->group([
     ],
 ], function ($router) {
     $router->get('/',               [LoanController::class, 'index']);
+    $router->get('/export',         [LoanController::class, 'export']);
     $router->post('/apply',         [LoanController::class, 'apply']);
     $router->get('/{id}',           [LoanController::class, 'show']);
+    $router->put('/{id}',           [LoanController::class, 'update']);
+    $router->get('/{id}/payments',  [LoanController::class, 'paymentHistory']);
+    $router->get('/{id}/payoff',    [LoanController::class, 'payoffQuote']);
     $router->get('/{id}/schedule',  [LoanController::class, 'schedule']);
     $router->post('/{id}/payment',  [LoanController::class, 'payment']);
 

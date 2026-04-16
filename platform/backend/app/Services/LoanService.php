@@ -24,6 +24,7 @@ final class LoanService
         $this->db       = Database::getInstance();
         $this->accounts = new AccountService();
         $this->ledger   = new LedgerService();
+        $this->ensureLateFeeCols();
     }
 
     // ------------------------------------------------------------------
@@ -54,8 +55,8 @@ final class LoanService
             'INSERT INTO loans
                 (id, tenant_id, user_id, account_id, loan_number, loan_type,
                  principal_amount, interest_rate, term_months, monthly_payment,
-                 outstanding_balance, status, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                 outstanding_balance, status, purpose, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $loanId,
                 $tenantId,
@@ -69,6 +70,7 @@ final class LoanService
                 $monthlyPayment,
                 $amount,
                 'application',
+                $data['purpose'] ?? null,
                 $now,
                 $now,
             ],
@@ -434,6 +436,132 @@ final class LoanService
         $items  = $this->db->selectScoped('loans', $conditions, 'created_at DESC', $perPage, $offset);
         $total  = $this->db->countScoped('loans', $conditions);
         return ['items' => $items, 'total' => $total];
+    }
+
+    // ------------------------------------------------------------------
+    // Payment History & Payoff
+    // ------------------------------------------------------------------
+
+    /**
+     * Get payment history for a loan.
+     */
+    public function getPaymentHistory(string $loanId): array
+    {
+        $tenantId = $this->db->getTenantId();
+
+        return $this->db->fetchAll(
+            "SELECT t.*, CONCAT(u.first_name, ' ', u.last_name) AS processed_by_name
+             FROM transactions t
+             LEFT JOIN users u ON u.id = t.user_id AND u.tenant_id = t.tenant_id
+             WHERE t.tenant_id = ? AND t.type = 'loan_payment' AND t.description LIKE ?
+             ORDER BY t.created_at DESC",
+            [$tenantId, "%{$loanId}%"],
+        );
+    }
+
+    /**
+     * Generate a payoff quote for a loan.
+     */
+    public function getPayoffQuote(string $loanId): array
+    {
+        $loan = $this->findById($loanId);
+        if ($loan === null) {
+            throw new RuntimeException('Loan not found.', 404);
+        }
+
+        if (!in_array($loan['status'], ['approved', 'active', 'delinquent'], true)) {
+            throw new RuntimeException('Payoff quote is only available for active loans.', 422);
+        }
+
+        $outstandingBalance = (float) $loan['outstanding_balance'];
+        $annualRate         = (float) $loan['interest_rate'];
+        $dailyRate          = $annualRate / 100 / 365;
+
+        // Find the most recent payment date, or fall back to disbursed_at
+        $tenantId = $this->db->getTenantId();
+        $lastPayment = $this->db->fetchOne(
+            "SELECT MAX(t.created_at) AS last_payment_date
+             FROM transactions t
+             WHERE t.tenant_id = ? AND t.type = 'loan_payment' AND t.description LIKE ?",
+            [$tenantId, "%{$loanId}%"],
+        );
+
+        $lastPaymentDate = $lastPayment['last_payment_date'] ?? $loan['disbursed_at'] ?? $loan['created_at'];
+        $lastDate  = new \DateTimeImmutable($lastPaymentDate);
+        $today     = new \DateTimeImmutable('today');
+        $daysSince = max(0, (int) $today->diff($lastDate)->days);
+
+        $accruedInterest = round($outstandingBalance * $dailyRate * $daysSince, 2);
+        $dailyInterest   = round($outstandingBalance * $dailyRate, 2);
+        $payoffAmount    = round($outstandingBalance + $accruedInterest, 2);
+
+        return [
+            'outstanding_balance' => $outstandingBalance,
+            'accrued_interest'    => $accruedInterest,
+            'payoff_amount'       => $payoffAmount,
+            'good_through'        => $today->modify('+10 days')->format('Y-m-d'),
+            'daily_interest'      => $dailyInterest,
+        ];
+    }
+
+    /**
+     * Update loan details (collateral, metadata).
+     */
+    public function updateLoan(string $loanId, array $data): array
+    {
+        $loan = $this->findById($loanId);
+        if ($loan === null) {
+            throw new RuntimeException('Loan not found.', 404);
+        }
+
+        $updates = ['updated_at' => date('Y-m-d H:i:s')];
+
+        if (array_key_exists('collateral', $data)) {
+            $updates['collateral'] = $data['collateral'] !== null ? json_encode($data['collateral']) : null;
+        }
+
+        if (array_key_exists('metadata', $data)) {
+            $updates['metadata'] = $data['metadata'] !== null ? json_encode($data['metadata']) : null;
+        }
+
+        if (array_key_exists('purpose', $data)) {
+            $updates['purpose'] = $data['purpose'];
+        }
+
+        if (array_key_exists('co_signer_id', $data)) {
+            $updates['co_signer_id'] = $data['co_signer_id'];
+        }
+
+        $this->db->updateScoped('loans', $updates, ['id' => $loanId]);
+
+        return $this->findById($loanId);
+    }
+
+    // ------------------------------------------------------------------
+    // Schema Migration Helpers
+    // ------------------------------------------------------------------
+
+    /**
+     * Ensure late-fee and extended columns exist on loans / loan_schedules.
+     */
+    private function ensureLateFeeCols(): void
+    {
+        $alterations = [
+            'ALTER TABLE `loans` ADD COLUMN `grace_period_days` INT DEFAULT 15',
+            'ALTER TABLE `loans` ADD COLUMN `late_fee_rate` DECIMAL(5,2) DEFAULT 5.00',
+            'ALTER TABLE `loans` ADD COLUMN `purpose` TEXT DEFAULT NULL',
+            'ALTER TABLE `loans` ADD COLUMN `denial_reason` TEXT DEFAULT NULL',
+            'ALTER TABLE `loans` ADD COLUMN `co_signer_id` CHAR(36) DEFAULT NULL',
+            'ALTER TABLE `loan_schedules` ADD COLUMN `late_fee` DECIMAL(15,2) DEFAULT 0.00',
+        ];
+
+        foreach ($alterations as $sql) {
+            try {
+                $this->db->query($sql, []);
+            } catch (\Throwable) {
+                // Column already exists — ignore.
+            }
+        }
     }
 
     // ------------------------------------------------------------------

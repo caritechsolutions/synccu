@@ -92,47 +92,80 @@
           <h1 class="page-title">Loans</h1>
           <p class="page-subtitle">Manage loan applications, approvals, and the active portfolio.</p>
         </div>
-        <button class="btn btn-primary" id="newLoanBtn">
-          <svg><use href="#icon-plus"/></svg> New Loan Application
-        </button>
+        <div style="display:flex;gap:.5rem">
+          <button class="btn btn-secondary" id="exportLoansBtn">Export CSV</button>
+          <button class="btn btn-primary" id="newLoanBtn">
+            <svg><use href="#icon-plus"/></svg> New Loan Application
+          </button>
+        </div>
       </div>
 
       <!-- Pipeline Status Cards -->
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon stat-icon-blue">
-            <svg><use href="#icon-file-text"/></svg>
-          </div>
+          <div class="stat-icon stat-icon-blue"><svg><use href="#icon-file-text"/></svg></div>
           <div class="stat-info">
-            <span class="stat-value" id="statApplications">24</span>
+            <span class="stat-value" id="statApplications">0</span>
             <span class="stat-label">Applications</span>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon stat-icon-green">
-            <svg><use href="#icon-check"/></svg>
-          </div>
+          <div class="stat-icon stat-icon-green"><svg><use href="#icon-check"/></svg></div>
           <div class="stat-info">
-            <span class="stat-value" id="statApproved">12</span>
+            <span class="stat-value" id="statApproved">0</span>
             <span class="stat-label">Approved</span>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon stat-icon-purple">
-            <svg><use href="#icon-credit-card"/></svg>
-          </div>
+          <div class="stat-icon stat-icon-purple"><svg><use href="#icon-credit-card"/></svg></div>
           <div class="stat-info">
-            <span class="stat-value" id="statActive">438</span>
+            <span class="stat-value" id="statActive">0</span>
             <span class="stat-label">Active</span>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon stat-icon-orange">
-            <svg><use href="#icon-chart"/></svg>
-          </div>
+          <div class="stat-icon stat-icon-orange"><svg><use href="#icon-chart"/></svg></div>
           <div class="stat-info">
-            <span class="stat-value" id="statDelinquent">7</span>
+            <span class="stat-value" id="statDelinquent">0</span>
             <span class="stat-label">Delinquent</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="card" style="padding:1rem;margin-bottom:1rem">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:.75rem">
+          <div class="form-group" style="margin:0">
+            <label for="filterStatus" style="font-size:.75rem">Status</label>
+            <select id="filterStatus" class="form-select">
+              <option value="all">All</option>
+              <option value="application">Application</option>
+              <option value="approved">Approved</option>
+              <option value="active">Active</option>
+              <option value="delinquent">Delinquent</option>
+              <option value="paid_off">Paid Off</option>
+              <option value="denied">Denied</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label for="filterType" style="font-size:.75rem">Type</label>
+            <select id="filterType" class="form-select">
+              <option value="all">All</option>
+              <option value="personal">Personal</option>
+              <option value="auto">Auto</option>
+              <option value="mortgage">Mortgage</option>
+              <option value="business">Business</option>
+              <option value="student">Student</option>
+              <option value="credit_line">Credit Line</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label for="filterSearch" style="font-size:.75rem">Search</label>
+            <input type="text" id="filterSearch" class="form-input" placeholder="Loan # or member name">
+          </div>
+          <div class="form-group" style="margin:0;display:flex;align-items:flex-end">
+            <button class="btn btn-secondary" id="clearFiltersBtn" style="width:100%">Clear</button>
           </div>
         </div>
       </div>
@@ -151,7 +184,7 @@
                 <th>Term</th>
                 <th>Outstanding</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th style="text-align:right">Actions</th>
               </tr>
             </thead>
             <tbody id="loansTableBody">
@@ -160,16 +193,8 @@
           </table>
         </div>
         <div class="pagination">
-          <span class="pagination-info">Showing 1-6 of 481 loans</span>
-          <div class="pagination-controls">
-            <button class="pagination-btn" disabled><svg><use href="#icon-arrow-left"/></svg></button>
-            <button class="pagination-btn active">1</button>
-            <button class="pagination-btn">2</button>
-            <button class="pagination-btn">3</button>
-            <span class="pagination-ellipsis">...</span>
-            <button class="pagination-btn">81</button>
-            <button class="pagination-btn"><svg><use href="#icon-arrow-right"/></svg></button>
-          </div>
+          <span class="pagination-info" id="paginationInfo">Loading...</span>
+          <div class="pagination-controls" id="paginationControls"></div>
         </div>
       </div>
     </main>
@@ -226,6 +251,10 @@
               <option value="360">360 months</option>
             </select>
           </div>
+          <div class="form-group">
+            <label for="loanPurpose">Purpose / Notes</label>
+            <textarea id="loanPurpose" name="purpose" class="form-input" rows="3" placeholder="Describe the purpose of the loan..."></textarea>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="cancelLoanBtn">Cancel</button>
@@ -235,48 +264,154 @@
     </div>
   </div>
 
-  <!-- Loan Detail Modal (with amortization) -->
+  <!-- Loan Detail Modal with Tabs -->
   <div class="modal-overlay" id="loanDetailModal">
     <div class="modal modal-lg">
       <div class="modal-header">
-        <h3>Loan Details</h3>
+        <h3 id="detailModalTitle">Loan Details</h3>
         <button class="icon-btn modal-close" id="closeLoanDetailModal"><svg><use href="#icon-x"/></svg></button>
       </div>
       <div class="modal-body">
-        <dl class="detail-list detail-list-grid">
-          <dt>Loan Number</dt><dd id="detailLoanNum">LN-2026-0482</dd>
-          <dt>Member</dt><dd id="detailLoanMember">Jane Cooper</dd>
-          <dt>Type</dt><dd id="detailLoanType">Personal</dd>
-          <dt>Status</dt><dd id="detailLoanStatus"><span class="badge badge-success">Active</span></dd>
-          <dt>Original Amount</dt><dd id="detailLoanAmount">$25,000.00</dd>
-          <dt>Interest Rate</dt><dd id="detailLoanRate">6.25%</dd>
-          <dt>Term</dt><dd id="detailLoanTerm">60 months</dd>
-          <dt>Monthly Payment</dt><dd id="detailLoanPayment">$487.24</dd>
-          <dt>Outstanding Balance</dt><dd id="detailLoanBalance">$22,450.00</dd>
-          <dt>Next Payment Due</dt><dd id="detailLoanNextDue">Apr 1, 2026</dd>
-        </dl>
+        <!-- Tab Navigation -->
+        <div class="tabs" style="display:flex;gap:.25rem;border-bottom:1px solid var(--border);margin-bottom:1rem">
+          <button class="tab-btn active" data-tab="overview" style="padding:.5rem 1rem;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent">Overview</button>
+          <button class="tab-btn" data-tab="schedule" style="padding:.5rem 1rem;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent">Schedule</button>
+          <button class="tab-btn" data-tab="payments" style="padding:.5rem 1rem;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent">Payments</button>
+          <button class="tab-btn" data-tab="documents" style="padding:.5rem 1rem;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent">Documents</button>
+          <button class="tab-btn" data-tab="collateral" style="padding:.5rem 1rem;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent">Collateral</button>
+        </div>
 
-        <div class="detail-section" style="margin-top:1.5rem">
-          <h4>Amortization Schedule</h4>
-          <div class="table-responsive" style="max-height:300px; overflow-y:auto">
+        <!-- Overview Tab -->
+        <div class="tab-panel" id="tab-overview">
+          <dl class="detail-list detail-list-grid">
+            <dt>Loan Number</dt><dd id="detailLoanNum">-</dd>
+            <dt>Member</dt><dd id="detailLoanMember">-</dd>
+            <dt>Type</dt><dd id="detailLoanType">-</dd>
+            <dt>Status</dt><dd id="detailLoanStatus">-</dd>
+            <dt>Original Amount</dt><dd id="detailLoanAmount">-</dd>
+            <dt>Interest Rate</dt><dd id="detailLoanRate">-</dd>
+            <dt>Term</dt><dd id="detailLoanTerm">-</dd>
+            <dt>Monthly Payment</dt><dd id="detailLoanPayment">-</dd>
+            <dt>Outstanding Balance</dt><dd id="detailLoanBalance">-</dd>
+            <dt>Next Payment Due</dt><dd id="detailLoanNextDue">-</dd>
+            <dt>Purpose</dt><dd id="detailLoanPurpose">-</dd>
+          </dl>
+
+          <!-- Approval/Denial Actions (shown only for applications) -->
+          <div id="approvalActions" style="display:none;margin-top:1.5rem;padding:1rem;background:var(--bg-muted);border-radius:8px">
+            <h4 style="margin:0 0 .75rem 0">Application Review</h4>
+            <div style="display:flex;gap:.5rem">
+              <button class="btn btn-success" id="approveLoanBtn">Approve &amp; Disburse</button>
+              <button class="btn btn-danger" id="denyLoanBtn">Deny</button>
+            </div>
+          </div>
+
+          <!-- Denial Reason (if denied) -->
+          <div id="denialReasonBox" style="display:none;margin-top:1.5rem;padding:1rem;background:#fef2f2;border-left:4px solid #dc2626;border-radius:4px">
+            <strong>Denial Reason:</strong>
+            <p id="denialReasonText" style="margin:.5rem 0 0 0"></p>
+          </div>
+
+          <!-- Payment Form (shown only for active loans) -->
+          <div id="paymentSection" style="display:none;margin-top:1.5rem;padding:1rem;background:var(--bg-muted);border-radius:8px">
+            <h4 style="margin:0 0 .75rem 0">Make a Payment</h4>
+            <form id="paymentForm" style="display:grid;grid-template-columns:1fr 1fr auto;gap:.5rem;align-items:end">
+              <div class="form-group" style="margin:0">
+                <label for="paymentAmount" style="font-size:.75rem">Amount</label>
+                <input type="number" id="paymentAmount" class="form-input" step="0.01" min="0.01" required>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label for="paymentAccount" style="font-size:.75rem">From Account (optional)</label>
+                <select id="paymentAccount" class="form-select">
+                  <option value="">Cash / External</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary">Post Payment</button>
+            </form>
+            <div style="margin-top:.75rem">
+              <button type="button" class="btn btn-secondary" id="payoffQuoteBtn">Get Payoff Quote</button>
+              <span id="payoffQuoteResult" style="margin-left:.75rem;font-weight:600"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Schedule Tab -->
+        <div class="tab-panel" id="tab-schedule" style="display:none">
+          <div class="table-responsive" style="max-height:500px;overflow-y:auto">
             <table class="data-table data-table-sm">
               <thead>
-                <tr><th>Payment #</th><th>Date</th><th>Payment</th><th>Principal</th><th>Interest</th><th>Balance</th></tr>
+                <tr><th>#</th><th>Due Date</th><th>Payment</th><th>Principal</th><th>Interest</th><th>Balance</th><th>Status</th></tr>
               </thead>
               <tbody id="amortizationTable">
-                <tr><td>1</td><td>May 2025</td><td>$487.24</td><td>$356.99</td><td>$130.25</td><td>$24,643.01</td></tr>
-                <tr><td>2</td><td>Jun 2025</td><td>$487.24</td><td>$358.85</td><td>$128.39</td><td>$24,284.16</td></tr>
-                <tr><td>3</td><td>Jul 2025</td><td>$487.24</td><td>$360.72</td><td>$126.52</td><td>$23,923.44</td></tr>
-                <tr><td>4</td><td>Aug 2025</td><td>$487.24</td><td>$362.60</td><td>$124.64</td><td>$23,560.84</td></tr>
-                <tr><td>5</td><td>Sep 2025</td><td>$487.24</td><td>$364.49</td><td>$122.75</td><td>$23,196.35</td></tr>
-                <tr><td>6</td><td>Oct 2025</td><td>$487.24</td><td>$366.39</td><td>$120.85</td><td>$22,829.96</td></tr>
-                <tr><td>7</td><td>Nov 2025</td><td>$487.24</td><td>$368.30</td><td>$118.94</td><td>$22,461.66</td></tr>
-                <tr><td>8</td><td>Dec 2025</td><td>$487.24</td><td>$370.22</td><td>$117.02</td><td>$22,091.44</td></tr>
-                <tr><td>9</td><td>Jan 2026</td><td>$487.24</td><td>$372.15</td><td>$115.09</td><td>$21,719.29</td></tr>
-                <tr><td>10</td><td>Feb 2026</td><td>$487.24</td><td>$374.09</td><td>$113.15</td><td>$21,345.20</td></tr>
+                <tr><td colspan="7" style="text-align:center;padding:1rem">Loading...</td></tr>
               </tbody>
             </table>
           </div>
+        </div>
+
+        <!-- Payments Tab -->
+        <div class="tab-panel" id="tab-payments" style="display:none">
+          <div class="table-responsive">
+            <table class="data-table data-table-sm">
+              <thead>
+                <tr><th>Date</th><th>Amount</th><th>Reference</th><th>Description</th></tr>
+              </thead>
+              <tbody id="paymentHistoryTable">
+                <tr><td colspan="4" style="text-align:center;padding:1rem">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Documents Tab -->
+        <div class="tab-panel" id="tab-documents" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+            <h4 style="margin:0">Loan Documents</h4>
+            <div>
+              <input type="file" id="loanDocFile" style="display:none" multiple>
+              <button class="btn btn-primary btn-sm" id="uploadLoanDocBtn">Add Files</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table data-table-sm">
+              <thead>
+                <tr><th>File Name</th><th>Category</th><th>Size</th><th>Uploaded</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="loanDocsTable">
+                <tr><td colspan="5" style="text-align:center;padding:1rem">No documents yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Collateral Tab -->
+        <div class="tab-panel" id="tab-collateral" style="display:none">
+          <form id="collateralForm">
+            <div class="form-group">
+              <label for="collateralType">Collateral Type</label>
+              <select id="collateralType" class="form-select">
+                <option value="">None</option>
+                <option value="vehicle">Vehicle</option>
+                <option value="real_estate">Real Estate</option>
+                <option value="equipment">Equipment</option>
+                <option value="deposit">Deposit Account</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="collateralDesc">Description</label>
+              <textarea id="collateralDesc" class="form-input" rows="3" placeholder="VIN, address, serial number, etc."></textarea>
+            </div>
+            <div class="form-group">
+              <label for="collateralValue">Appraised Value</label>
+              <input type="number" id="collateralValue" class="form-input" step="0.01" min="0">
+            </div>
+            <div class="form-group">
+              <label for="coSignerId">Co-Signer Member ID (optional)</label>
+              <input type="text" id="coSignerId" class="form-input" placeholder="Member UUID">
+            </div>
+            <button type="submit" class="btn btn-primary">Save Collateral</button>
+          </form>
         </div>
       </div>
       <div class="modal-footer">
@@ -285,18 +420,74 @@
     </div>
   </div>
 
+  <!-- Deny Loan Modal -->
+  <div class="modal-overlay" id="denyModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Deny Loan Application</h3>
+        <button class="icon-btn modal-close" id="closeDenyModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <form id="denyForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="denyReason">Reason for denial</label>
+            <textarea id="denyReason" class="form-input" rows="4" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelDenyBtn">Cancel</button>
+          <button type="submit" class="btn btn-danger">Confirm Denial</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="../js/admin-common.js"></script>
   <script>
-    const loanModal = document.getElementById('loanModal');
-    const loanDetailModal = document.getElementById('loanDetailModal');
-    const newLoanBtn = document.getElementById('newLoanBtn');
-    const closeLoanModal = document.getElementById('closeLoanModal');
-    const cancelLoanBtn = document.getElementById('cancelLoanBtn');
-    const closeLoanDetailModal = document.getElementById('closeLoanDetailModal');
-    const closeLoanDetailBtn = document.getElementById('closeLoanDetailBtn');
-    const loanForm = document.getElementById('loanForm');
+    // === STATE ===
+    let currentLoan = null;
+    let currentLoanPage = 1;
+    let loansCache = [];
 
-    // Member search for loan form
+    // === MODAL REFS ===
+    const loanModal       = document.getElementById('loanModal');
+    const loanDetailModal = document.getElementById('loanDetailModal');
+    const denyModal       = document.getElementById('denyModal');
+    const loanForm        = document.getElementById('loanForm');
+
+    // === MODAL OPEN/CLOSE ===
+    document.getElementById('newLoanBtn').addEventListener('click', () => loanModal.classList.add('active'));
+    document.getElementById('closeLoanModal').addEventListener('click', () => loanModal.classList.remove('active'));
+    document.getElementById('cancelLoanBtn').addEventListener('click', () => loanModal.classList.remove('active'));
+    loanModal.addEventListener('click', (e) => { if (e.target === loanModal) loanModal.classList.remove('active'); });
+
+    document.getElementById('closeLoanDetailModal').addEventListener('click', () => loanDetailModal.classList.remove('active'));
+    document.getElementById('closeLoanDetailBtn').addEventListener('click', () => loanDetailModal.classList.remove('active'));
+    loanDetailModal.addEventListener('click', (e) => { if (e.target === loanDetailModal) loanDetailModal.classList.remove('active'); });
+
+    document.getElementById('closeDenyModal').addEventListener('click', () => denyModal.classList.remove('active'));
+    document.getElementById('cancelDenyBtn').addEventListener('click', () => denyModal.classList.remove('active'));
+    denyModal.addEventListener('click', (e) => { if (e.target === denyModal) denyModal.classList.remove('active'); });
+
+    // === TAB SWITCHING ===
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.classList.remove('active');
+          b.style.borderBottomColor = 'transparent';
+          b.style.color = '';
+        });
+        btn.classList.add('active');
+        btn.style.borderBottomColor = 'var(--primary, #3b82f6)';
+        btn.style.color = 'var(--primary, #3b82f6)';
+        document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+        document.getElementById('tab-' + tab).style.display = 'block';
+        if (currentLoan) loadTabData(tab, currentLoan);
+      });
+    });
+
+    // === MEMBER SEARCH (loan form) ===
     let loanMemberTimeout;
     document.getElementById('loanMember').addEventListener('input', (e) => {
       clearTimeout(loanMemberTimeout);
@@ -308,7 +499,6 @@
           if (!resp.ok) return;
           const json = await resp.json();
           const members = json.data || [];
-          // Simple dropdown using datalist or inline
           const input = document.getElementById('loanMember');
           let list = input.parentElement.querySelector('.search-results');
           if (!list) { list = document.createElement('div'); list.className = 'search-results'; input.parentElement.appendChild(list); }
@@ -324,84 +514,89 @@
       }, 300);
     });
 
-    newLoanBtn.addEventListener('click', () => loanModal.classList.add('active'));
-    closeLoanModal.addEventListener('click', () => loanModal.classList.remove('active'));
-    cancelLoanBtn.addEventListener('click', () => loanModal.classList.remove('active'));
-    loanModal.addEventListener('click', (e) => { if (e.target === loanModal) loanModal.classList.remove('active'); });
-    closeLoanDetailModal.addEventListener('click', () => loanDetailModal.classList.remove('active'));
-    closeLoanDetailBtn.addEventListener('click', () => loanDetailModal.classList.remove('active'));
-    loanDetailModal.addEventListener('click', (e) => { if (e.target === loanDetailModal) loanDetailModal.classList.remove('active'); });
-
-    function bindLoanDetailButtons() {
-      document.querySelectorAll('[data-loan]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const row = btn.closest('tr');
-          const cells = row.querySelectorAll('td');
-          const loanId = btn.dataset.loan;
-          document.getElementById('detailLoanNum').textContent = cells[0].textContent;
-          document.getElementById('detailLoanMember').textContent = cells[1].textContent;
-          document.getElementById('detailLoanType').textContent = cells[2].textContent;
-          document.getElementById('detailLoanAmount').textContent = cells[3].textContent;
-          document.getElementById('detailLoanRate').textContent = cells[4].textContent;
-          document.getElementById('detailLoanTerm').textContent = cells[5].textContent;
-          document.getElementById('detailLoanBalance').textContent = cells[6].textContent;
-          document.getElementById('detailLoanStatus').innerHTML = cells[7].innerHTML;
-
-          // Load amortization schedule
-          try {
-            const resp = await apiFetch('/api/v1/loans/' + loanId + '/schedule');
-            if (resp.ok) {
-              const json = await resp.json();
-              const schedule = (json.data && json.data.schedule) || [];
-              const tbody = document.getElementById('amortizationTable');
-              if (schedule.length) {
-                tbody.innerHTML = schedule.slice(0, 12).map((s, i) => `
-                  <tr>
-                    <td>${s.payment_number || (i + 1)}</td>
-                    <td>${s.due_date ? new Date(s.due_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '-'}</td>
-                    <td>$${Number(s.payment_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td>$${Number(s.principal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td>$${Number(s.interest || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td>$${Number(s.remaining_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                  </tr>`).join('');
-              }
-            }
-          } catch (e) { /* keep placeholder */ }
-
-          loanDetailModal.classList.add('active');
-        });
-      });
-    }
-
-    bindLoanDetailButtons();
-
+    // === NEW LOAN SUBMIT ===
     loanForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const formData = new FormData(loanForm);
-      const data = Object.fromEntries(formData);
+      const data = {
+        loan_type:     document.getElementById('loanType').value,
+        amount:        parseFloat(document.getElementById('loanAmount').value),
+        interest_rate: parseFloat(document.getElementById('loanRate').value),
+        term_months:   parseInt(document.getElementById('loanTerm').value, 10),
+        purpose:       document.getElementById('loanPurpose').value,
+      };
+      const memberId = document.getElementById('loanMemberId').value;
+      if (memberId) data.user_id = memberId;
       try {
         const resp = await apiFetch('/api/v1/loans/apply', {
           method: 'POST',
-          body: JSON.stringify(data)
+          body: JSON.stringify(data),
         });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          alert('Error: ' + (json.message || 'Failed to submit application'));
+          return;
+        }
         loanModal.classList.remove('active');
         loanForm.reset();
-        if (resp.ok) loadLoans();
-      } catch (e) { /* handle error */ }
+        loadLoans(1);
+      } catch (err) { alert('Network error: ' + err.message); }
     });
 
-    let currentLoanPage = 1;
+    // === FILTERS ===
+    let filterTimeout;
+    ['filterStatus', 'filterType'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => loadLoans(1));
+    });
+    document.getElementById('filterSearch').addEventListener('input', () => {
+      clearTimeout(filterTimeout);
+      filterTimeout = setTimeout(() => loadLoans(1), 300);
+    });
+    document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+      document.getElementById('filterStatus').value = 'all';
+      document.getElementById('filterType').value = 'all';
+      document.getElementById('filterSearch').value = '';
+      loadLoans(1);
+    });
 
+    // === EXPORT CSV ===
+    document.getElementById('exportLoansBtn').addEventListener('click', async () => {
+      const params = buildFilterQuery();
+      const token = localStorage.getItem('synccu-token');
+      try {
+        const resp = await apiFetch('/api/v1/loans/export?' + params);
+        if (!resp.ok) { alert('Export failed'); return; }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'loans-' + new Date().toISOString().slice(0, 10) + '.csv';
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) { alert('Export error: ' + e.message); }
+    });
+
+    function buildFilterQuery() {
+      const p = new URLSearchParams();
+      const status = document.getElementById('filterStatus').value;
+      const type   = document.getElementById('filterType').value;
+      const search = document.getElementById('filterSearch').value.trim();
+      if (status && status !== 'all') p.set('status', status);
+      if (type && type !== 'all') p.set('type', type);
+      if (search) p.set('search', search);
+      return p.toString();
+    }
+
+    // === LOAD LOANS ===
     async function loadLoans(page = 1) {
       currentLoanPage = page;
+      const filters = buildFilterQuery();
+      const qs = 'page=' + page + '&per_page=20' + (filters ? '&' + filters : '');
       try {
-        const resp = await apiFetch('/api/v1/loans?page=' + page + '&per_page=20');
-        if (!resp.ok) return;
+        const resp = await apiFetch('/api/v1/loans?' + qs);
+        if (!resp.ok) { renderLoans([], {}); return; }
         const json = await resp.json();
-        const loans = json.data || [];
-        const meta = json.meta || {};
-        renderLoans(loans, meta);
-      } catch (e) { /* API not available */ }
+        loansCache = json.data || [];
+        renderLoans(loansCache, json.meta || {});
+      } catch (e) { renderLoans([], {}); }
 
       // Load stats
       try {
@@ -421,9 +616,11 @@
       const tbody = document.getElementById('loansTableBody');
       if (!loans.length) {
         tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem">No loans found.</td></tr>';
+        document.getElementById('paginationInfo').textContent = '';
+        document.getElementById('paginationControls').innerHTML = '';
         return;
       }
-      const statusClasses = { application: 'badge-warning', approved: 'badge-info', active: 'badge-success', delinquent: 'badge-danger', default: 'badge-danger', paid_off: 'badge-muted', cancelled: 'badge-muted' };
+      const statusClasses = { application:'badge-warning', approved:'badge-info', active:'badge-success', delinquent:'badge-danger', default:'badge-danger', paid_off:'badge-muted', cancelled:'badge-muted', denied:'badge-danger' };
       tbody.innerHTML = loans.map(l => `
         <tr>
           <td class="font-mono">${l.loan_number || '-'}</td>
@@ -433,19 +630,336 @@
           <td>${Number(l.interest_rate || 0).toFixed(2)}%</td>
           <td>${l.term_months || '-'} mo</td>
           <td>$${Number(l.outstanding_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-          <td><span class="badge ${statusClasses[l.status] || 'badge-muted'}">${l.status ? l.status.charAt(0).toUpperCase() + l.status.slice(1) : '-'}</span></td>
-          <td><button class="icon-btn" title="View Details" data-loan="${l.id}"><svg><use href="#icon-eye"/></svg></button></td>
+          <td><span class="badge ${statusClasses[l.status] || 'badge-muted'}">${l.status ? l.status.replace('_',' ').replace(/\b\w/g, c => c.toUpperCase()) : '-'}</span></td>
+          <td style="text-align:right"><button class="icon-btn" title="View Details" data-loan="${l.id}"><svg><use href="#icon-eye"/></svg></button></td>
         </tr>`).join('');
 
-      // Pagination
-      const pag = document.querySelector('.pagination');
-      if (meta.total) {
-        const totalPages = meta.total_pages || Math.ceil(meta.total / meta.per_page);
-        pag.querySelector('.pagination-info').textContent = 'Showing ' + ((meta.page - 1) * meta.per_page + 1) + '-' + Math.min(meta.page * meta.per_page, meta.total) + ' of ' + meta.total + ' loans';
-      }
+      const total = meta.total || 0;
+      const perPage = meta.per_page || 20;
+      const page = meta.page || currentLoanPage;
+      const totalPages = meta.total_pages || Math.max(1, Math.ceil(total / perPage));
+      document.getElementById('paginationInfo').textContent = total
+        ? ('Showing ' + ((page - 1) * perPage + 1) + '-' + Math.min(page * perPage, total) + ' of ' + total + ' loans')
+        : '';
+      renderPagination(page, totalPages);
 
       bindLoanDetailButtons();
     }
+
+    function renderPagination(page, totalPages) {
+      const wrap = document.getElementById('paginationControls');
+      if (totalPages <= 1) { wrap.innerHTML = ''; return; }
+      let html = '';
+      html += '<button class="pagination-btn" ' + (page <= 1 ? 'disabled' : '') + ' data-page="' + (page - 1) + '"><svg><use href="#icon-arrow-left"/></svg></button>';
+      const pages = [];
+      const addRange = (a, b) => { for (let i = a; i <= b; i++) pages.push(i); };
+      if (totalPages <= 7) { addRange(1, totalPages); }
+      else {
+        pages.push(1);
+        if (page > 3) pages.push('...');
+        addRange(Math.max(2, page - 1), Math.min(totalPages - 1, page + 1));
+        if (page < totalPages - 2) pages.push('...');
+        pages.push(totalPages);
+      }
+      pages.forEach(p => {
+        if (p === '...') html += '<span class="pagination-ellipsis">...</span>';
+        else html += '<button class="pagination-btn ' + (p === page ? 'active' : '') + '" data-page="' + p + '">' + p + '</button>';
+      });
+      html += '<button class="pagination-btn" ' + (page >= totalPages ? 'disabled' : '') + ' data-page="' + (page + 1) + '"><svg><use href="#icon-arrow-right"/></svg></button>';
+      wrap.innerHTML = html;
+      wrap.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => {
+        const p = parseInt(b.dataset.page, 10);
+        if (!isNaN(p) && p >= 1) loadLoans(p);
+      }));
+    }
+
+    // === LOAN DETAIL ===
+    function bindLoanDetailButtons() {
+      document.querySelectorAll('[data-loan]').forEach(btn => {
+        btn.addEventListener('click', () => openLoanDetail(btn.dataset.loan));
+      });
+    }
+
+    async function openLoanDetail(loanId) {
+      try {
+        const resp = await apiFetch('/api/v1/loans/' + loanId);
+        if (!resp.ok) { alert('Failed to load loan'); return; }
+        const json = await resp.json();
+        currentLoan = json.data;
+        renderLoanOverview(currentLoan);
+        // Reset to overview tab
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.classList.remove('active');
+          b.style.borderBottomColor = 'transparent';
+          b.style.color = '';
+        });
+        const firstTab = document.querySelector('.tab-btn[data-tab="overview"]');
+        firstTab.classList.add('active');
+        firstTab.style.borderBottomColor = 'var(--primary, #3b82f6)';
+        firstTab.style.color = 'var(--primary, #3b82f6)';
+        document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+        document.getElementById('tab-overview').style.display = 'block';
+        loanDetailModal.classList.add('active');
+      } catch (e) { alert('Error: ' + e.message); }
+    }
+
+    function renderLoanOverview(l) {
+      const statusClasses = { application:'badge-warning', approved:'badge-info', active:'badge-success', delinquent:'badge-danger', default:'badge-danger', paid_off:'badge-muted', cancelled:'badge-muted', denied:'badge-danger' };
+      const statusLabel = l.status ? l.status.replace('_',' ').replace(/\b\w/g, c => c.toUpperCase()) : '-';
+      const memberName = l.member_name || (loansCache.find(x => x.id === l.id) || {}).member_name || '-';
+
+      document.getElementById('detailModalTitle').textContent = 'Loan ' + (l.loan_number || '');
+      document.getElementById('detailLoanNum').textContent = l.loan_number || '-';
+      document.getElementById('detailLoanMember').textContent = memberName;
+      document.getElementById('detailLoanType').textContent = l.loan_type ? l.loan_type.charAt(0).toUpperCase() + l.loan_type.slice(1) : '-';
+      document.getElementById('detailLoanStatus').innerHTML = '<span class="badge ' + (statusClasses[l.status] || 'badge-muted') + '">' + statusLabel + '</span>';
+      document.getElementById('detailLoanAmount').textContent = '$' + Number(l.principal_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+      document.getElementById('detailLoanRate').textContent = Number(l.interest_rate || 0).toFixed(2) + '%';
+      document.getElementById('detailLoanTerm').textContent = (l.term_months || '-') + ' months';
+      document.getElementById('detailLoanPayment').textContent = '$' + Number(l.monthly_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+      document.getElementById('detailLoanBalance').textContent = '$' + Number(l.outstanding_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+      document.getElementById('detailLoanNextDue').textContent = l.next_payment_date || '-';
+      document.getElementById('detailLoanPurpose').textContent = l.purpose || '-';
+
+      // Show/hide approval actions
+      document.getElementById('approvalActions').style.display = l.status === 'application' ? 'block' : 'none';
+      // Show/hide denial reason
+      document.getElementById('denialReasonBox').style.display = (l.status === 'denied' && l.denial_reason) ? 'block' : 'none';
+      if (l.denial_reason) document.getElementById('denialReasonText').textContent = l.denial_reason;
+      // Show/hide payment section
+      document.getElementById('paymentSection').style.display = ['active', 'delinquent', 'approved'].includes(l.status) ? 'block' : 'none';
+      document.getElementById('payoffQuoteResult').textContent = '';
+    }
+
+    async function loadTabData(tab, loan) {
+      if (tab === 'schedule') await loadSchedule(loan.id);
+      else if (tab === 'payments') await loadPayments(loan.id);
+      else if (tab === 'documents') await loadDocuments(loan.id);
+      else if (tab === 'collateral') loadCollateral(loan);
+    }
+
+    async function loadSchedule(loanId) {
+      const tbody = document.getElementById('amortizationTable');
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1rem">Loading...</td></tr>';
+      try {
+        const resp = await apiFetch('/api/v1/loans/' + loanId + '/schedule');
+        if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1rem">No schedule available.</td></tr>'; return; }
+        const json = await resp.json();
+        const schedule = (json.data && json.data.schedule) || [];
+        if (!schedule.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1rem">No payments scheduled.</td></tr>'; return; }
+        tbody.innerHTML = schedule.map((s, i) => `
+          <tr>
+            <td>${s.payment_number || (i + 1)}</td>
+            <td>${s.due_date ? new Date(s.due_date).toLocaleDateString() : '-'}</td>
+            <td>$${Number(s.payment_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td>$${Number(s.principal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td>$${Number(s.interest || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td>$${Number(s.remaining_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td><span class="badge ${s.status === 'paid' ? 'badge-success' : s.status === 'overdue' ? 'badge-danger' : 'badge-muted'}">${s.status || 'pending'}</span></td>
+          </tr>`).join('');
+      } catch (e) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1rem">Error loading schedule.</td></tr>'; }
+    }
+
+    async function loadPayments(loanId) {
+      const tbody = document.getElementById('paymentHistoryTable');
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1rem">Loading...</td></tr>';
+      try {
+        const resp = await apiFetch('/api/v1/loans/' + loanId + '/payments');
+        if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1rem">No payments yet.</td></tr>'; return; }
+        const json = await resp.json();
+        const payments = json.data || [];
+        if (!payments.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1rem">No payments yet.</td></tr>'; return; }
+        tbody.innerHTML = payments.map(p => `
+          <tr>
+            <td>${p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</td>
+            <td>$${Number(p.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td class="font-mono">${p.reference || '-'}</td>
+            <td>${p.description || '-'}</td>
+          </tr>`).join('');
+      } catch (e) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1rem">Error loading payments.</td></tr>'; }
+    }
+
+    async function loadDocuments(loanId) {
+      const tbody = document.getElementById('loanDocsTable');
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1rem">Loading...</td></tr>';
+      try {
+        const resp = await apiFetch('/api/v1/documents?entity_type=loan&entity_id=' + loanId);
+        if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1rem">No documents yet.</td></tr>'; return; }
+        const json = await resp.json();
+        const docs = json.data || [];
+        if (!docs.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1rem">No documents yet.</td></tr>'; return; }
+        tbody.innerHTML = docs.map(d => `
+          <tr>
+            <td>${d.original_name || '-'}</td>
+            <td>${d.category || '-'}</td>
+            <td>${formatBytes(d.size_bytes)}</td>
+            <td>${d.created_at ? new Date(d.created_at).toLocaleDateString() : '-'}</td>
+            <td><button class="btn btn-sm btn-secondary" data-download="${d.id}">Download</button></td>
+          </tr>`).join('');
+        tbody.querySelectorAll('[data-download]').forEach(b => b.addEventListener('click', () => downloadDoc(b.dataset.download)));
+      } catch (e) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1rem">Error loading documents.</td></tr>'; }
+    }
+
+    function formatBytes(n) {
+      if (!n) return '-';
+      if (n < 1024) return n + ' B';
+      if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+      return (n / 1048576).toFixed(2) + ' MB';
+    }
+
+    async function downloadDoc(docId) {
+      try {
+        const resp = await apiFetch('/api/v1/documents/' + docId + '/download');
+        if (!resp.ok) { alert('Download failed'); return; }
+        const blob = await resp.blob();
+        const filename = (resp.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename ? filename[1] : 'document';
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) { alert('Download error: ' + e.message); }
+    }
+
+    function loadCollateral(loan) {
+      let c = {};
+      try { c = loan.collateral ? (typeof loan.collateral === 'string' ? JSON.parse(loan.collateral) : loan.collateral) : {}; } catch(e) { c = {}; }
+      document.getElementById('collateralType').value = c.type || '';
+      document.getElementById('collateralDesc').value = c.description || '';
+      document.getElementById('collateralValue').value = c.value || '';
+      document.getElementById('coSignerId').value = loan.co_signer_id || '';
+    }
+
+    // === APPROVE / DENY ===
+    document.getElementById('approveLoanBtn').addEventListener('click', async () => {
+      if (!currentLoan) return;
+      if (!confirm('Approve and disburse loan ' + currentLoan.loan_number + '?')) return;
+      try {
+        const resp = await apiFetch('/api/v1/loans/' + currentLoan.id + '/approve', { method: 'PUT' });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) { alert('Error: ' + (json.message || 'Approval failed')); return; }
+        alert('Loan approved and disbursed.');
+        await openLoanDetail(currentLoan.id);
+        loadLoans(currentLoanPage);
+      } catch (e) { alert('Error: ' + e.message); }
+    });
+
+    document.getElementById('denyLoanBtn').addEventListener('click', () => denyModal.classList.add('active'));
+    document.getElementById('denyForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentLoan) return;
+      const reason = document.getElementById('denyReason').value.trim();
+      try {
+        const resp = await apiFetch('/api/v1/loans/' + currentLoan.id + '/deny', {
+          method: 'PUT',
+          body: JSON.stringify({ reason }),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) { alert('Error: ' + (json.message || 'Deny failed')); return; }
+        denyModal.classList.remove('active');
+        document.getElementById('denyForm').reset();
+        await openLoanDetail(currentLoan.id);
+        loadLoans(currentLoanPage);
+      } catch (e) { alert('Error: ' + e.message); }
+    });
+
+    // === PAYMENT ===
+    document.getElementById('paymentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentLoan) return;
+      const amount = parseFloat(document.getElementById('paymentAmount').value);
+      const fromAccount = document.getElementById('paymentAccount').value;
+      const body = { amount };
+      if (fromAccount) body.from_account_id = fromAccount;
+      try {
+        const resp = await apiFetch('/api/v1/loans/' + currentLoan.id + '/payment', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) { alert('Error: ' + (json.message || 'Payment failed')); return; }
+        alert('Payment posted.');
+        document.getElementById('paymentForm').reset();
+        await openLoanDetail(currentLoan.id);
+        loadLoans(currentLoanPage);
+      } catch (e) { alert('Error: ' + e.message); }
+    });
+
+    // === PAYOFF QUOTE ===
+    document.getElementById('payoffQuoteBtn').addEventListener('click', async () => {
+      if (!currentLoan) return;
+      try {
+        const resp = await apiFetch('/api/v1/loans/' + currentLoan.id + '/payoff');
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) { alert('Error: ' + (json.message || 'Quote failed')); return; }
+        const q = json.data || {};
+        document.getElementById('payoffQuoteResult').innerHTML =
+          'Payoff: $' + Number(q.payoff_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) +
+          ' (good through ' + (q.good_through || '-') + ')';
+      } catch (e) { alert('Error: ' + e.message); }
+    });
+
+    // === DOCUMENT UPLOAD ===
+    document.getElementById('uploadLoanDocBtn').addEventListener('click', () => {
+      document.getElementById('loanDocFile').click();
+    });
+    document.getElementById('loanDocFile').addEventListener('change', async (e) => {
+      if (!currentLoan) return;
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      // Get existing doc count to continue numbering
+      let startIdx = 1;
+      try {
+        const resp = await apiFetch('/api/v1/documents?entity_type=loan&entity_id=' + currentLoan.id);
+        if (resp.ok) { const json = await resp.json(); startIdx = (json.data || []).length + 1; }
+      } catch (e) { /* ignore */ }
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const ext = file.name.split('.').pop();
+        const renamed = (currentLoan.loan_number || 'loan') + '_' + (startIdx + i) + '.' + ext;
+        const fd = new FormData();
+        fd.append('file', file, renamed);
+        fd.append('entity_type', 'loan');
+        fd.append('entity_id', currentLoan.id);
+        fd.append('category', 'loan_agreement');
+        try {
+          const resp = await apiFetch('/api/v1/documents/upload', { method: 'POST', body: fd, headers: {} });
+          if (!resp.ok) { const err = await resp.json().catch(() => ({})); alert('Upload failed: ' + (err.message || resp.status)); }
+        } catch (err) { alert('Upload error: ' + err.message); }
+      }
+      e.target.value = '';
+      loadDocuments(currentLoan.id);
+    });
+
+    // === COLLATERAL SAVE ===
+    document.getElementById('collateralForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentLoan) return;
+      const collateral = {
+        type:        document.getElementById('collateralType').value,
+        description: document.getElementById('collateralDesc').value,
+        value:       parseFloat(document.getElementById('collateralValue').value) || 0,
+      };
+      const coSignerId = document.getElementById('coSignerId').value.trim();
+      const body = { collateral };
+      if (coSignerId) body.co_signer_id = coSignerId;
+      try {
+        const resp = await apiFetch('/api/v1/loans/' + currentLoan.id, {
+          method: 'PUT',
+          body: JSON.stringify(body),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) { alert('Error: ' + (json.message || 'Save failed')); return; }
+        alert('Collateral saved.');
+        await openLoanDetail(currentLoan.id);
+      } catch (e) { alert('Error: ' + e.message); }
+    });
+
+    // Set initial tab styling
+    const overviewTab = document.querySelector('.tab-btn[data-tab="overview"]');
+    overviewTab.style.borderBottomColor = 'var(--primary, #3b82f6)';
+    overviewTab.style.color = 'var(--primary, #3b82f6)';
 
     loadLoans();
   </script>
