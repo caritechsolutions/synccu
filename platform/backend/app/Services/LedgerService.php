@@ -21,6 +21,12 @@ final class LedgerService
     public function __construct()
     {
         $this->db = Database::getInstance();
+        try {
+            $this->ensureTables();
+            $this->ensureDefaultAccounts();
+        } catch (\Throwable) {
+            // Ignore — tables may already exist or DB not yet available.
+        }
     }
 
     // ------------------------------------------------------------------
@@ -284,6 +290,105 @@ final class LedgerService
     public const GL_FEE_INCOME           = '4020'; // Revenue: Service fees
     public const GL_INTEREST_EXPENSE     = '5010'; // Expense: Interest paid to members
     public const GL_OPERATING_EXPENSE    = '5020'; // Expense: Operating costs
+
+    // ------------------------------------------------------------------
+    // Self-healing Schema Helpers
+    // ------------------------------------------------------------------
+
+    /**
+     * Create the GL tables if they don't already exist.
+     */
+    private function ensureTables(): void
+    {
+        $this->db->query(
+            "CREATE TABLE IF NOT EXISTS `gl_accounts` (
+                `id` CHAR(36) NOT NULL PRIMARY KEY,
+                `tenant_id` CHAR(36) NOT NULL,
+                `code` VARCHAR(10) NOT NULL,
+                `name` VARCHAR(100) NOT NULL,
+                `type` ENUM('asset','liability','equity','revenue','expense') NOT NULL,
+                `balance` DECIMAL(15,2) DEFAULT 0.00,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_gl_tenant_code` (`tenant_id`, `code`),
+                INDEX `idx_gl_type` (`type`),
+                FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            [],
+        );
+
+        $this->db->query(
+            "CREATE TABLE IF NOT EXISTS `journal_entries` (
+                `id` CHAR(36) NOT NULL PRIMARY KEY,
+                `tenant_id` CHAR(36) NOT NULL,
+                `transaction_id` CHAR(36) DEFAULT NULL,
+                `description` VARCHAR(500) DEFAULT NULL,
+                `total_amount` DECIMAL(15,2) NOT NULL,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX `idx_je_tenant` (`tenant_id`),
+                INDEX `idx_je_transaction` (`transaction_id`),
+                INDEX `idx_je_created` (`created_at`),
+                FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            [],
+        );
+
+        $this->db->query(
+            "CREATE TABLE IF NOT EXISTS `journal_entry_lines` (
+                `id` CHAR(36) NOT NULL PRIMARY KEY,
+                `tenant_id` CHAR(36) NOT NULL,
+                `journal_entry_id` CHAR(36) NOT NULL,
+                `gl_account_code` VARCHAR(10) NOT NULL,
+                `debit` DECIMAL(15,2) DEFAULT 0.00,
+                `credit` DECIMAL(15,2) DEFAULT 0.00,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX `idx_jel_entry` (`journal_entry_id`),
+                INDEX `idx_jel_gl` (`gl_account_code`),
+                INDEX `idx_jel_tenant` (`tenant_id`),
+                FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+                FOREIGN KEY (`journal_entry_id`) REFERENCES `journal_entries`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            [],
+        );
+    }
+
+    /**
+     * Seed the standard chart of accounts for the current tenant if missing.
+     */
+    private function ensureDefaultAccounts(): void
+    {
+        $tenantId = $this->db->getTenantId();
+        if ($tenantId === null || $tenantId === '') {
+            return;
+        }
+
+        $defaults = [
+            [self::GL_MEMBER_DEPOSITS,      'Member Deposits',      'asset'],
+            [self::GL_LOAN_RECEIVABLE,      'Loan Receivable',      'asset'],
+            [self::GL_MEMBER_SHARES,        'Member Shares',        'liability'],
+            [self::GL_MEMBER_SAVINGS,       'Member Savings',       'liability'],
+            [self::GL_MEMBER_CHECKING,      'Member Checking',      'liability'],
+            [self::GL_LOAN_INTEREST_INCOME, 'Loan Interest Income', 'revenue'],
+            [self::GL_FEE_INCOME,           'Fee Income',           'revenue'],
+            [self::GL_INTEREST_EXPENSE,     'Interest Expense',     'expense'],
+            [self::GL_OPERATING_EXPENSE,    'Operating Expense',    'expense'],
+        ];
+
+        $now = date('Y-m-d H:i:s');
+
+        foreach ($defaults as [$code, $name, $type]) {
+            $id = $this->generateUuid();
+            try {
+                $this->db->query(
+                    'INSERT IGNORE INTO gl_accounts (id, tenant_id, code, name, type, balance, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, 0.00, ?, ?)',
+                    [$id, $tenantId, $code, $name, $type, $now, $now],
+                );
+            } catch (\Throwable) {
+                // Already exists — ignore.
+            }
+        }
+    }
 
     // ------------------------------------------------------------------
 

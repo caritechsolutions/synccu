@@ -94,110 +94,78 @@
 
       <!-- Report Type Cards -->
       <div class="report-cards">
-        <button class="report-card active" data-report="financial">
-          <div class="report-card-icon">
-            <svg><use href="#icon-dollar"/></svg>
-          </div>
-          <h4>Financial Summary</h4>
-          <p>Income, expenses, and net income overview</p>
+        <button class="report-card active" data-report="income-statement">
+          <div class="report-card-icon"><svg><use href="#icon-dollar"/></svg></div>
+          <h4>Income Statement</h4>
+          <p>Revenue, expenses, and net income</p>
+        </button>
+        <button class="report-card" data-report="balance-sheet">
+          <div class="report-card-icon"><svg><use href="#icon-chart"/></svg></div>
+          <h4>Balance Sheet</h4>
+          <p>Assets, liabilities, and equity</p>
         </button>
         <button class="report-card" data-report="trial-balance">
-          <div class="report-card-icon">
-            <svg><use href="#icon-chart"/></svg>
-          </div>
+          <div class="report-card-icon"><svg><use href="#icon-file-text"/></svg></div>
           <h4>Trial Balance</h4>
-          <p>Debit and credit balances for all accounts</p>
+          <p>Debit and credit totals by GL account</p>
         </button>
-        <button class="report-card" data-report="transaction">
-          <div class="report-card-icon">
-            <svg><use href="#icon-send"/></svg>
-          </div>
+        <button class="report-card" data-report="general-ledger">
+          <div class="report-card-icon"><svg><use href="#icon-send"/></svg></div>
+          <h4>General Ledger</h4>
+          <p>All journal entries and line items</p>
+        </button>
+        <button class="report-card" data-report="transactions">
+          <div class="report-card-icon"><svg><use href="#icon-credit-card"/></svg></div>
           <h4>Transaction Report</h4>
-          <p>Detailed transaction history and analysis</p>
+          <p>Transaction volume by type</p>
         </button>
         <button class="report-card" data-report="loan-portfolio">
-          <div class="report-card-icon">
-            <svg><use href="#icon-credit-card"/></svg>
-          </div>
+          <div class="report-card-icon"><svg><use href="#icon-wallet"/></svg></div>
           <h4>Loan Portfolio</h4>
-          <p>Loan performance and delinquency metrics</p>
+          <p>Loan performance by status</p>
+        </button>
+        <button class="report-card" data-report="delinquency">
+          <div class="report-card-icon"><svg><use href="#icon-calendar"/></svg></div>
+          <h4>Delinquency</h4>
+          <p>Overdue loans and days past due</p>
         </button>
         <button class="report-card" data-report="member-growth">
-          <div class="report-card-icon">
-            <svg><use href="#icon-users"/></svg>
-          </div>
+          <div class="report-card-icon"><svg><use href="#icon-users"/></svg></div>
           <h4>Member Growth</h4>
-          <p>Membership trends and demographics</p>
+          <p>Membership and account trends</p>
         </button>
       </div>
 
       <!-- Date Range & Actions -->
-      <div class="filter-bar" style="margin-top:1.5rem">
-        <div class="form-group filter-date">
-          <label for="reportDateFrom">From</label>
-          <input type="date" id="reportDateFrom" class="form-input" value="2026-03-01">
+      <div class="card" style="margin-top:1.5rem;padding:1rem">
+        <div style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end">
+          <div class="form-group" style="margin:0">
+            <label for="reportDateFrom" style="font-size:.75rem">From</label>
+            <input type="date" id="reportDateFrom" class="form-input">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label for="reportDateTo" style="font-size:.75rem">To</label>
+            <input type="date" id="reportDateTo" class="form-input">
+          </div>
+          <button class="btn btn-primary" id="generateReportBtn">Generate Report</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-secondary" id="printReportBtn">
+            <svg><use href="#icon-printer"/></svg> Print
+          </button>
+          <button class="btn btn-secondary" id="exportReportBtn">
+            <svg><use href="#icon-download"/></svg> Export CSV
+          </button>
         </div>
-        <div class="form-group filter-date">
-          <label for="reportDateTo">To</label>
-          <input type="date" id="reportDateTo" class="form-input" value="2026-03-27">
-        </div>
-        <button class="btn btn-primary" id="generateReportBtn">Generate Report</button>
-        <div class="filter-spacer"></div>
-        <button class="btn btn-secondary" id="printReportBtn">
-          <svg><use href="#icon-printer"/></svg> Print
-        </button>
-        <button class="btn btn-secondary" id="exportReportBtn">
-          <svg><use href="#icon-download"/></svg> Export
-        </button>
       </div>
 
       <!-- Report Display Area -->
-      <div class="card" id="reportArea" style="margin-top:1.5rem">
-        <div class="card-header">
-          <h3 id="reportTitle">Financial Summary</h3>
-          <span class="text-muted" id="reportDateRange">March 1 - March 27, 2026</span>
+      <div class="card" id="reportArea" style="margin-top:1rem">
+        <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <h3 id="reportTitle" style="margin:0">Income Statement</h3>
+          <span class="text-muted" id="reportDateRange"></span>
         </div>
-
-        <!-- Financial Summary (default) -->
-        <div id="reportContent">
-          <div class="report-summary-grid">
-            <div class="report-summary-card report-summary-green">
-              <span class="report-summary-label">Total Income</span>
-              <span class="report-summary-value">$286,420.00</span>
-              <span class="report-summary-sub">Interest Income: $214,300 | Fee Income: $72,120</span>
-            </div>
-            <div class="report-summary-card report-summary-red">
-              <span class="report-summary-label">Total Expenses</span>
-              <span class="report-summary-value">$198,650.00</span>
-              <span class="report-summary-sub">Operating: $142,200 | Interest Paid: $56,450</span>
-            </div>
-            <div class="report-summary-card report-summary-blue">
-              <span class="report-summary-label">Net Income</span>
-              <span class="report-summary-value">$87,770.00</span>
-              <span class="report-summary-sub">Net margin: 30.6%</span>
-            </div>
-          </div>
-
-          <div class="table-responsive" style="margin-top:1.5rem">
-            <table class="data-table">
-              <thead>
-                <tr><th>Category</th><th>Budget</th><th>Actual</th><th>Variance</th></tr>
-              </thead>
-              <tbody>
-                <tr><td><strong>Revenue</strong></td><td></td><td></td><td></td></tr>
-                <tr><td class="indent">Interest on Loans</td><td>$200,000</td><td>$214,300</td><td class="text-green">+$14,300</td></tr>
-                <tr><td class="indent">Service Fees</td><td>$65,000</td><td>$62,420</td><td class="text-red">-$2,580</td></tr>
-                <tr><td class="indent">Investment Income</td><td>$10,000</td><td>$9,700</td><td class="text-red">-$300</td></tr>
-                <tr><td><strong>Expenses</strong></td><td></td><td></td><td></td></tr>
-                <tr><td class="indent">Personnel</td><td>$95,000</td><td>$92,400</td><td class="text-green">+$2,600</td></tr>
-                <tr><td class="indent">Operations</td><td>$50,000</td><td>$49,800</td><td class="text-green">+$200</td></tr>
-                <tr><td class="indent">Interest on Deposits</td><td>$55,000</td><td>$56,450</td><td class="text-red">-$1,450</td></tr>
-                <tr class="table-total">
-                  <td><strong>Net Income</strong></td><td><strong>$75,000</strong></td><td><strong>$87,770</strong></td><td class="text-green"><strong>+$12,770</strong></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+        <div id="reportContent" style="padding:1.5rem">
+          <p style="text-align:center;color:var(--text-muted);padding:2rem 0">Click "Generate Report" to load data.</p>
         </div>
       </div>
     </main>
@@ -205,108 +173,397 @@
 
   <script src="../js/admin-common.js"></script>
   <script>
-    const reportCards = document.querySelectorAll('.report-card');
-    let currentReport = 'financial';
+    // === STATE ===
+    let currentReport = 'income-statement';
 
-    reportCards.forEach(card => {
+    // Set default dates: first of month to today
+    (function() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      document.getElementById('reportDateFrom').value = y + '-' + m + '-01';
+      document.getElementById('reportDateTo').value = now.toISOString().slice(0, 10);
+    })();
+
+    function fmt(n) { return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }); }
+
+    // === REPORT CARD SELECTION ===
+    document.querySelectorAll('.report-card').forEach(card => {
       card.addEventListener('click', () => {
-        reportCards.forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.report-card').forEach(c => c.classList.remove('active'));
         card.classList.add('active');
         currentReport = card.dataset.report;
         document.getElementById('reportTitle').textContent = card.querySelector('h4').textContent;
+        document.getElementById('reportContent').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:2rem 0">Click "Generate Report" to load data.</p>';
       });
     });
 
-    const reportTypeMap = {
-      'financial': 'summary',
-      'trial-balance': 'summary',
-      'transaction': 'transactions',
-      'loan-portfolio': 'loans',
-      'member-growth': 'summary',
-    };
-
+    // === GENERATE ===
     document.getElementById('generateReportBtn').addEventListener('click', generateReport);
 
     async function generateReport() {
       const from = document.getElementById('reportDateFrom').value;
       const to = document.getElementById('reportDateTo').value;
-      const fromDate = new Date(from + 'T00:00:00');
-      const toDate = new Date(to + 'T00:00:00');
-      document.getElementById('reportDateRange').textContent =
-        fromDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) + ' - ' +
-        toDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-
-      const apiType = reportTypeMap[currentReport] || 'summary';
-      try {
-        const resp = await apiFetch('/api/v1/admin/reports?type=' + apiType + '&from=' + from + '&to=' + to);
-        if (!resp.ok) return;
-        const json = await resp.json();
-        const d = json.data || {};
-        renderReport(currentReport, d.report || {}, from, to);
-      } catch (e) { /* API not available, keep placeholder data */ }
-    }
-
-    function fmt(n) { return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }); }
-
-    function renderReport(type, report, from, to) {
       const el = document.getElementById('reportContent');
-      if (type === 'financial' || type === 'member-growth' || type === 'trial-balance') {
-        el.innerHTML = `
-          <div class="report-summary-grid">
-            <div class="report-summary-card report-summary-green">
-              <span class="report-summary-label">Total Deposits</span>
-              <span class="report-summary-value">${fmt(report.total_deposits)}</span>
-              <span class="report-summary-sub">New accounts: ${report.new_accounts || 0} | New members: ${report.new_members || 0}</span>
-            </div>
-            <div class="report-summary-card report-summary-red">
-              <span class="report-summary-label">Total Withdrawals</span>
-              <span class="report-summary-value">${fmt(report.total_withdrawals)}</span>
-              <span class="report-summary-sub">Transfers: ${fmt(report.total_transfers)}</span>
-            </div>
-            <div class="report-summary-card report-summary-blue">
-              <span class="report-summary-label">Net Flow</span>
-              <span class="report-summary-value">${fmt(report.net_flow)}</span>
-              <span class="report-summary-sub">Period: ${from} to ${to}</span>
-            </div>
-          </div>`;
-      } else if (type === 'transaction' && Array.isArray(report)) {
-        el.innerHTML = `
-          <div class="table-responsive" style="margin-top:1rem">
-            <table class="data-table">
-              <thead><tr><th>Type</th><th>Count</th><th>Total Amount</th></tr></thead>
-              <tbody>${report.map(r => `
-                <tr><td>${r.type}</td><td>${r.count}</td><td>${fmt(r.total_amount)}</td></tr>`).join('')}
-              </tbody>
-            </table>
-          </div>`;
-      } else if (type === 'loan-portfolio' && Array.isArray(report)) {
-        el.innerHTML = `
-          <div class="table-responsive" style="margin-top:1rem">
-            <table class="data-table">
-              <thead><tr><th>Status</th><th>Count</th><th>Total Amount</th><th>Outstanding</th></tr></thead>
-              <tbody>${report.map(r => `
-                <tr><td>${r.status}</td><td>${r.count}</td><td>${fmt(r.total_amount)}</td><td>${fmt(r.total_remaining)}</td></tr>`).join('')}
-              </tbody>
-            </table>
-          </div>`;
+      el.innerHTML = '<p style="text-align:center;padding:2rem">Loading...</p>';
+
+      const fromLabel = new Date(from + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+      const toLabel = new Date(to + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      document.getElementById('reportDateRange').textContent = fromLabel + ' - ' + toLabel;
+
+      try {
+        switch (currentReport) {
+          case 'income-statement': await renderIncomeStatement(from, to); break;
+          case 'balance-sheet':    await renderBalanceSheet(); break;
+          case 'trial-balance':    await renderTrialBalance(); break;
+          case 'general-ledger':   await renderGeneralLedger(from, to); break;
+          case 'transactions':     await renderTransactions(from, to); break;
+          case 'loan-portfolio':   await renderLoanPortfolio(); break;
+          case 'delinquency':      await renderDelinquency(); break;
+          case 'member-growth':    await renderMemberGrowth(from, to); break;
+          default: el.innerHTML = '<p style="text-align:center;padding:2rem">Unknown report type.</p>';
+        }
+      } catch (e) {
+        el.innerHTML = '<p style="text-align:center;padding:2rem;color:#dc2626">Error loading report: ' + e.message + '</p>';
       }
     }
 
-    document.getElementById('printReportBtn').addEventListener('click', () => {
-      window.print();
-    });
+    // === INCOME STATEMENT ===
+    async function renderIncomeStatement(from, to) {
+      const resp = await apiFetch('/api/v1/reports/income-statement?from=' + from + '&to=' + to);
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.message || 'Failed');
+      const d = json.data;
+      const el = document.getElementById('reportContent');
 
+      let html = `
+        <div class="report-summary-grid">
+          <div class="report-summary-card report-summary-green">
+            <span class="report-summary-label">Total Revenue</span>
+            <span class="report-summary-value">${fmt(d.total_revenue)}</span>
+          </div>
+          <div class="report-summary-card report-summary-red">
+            <span class="report-summary-label">Total Expenses</span>
+            <span class="report-summary-value">${fmt(d.total_expenses)}</span>
+          </div>
+          <div class="report-summary-card ${d.net_income >= 0 ? 'report-summary-blue' : 'report-summary-red'}">
+            <span class="report-summary-label">Net Income</span>
+            <span class="report-summary-value">${fmt(d.net_income)}</span>
+            <span class="report-summary-sub">${d.total_revenue > 0 ? 'Margin: ' + ((d.net_income / d.total_revenue) * 100).toFixed(1) + '%' : ''}</span>
+          </div>
+        </div>
+        <div class="table-responsive" style="margin-top:1.5rem">
+          <table class="data-table">
+            <thead><tr><th>Account Code</th><th>Account Name</th><th>Amount</th></tr></thead>
+            <tbody>
+              <tr><td colspan="3"><strong>Revenue</strong></td></tr>`;
+      (d.revenue || []).forEach(r => {
+        html += `<tr><td class="font-mono">${r.code}</td><td style="padding-left:2rem">${r.name}</td><td>${fmt(r.net_amount)}</td></tr>`;
+      });
+      html += `<tr style="border-top:2px solid var(--border)"><td></td><td><strong>Total Revenue</strong></td><td><strong>${fmt(d.total_revenue)}</strong></td></tr>
+              <tr><td colspan="3"><strong>Expenses</strong></td></tr>`;
+      (d.expenses || []).forEach(r => {
+        html += `<tr><td class="font-mono">${r.code}</td><td style="padding-left:2rem">${r.name}</td><td>${fmt(r.net_amount)}</td></tr>`;
+      });
+      html += `<tr style="border-top:2px solid var(--border)"><td></td><td><strong>Total Expenses</strong></td><td><strong>${fmt(d.total_expenses)}</strong></td></tr>
+              <tr style="border-top:3px double var(--border)"><td></td><td><strong>Net Income</strong></td><td><strong>${fmt(d.net_income)}</strong></td></tr>
+            </tbody></table></div>`;
+      el.innerHTML = html;
+    }
+
+    // === BALANCE SHEET ===
+    async function renderBalanceSheet() {
+      const resp = await apiFetch('/api/v1/reports/balance-sheet');
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.message || 'Failed');
+      const d = json.data;
+      const el = document.getElementById('reportContent');
+
+      let html = `
+        <div class="report-summary-grid">
+          <div class="report-summary-card report-summary-blue">
+            <span class="report-summary-label">Total Assets</span>
+            <span class="report-summary-value">${fmt(d.total_assets)}</span>
+          </div>
+          <div class="report-summary-card report-summary-red">
+            <span class="report-summary-label">Total Liabilities</span>
+            <span class="report-summary-value">${fmt(d.total_liabilities)}</span>
+          </div>
+          <div class="report-summary-card report-summary-green">
+            <span class="report-summary-label">Equity</span>
+            <span class="report-summary-value">${fmt(d.total_equity)}</span>
+            <span class="report-summary-sub">${d.balanced ? 'Balanced' : 'NOT BALANCED'}</span>
+          </div>
+        </div>
+        <div class="table-responsive" style="margin-top:1.5rem">
+          <table class="data-table">
+            <thead><tr><th>Account Code</th><th>Account Name</th><th>Balance</th></tr></thead>
+            <tbody>
+              <tr><td colspan="3"><strong>Assets</strong></td></tr>`;
+      (d.assets || []).forEach(a => {
+        html += `<tr><td class="font-mono">${a.code}</td><td style="padding-left:2rem">${a.name}</td><td>${fmt(a.balance)}</td></tr>`;
+      });
+      html += `<tr style="border-top:2px solid var(--border)"><td></td><td><strong>Total Assets</strong></td><td><strong>${fmt(d.total_assets)}</strong></td></tr>
+              <tr><td colspan="3"><strong>Liabilities</strong></td></tr>`;
+      (d.liabilities || []).forEach(a => {
+        html += `<tr><td class="font-mono">${a.code}</td><td style="padding-left:2rem">${a.name}</td><td>${fmt(Math.abs(a.balance))}</td></tr>`;
+      });
+      html += `<tr style="border-top:2px solid var(--border)"><td></td><td><strong>Total Liabilities</strong></td><td><strong>${fmt(d.total_liabilities)}</strong></td></tr>
+              <tr><td colspan="3"><strong>Equity</strong></td></tr>`;
+      (d.equity || []).forEach(a => {
+        html += `<tr><td class="font-mono">${a.code}</td><td style="padding-left:2rem">${a.name}</td><td>${fmt(Math.abs(a.balance))}</td></tr>`;
+      });
+      html += `<tr style="border-top:2px solid var(--border)"><td></td><td><strong>Total Equity</strong></td><td><strong>${fmt(d.total_equity)}</strong></td></tr>
+              <tr style="border-top:3px double var(--border)"><td></td><td><strong>Liabilities + Equity</strong></td><td><strong>${fmt(d.total_liabilities + d.total_equity)}</strong></td></tr>
+            </tbody></table></div>`;
+      el.innerHTML = html;
+    }
+
+    // === TRIAL BALANCE ===
+    async function renderTrialBalance() {
+      const resp = await apiFetch('/api/v1/reports/trial-balance');
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.message || 'Failed');
+      const d = json.data;
+      const el = document.getElementById('reportContent');
+      const accounts = d.accounts || [];
+
+      let html = `<div style="margin-bottom:1rem;font-weight:600;${d.balanced ? 'color:#16a34a' : 'color:#dc2626'}">${d.balanced ? 'Ledger is balanced.' : 'WARNING: Ledger is NOT balanced!'}</div>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead><tr><th>Code</th><th>Account Name</th><th>Type</th><th style="text-align:right">Debits</th><th style="text-align:right">Credits</th><th style="text-align:right">Balance</th></tr></thead>
+            <tbody>`;
+      accounts.forEach(a => {
+        html += `<tr>
+          <td class="font-mono">${a.code}</td><td>${a.name}</td><td>${a.type}</td>
+          <td style="text-align:right">${fmt(a.total_debits)}</td>
+          <td style="text-align:right">${fmt(a.total_credits)}</td>
+          <td style="text-align:right">${fmt(a.balance)}</td></tr>`;
+      });
+      html += `<tr style="border-top:3px double var(--border);font-weight:700">
+          <td colspan="3">Totals</td>
+          <td style="text-align:right">${fmt(d.total_debits)}</td>
+          <td style="text-align:right">${fmt(d.total_credits)}</td>
+          <td></td></tr></tbody></table></div>`;
+      el.innerHTML = html;
+    }
+
+    // === GENERAL LEDGER ===
+    let glPage = 1;
+    async function renderGeneralLedger(from, to, page) {
+      page = page || 1;
+      glPage = page;
+      const resp = await apiFetch('/api/v1/reports/general-ledger?from=' + from + '&to=' + to + '&page=' + page + '&per_page=25');
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.message || 'Failed');
+      const entries = json.data || [];
+      const meta = json.meta || {};
+      const el = document.getElementById('reportContent');
+
+      if (!entries.length) { el.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--text-muted)">No journal entries found for this period.</p>'; return; }
+
+      let html = '<div class="table-responsive"><table class="data-table"><thead><tr><th>Date</th><th>Description</th><th>Account</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th></tr></thead><tbody>';
+      entries.forEach(e => {
+        const date = e.created_at ? new Date(e.created_at).toLocaleDateString() : '-';
+        const lines = e.lines || [];
+        lines.forEach((ln, i) => {
+          html += '<tr>';
+          if (i === 0) {
+            html += `<td rowspan="${lines.length}">${date}</td><td rowspan="${lines.length}">${e.description || '-'}</td>`;
+          }
+          html += `<td class="font-mono">${ln.gl_account_code} ${ln.account_name ? '- ' + ln.account_name : ''}</td>
+            <td style="text-align:right">${Number(ln.debit) > 0 ? fmt(ln.debit) : ''}</td>
+            <td style="text-align:right">${Number(ln.credit) > 0 ? fmt(ln.credit) : ''}</td></tr>`;
+        });
+        html += '<tr><td colspan="5" style="padding:0;border:none;height:4px;background:var(--bg-muted)"></td></tr>';
+      });
+      html += '</tbody></table></div>';
+
+      if (meta.total) {
+        const totalPages = meta.total_pages || Math.ceil(meta.total / meta.per_page);
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:1rem 0">';
+        html += '<span>Showing page ' + meta.page + ' of ' + totalPages + ' (' + meta.total + ' entries)</span>';
+        html += '<div style="display:flex;gap:.25rem">';
+        if (page > 1) html += '<button class="btn btn-secondary btn-sm" onclick="renderGeneralLedger(\'' + from + '\',\'' + to + '\',' + (page - 1) + ')">Previous</button>';
+        if (page < totalPages) html += '<button class="btn btn-secondary btn-sm" onclick="renderGeneralLedger(\'' + from + '\',\'' + to + '\',' + (page + 1) + ')">Next</button>';
+        html += '</div></div>';
+      }
+      el.innerHTML = html;
+    }
+
+    // === TRANSACTIONS ===
+    async function renderTransactions(from, to) {
+      const resp = await apiFetch('/api/v1/admin/reports?type=transactions&from=' + from + '&to=' + to);
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.message || 'Failed');
+      const report = (json.data && json.data.report) || [];
+      const el = document.getElementById('reportContent');
+      if (!report.length) { el.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--text-muted)">No transactions found for this period.</p>'; return; }
+
+      const totalCount = report.reduce((s, r) => s + Number(r.count), 0);
+      const totalAmount = report.reduce((s, r) => s + Number(r.total_amount), 0);
+
+      let html = `<div class="report-summary-grid">
+        <div class="report-summary-card report-summary-blue">
+          <span class="report-summary-label">Total Transactions</span>
+          <span class="report-summary-value">${totalCount}</span>
+        </div>
+        <div class="report-summary-card report-summary-green">
+          <span class="report-summary-label">Total Volume</span>
+          <span class="report-summary-value">${fmt(totalAmount)}</span>
+        </div>
+      </div>
+      <div class="table-responsive" style="margin-top:1.5rem">
+        <table class="data-table">
+          <thead><tr><th>Transaction Type</th><th style="text-align:right">Count</th><th style="text-align:right">Total Amount</th><th style="text-align:right">% of Volume</th></tr></thead>
+          <tbody>`;
+      report.forEach(r => {
+        const pct = totalAmount > 0 ? ((Number(r.total_amount) / totalAmount) * 100).toFixed(1) : '0.0';
+        html += `<tr><td>${r.type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</td><td style="text-align:right">${r.count}</td><td style="text-align:right">${fmt(r.total_amount)}</td><td style="text-align:right">${pct}%</td></tr>`;
+      });
+      html += `<tr style="border-top:3px double var(--border);font-weight:700"><td>Total</td><td style="text-align:right">${totalCount}</td><td style="text-align:right">${fmt(totalAmount)}</td><td style="text-align:right">100%</td></tr></tbody></table></div>`;
+      el.innerHTML = html;
+    }
+
+    // === LOAN PORTFOLIO ===
+    async function renderLoanPortfolio() {
+      const resp = await apiFetch('/api/v1/admin/reports?type=loans');
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.message || 'Failed');
+      const report = (json.data && json.data.report) || [];
+      const el = document.getElementById('reportContent');
+
+      const totalCount = report.reduce((s, r) => s + Number(r.count), 0);
+      const totalOriginal = report.reduce((s, r) => s + Number(r.total_amount), 0);
+      const totalOutstanding = report.reduce((s, r) => s + Number(r.total_remaining), 0);
+
+      let html = `<div class="report-summary-grid">
+        <div class="report-summary-card report-summary-blue">
+          <span class="report-summary-label">Total Loans</span>
+          <span class="report-summary-value">${totalCount}</span>
+        </div>
+        <div class="report-summary-card report-summary-green">
+          <span class="report-summary-label">Total Originated</span>
+          <span class="report-summary-value">${fmt(totalOriginal)}</span>
+        </div>
+        <div class="report-summary-card report-summary-red">
+          <span class="report-summary-label">Outstanding Balance</span>
+          <span class="report-summary-value">${fmt(totalOutstanding)}</span>
+        </div>
+      </div>
+      <div class="table-responsive" style="margin-top:1.5rem">
+        <table class="data-table">
+          <thead><tr><th>Status</th><th style="text-align:right">Count</th><th style="text-align:right">Originated</th><th style="text-align:right">Outstanding</th></tr></thead>
+          <tbody>`;
+      const statusClasses = { application:'badge-warning', approved:'badge-info', active:'badge-success', delinquent:'badge-danger', default:'badge-danger', paid_off:'badge-muted', cancelled:'badge-muted', denied:'badge-danger' };
+      report.forEach(r => {
+        const label = r.status.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+        html += `<tr><td><span class="badge ${statusClasses[r.status] || 'badge-muted'}">${label}</span></td><td style="text-align:right">${r.count}</td><td style="text-align:right">${fmt(r.total_amount)}</td><td style="text-align:right">${fmt(r.total_remaining)}</td></tr>`;
+      });
+      html += `<tr style="border-top:3px double var(--border);font-weight:700"><td>Total</td><td style="text-align:right">${totalCount}</td><td style="text-align:right">${fmt(totalOriginal)}</td><td style="text-align:right">${fmt(totalOutstanding)}</td></tr></tbody></table></div>`;
+      el.innerHTML = html;
+    }
+
+    // === DELINQUENCY ===
+    async function renderDelinquency() {
+      const resp = await apiFetch('/api/v1/reports/delinquency');
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.message || 'Failed');
+      const d = json.data;
+      const loans = d.loans || [];
+      const el = document.getElementById('reportContent');
+
+      let html = `<div class="report-summary-grid">
+        <div class="report-summary-card report-summary-red">
+          <span class="report-summary-label">Delinquent Loans</span>
+          <span class="report-summary-value">${d.total_count || 0}</span>
+        </div>
+        <div class="report-summary-card report-summary-red">
+          <span class="report-summary-label">Total Overdue Balance</span>
+          <span class="report-summary-value">${fmt(d.total_overdue_balance)}</span>
+        </div>
+      </div>`;
+
+      if (!loans.length) {
+        html += '<p style="text-align:center;padding:2rem;color:#16a34a;font-weight:600">No delinquent loans found.</p>';
+      } else {
+        html += `<div class="table-responsive" style="margin-top:1.5rem">
+          <table class="data-table">
+            <thead><tr><th>Loan #</th><th>Member</th><th>Type</th><th style="text-align:right">Outstanding</th><th style="text-align:right">Monthly Pmt</th><th>Next Due</th><th style="text-align:right;color:#dc2626">Days Past Due</th></tr></thead>
+            <tbody>`;
+        loans.forEach(l => {
+          const severity = l.days_past_due > 90 ? '#dc2626' : l.days_past_due > 30 ? '#ea580c' : '#ca8a04';
+          html += `<tr><td class="font-mono">${l.loan_number || '-'}</td><td>${l.member_name || '-'}</td><td>${l.loan_type}</td><td style="text-align:right">${fmt(l.outstanding_balance)}</td><td style="text-align:right">${fmt(l.monthly_payment)}</td><td>${l.next_payment_date || '-'}</td><td style="text-align:right;font-weight:700;color:${severity}">${l.days_past_due}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+      }
+      el.innerHTML = html;
+    }
+
+    // === MEMBER GROWTH ===
+    async function renderMemberGrowth(from, to) {
+      const resp = await apiFetch('/api/v1/reports/member-growth?from=' + from + '&to=' + to);
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.message || 'Failed');
+      const d = json.data;
+      const el = document.getElementById('reportContent');
+
+      let html = `<div class="report-summary-grid">
+        <div class="report-summary-card report-summary-blue">
+          <span class="report-summary-label">Total Members</span>
+          <span class="report-summary-value">${d.total_members || 0}</span>
+        </div>
+        <div class="report-summary-card report-summary-green">
+          <span class="report-summary-label">Total Accounts</span>
+          <span class="report-summary-value">${d.total_accounts || 0}</span>
+        </div>
+      </div>`;
+
+      const members = d.member_trend || [];
+      if (members.length) {
+        html += `<h4 style="margin:1.5rem 0 .75rem">New Members by Month</h4>
+          <div class="table-responsive"><table class="data-table">
+            <thead><tr><th>Month</th><th style="text-align:right">New Members</th></tr></thead><tbody>`;
+        members.forEach(m => {
+          html += `<tr><td>${m.month}</td><td style="text-align:right">${m.new_members}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+      }
+
+      const accounts = d.account_trend || [];
+      if (accounts.length) {
+        html += `<h4 style="margin:1.5rem 0 .75rem">New Accounts by Month &amp; Type</h4>
+          <div class="table-responsive"><table class="data-table">
+            <thead><tr><th>Month</th><th>Account Type</th><th style="text-align:right">New Accounts</th></tr></thead><tbody>`;
+        accounts.forEach(a => {
+          html += `<tr><td>${a.month}</td><td>${a.account_type}</td><td style="text-align:right">${a.new_accounts}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+      }
+
+      if (!members.length && !accounts.length) {
+        html += '<p style="text-align:center;padding:2rem;color:var(--text-muted)">No growth data for this period.</p>';
+      }
+      el.innerHTML = html;
+    }
+
+    // === PRINT ===
+    document.getElementById('printReportBtn').addEventListener('click', () => window.print());
+
+    // === EXPORT CSV ===
     document.getElementById('exportReportBtn').addEventListener('click', async () => {
+      const from = document.getElementById('reportDateFrom').value;
+      const to = document.getElementById('reportDateTo').value;
       try {
-        const from = document.getElementById('reportDateFrom').value;
-        const to = document.getElementById('reportDateTo').value;
-        const resp = await apiFetch('/api/v1/reports/' + currentReport + '/export?from=' + from + '&to=' + to + '&format=csv');
+        const resp = await apiFetch('/api/v1/reports/export?type=' + currentReport + '&from=' + from + '&to=' + to);
+        if (!resp.ok) { alert('Export failed'); return; }
         const blob = await resp.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = currentReport + '-report.csv'; a.click();
+        a.href = url; a.download = currentReport + '-report-' + new Date().toISOString().slice(0, 10) + '.csv';
+        document.body.appendChild(a); a.click(); a.remove();
         URL.revokeObjectURL(url);
-      } catch (e) { /* handle error */ }
+      } catch (e) { alert('Export error: ' + e.message); }
     });
   </script>
 </body>

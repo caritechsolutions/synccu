@@ -142,6 +142,51 @@ CREATE TABLE `ledger_entries` (
   INDEX `idx_ledger_created` (`created_at`)
 ) ENGINE=InnoDB;
 
+-- GL Accounts (chart of accounts for double-entry bookkeeping)
+CREATE TABLE IF NOT EXISTS `gl_accounts` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `code` VARCHAR(10) NOT NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `type` ENUM('asset','liability','equity','revenue','expense') NOT NULL,
+  `balance` DECIMAL(15,2) DEFAULT 0.00,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_gl_tenant_code` (`tenant_id`, `code`),
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  INDEX `idx_gl_type` (`type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Journal Entries (header for each balanced set of debit/credit lines)
+CREATE TABLE IF NOT EXISTS `journal_entries` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `transaction_id` CHAR(36) DEFAULT NULL,
+  `description` VARCHAR(500) DEFAULT NULL,
+  `total_amount` DECIMAL(15,2) NOT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  INDEX `idx_je_tenant` (`tenant_id`),
+  INDEX `idx_je_transaction` (`transaction_id`),
+  INDEX `idx_je_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Journal Entry Lines (individual debit/credit lines within an entry)
+CREATE TABLE IF NOT EXISTS `journal_entry_lines` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `journal_entry_id` CHAR(36) NOT NULL,
+  `gl_account_code` VARCHAR(10) NOT NULL,
+  `debit` DECIMAL(15,2) DEFAULT 0.00,
+  `credit` DECIMAL(15,2) DEFAULT 0.00,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`journal_entry_id`) REFERENCES `journal_entries`(`id`) ON DELETE CASCADE,
+  INDEX `idx_jel_entry` (`journal_entry_id`),
+  INDEX `idx_jel_gl` (`gl_account_code`),
+  INDEX `idx_jel_tenant` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Loans
 CREATE TABLE `loans` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,

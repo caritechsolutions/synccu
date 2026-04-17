@@ -23,6 +23,7 @@ use App\Controllers\LoanController;
 use App\Controllers\TransactionController;
 use App\Controllers\TenantController;
 use App\Controllers\DocumentController;
+use App\Controllers\ReportController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\TenantMiddleware;
 use App\Middleware\RBACMiddleware;
@@ -197,6 +198,28 @@ $router->group([
     $router->get('/audit-logs',  [AdminController::class, 'auditLogs']);
     $router->get('/reports',     [AdminController::class, 'reports']);
     $router->get('/loan-stats',  [AdminController::class, 'loanStats']);
+});
+
+// ------------------------------------------------------------------
+// Report routes (admin/manager only, tenant-scoped)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/reports',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+        RBACMiddleware::class . ':admin,manager',
+        AuditMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/trial-balance',    [ReportController::class, 'trialBalance']);
+    $router->get('/general-ledger',   [ReportController::class, 'generalLedger']);
+    $router->get('/income-statement', [ReportController::class, 'incomeStatement']);
+    $router->get('/balance-sheet',    [ReportController::class, 'balanceSheet']);
+    $router->get('/member-growth',    [ReportController::class, 'memberGrowth']);
+    $router->get('/delinquency',      [ReportController::class, 'delinquency']);
+    $router->get('/export',           [ReportController::class, 'export']);
 });
 
 // ------------------------------------------------------------------
