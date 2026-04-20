@@ -146,12 +146,16 @@ final class AccountController
                         'Initial deposit',
                         $request->getAttribute('user_id'),
                     );
-                    // Refresh account to get updated balance
-                    $account = $this->accounts->findById($account['id']);
                 } catch (\Throwable $e) {
-                    // Account was created but deposit failed - still return the account
-                    $account['_deposit_error'] = $e->getMessage();
+                    error_log('Initial deposit failed for account ' . $account['id'] . ': ' . $e->getMessage());
+                    // Fallback: update balance directly so the member isn't left at zero
+                    try {
+                        $this->accounts->updateBalance($account['id'], $initialDeposit);
+                    } catch (\Throwable $e2) {
+                        error_log('Fallback balance update also failed: ' . $e2->getMessage());
+                    }
                 }
+                $account = $this->accounts->findById($account['id']);
             }
 
             return Response::created($account, 'Account created successfully');
