@@ -25,6 +25,7 @@ final class LoanService
         $this->accounts = new AccountService();
         $this->ledger   = new LedgerService();
         $this->ensureLateFeeCols();
+        $this->ensureLoanTransactionSchema();
     }
 
     // ------------------------------------------------------------------
@@ -128,9 +129,9 @@ final class LoanService
             $txnId = $this->generateUuid();
             $this->db->query(
                 'INSERT INTO transactions
-                    (id, tenant_id, reference_number, type, status, amount, currency,
-                     to_account_id, user_id, description, created_at, completed_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    (id, tenant_id, reference_number, type, status, amount,
+                     account_id, processed_by, description, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $loan['tenant_id'],
@@ -138,11 +139,9 @@ final class LoanService
                     'loan_disbursement',
                     'completed',
                     $principal,
-                    'USD',
                     $loan['account_id'],
-                    $loan['user_id'],
+                    $approvedBy,
                     "Loan disbursement - {$loan['loan_type']}",
-                    $now,
                     $now,
                 ],
             );
@@ -248,9 +247,9 @@ final class LoanService
             $txnId = $this->generateUuid();
             $this->db->query(
                 'INSERT INTO transactions
-                    (id, tenant_id, reference_number, type, status, amount, currency,
-                     from_account_id, user_id, description, metadata, created_at, completed_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    (id, tenant_id, reference_number, type, status, amount,
+                     account_id, processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $loan['tenant_id'],
@@ -258,12 +257,10 @@ final class LoanService
                     'loan_payment',
                     'completed',
                     $amount,
-                    'USD',
                     $fromAccountId,
                     $userId,
                     "Loan payment - principal: {$principalPortion}, interest: {$interestPortion}",
                     json_encode(['principal' => $principalPortion, 'interest' => $interestPortion, 'loan_id' => $loanId]),
-                    $now,
                     $now,
                 ],
             );
@@ -426,9 +423,9 @@ final class LoanService
 
             $this->db->query(
                 'INSERT INTO transactions
-                    (id, tenant_id, reference_number, type, status, amount, currency,
-                     user_id, description, created_at, completed_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    (id, tenant_id, reference_number, type, status, amount,
+                     processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $loan['tenant_id'],
@@ -436,10 +433,9 @@ final class LoanService
                     'late_fee',
                     'completed',
                     $feeAmount,
-                    'USD',
                     $loan['user_id'],
                     "Late fee on loan {$loan['loan_number']}",
-                    $now,
+                    json_encode(['category' => 'late_fee', 'loan_id' => $loanId]),
                     $now,
                 ],
             );
@@ -613,6 +609,28 @@ final class LoanService
     // ------------------------------------------------------------------
     // Schema Migration Helpers
     // ------------------------------------------------------------------
+
+    /**
+     * Ensure the transactions table supports loan_disbursement, loan_payment, and late_fee types.
+     */
+    private function ensureLoanTransactionSchema(): void
+    {
+        static $checked = false;
+        if ($checked) {
+            return;
+        }
+        try {
+            $this->db->query(
+                "ALTER TABLE transactions
+                 MODIFY COLUMN `type` ENUM('deposit','withdrawal','transfer','payment','fee','late_fee','interest','adjustment','loan_disbursement','loan_payment','expense') NOT NULL,
+                 MODIFY COLUMN `account_id` CHAR(36) DEFAULT NULL,
+                 MODIFY COLUMN `balance_after` DECIMAL(15,2) DEFAULT NULL"
+            );
+        } catch (\Throwable $e) {
+            error_log('Loan transaction schema migration note: ' . $e->getMessage());
+        }
+        $checked = true;
+    }
 
     /**
      * Ensure late-fee and extended columns exist on loans / loan_schedules.
