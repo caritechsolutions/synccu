@@ -7,25 +7,20 @@ namespace App\Controllers;
 use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
-use App\Core\Validator;
-use App\Services\LedgerService;
 
 /**
  * Report REST controller.
  *
- * Provides GL-based financial reports (trial balance, income statement,
- * balance sheet), member growth analytics, delinquency views, and CSV
- * export for the current tenant.
+ * Financial reports computed on-the-fly from the transactions table,
+ * member growth analytics, delinquency views, and CSV export.
  */
 final class ReportController
 {
     private Database $db;
-    private LedgerService $ledger;
 
     public function __construct()
     {
         $this->db = Database::getInstance();
-        $this->ledger = new LedgerService();
     }
 
     // ------------------------------------------------------------------
@@ -373,123 +368,6 @@ final class ReportController
     }
 
     // ------------------------------------------------------------------
-    // Journal Entry & Chart of Accounts
-    // ------------------------------------------------------------------
-
-    /**
-     * POST /api/v1/reports/journal-entry
-     *
-     * Create a manual journal entry with balanced debit/credit lines.
-     */
-    public function createJournalEntry(Request $request): Response
-    {
-        $validator = new Validator($request->all(), [
-            'description' => 'required|string|max:500',
-            'lines'       => 'required|array|min:2',
-        ]);
-
-        if ($validator->fails()) {
-            return Response::validationError($validator->errors());
-        }
-
-        $lines = $request->input('lines', []);
-        if (!is_array($lines) || count($lines) < 2) {
-            return Response::error('At least 2 journal entry lines are required', 422);
-        }
-
-        // Validate each line
-        foreach ($lines as $i => $line) {
-            if (empty($line['account_code']) || !is_string($line['account_code'])) {
-                return Response::error("Line {$i}: account_code is required", 422);
-            }
-            $debit  = (float) ($line['debit'] ?? 0);
-            $credit = (float) ($line['credit'] ?? 0);
-            if ($debit <= 0 && $credit <= 0) {
-                return Response::error("Line {$i}: each line must have either debit or credit > 0", 422);
-            }
-            if ($debit > 0 && $credit > 0) {
-                return Response::error("Line {$i}: a line cannot have both debit and credit > 0", 422);
-            }
-        }
-
-        try {
-            $transactionId = 'manual-' . $this->generateUuid();
-            $entryId = $this->ledger->createEntry(
-                $transactionId,
-                $request->input('description'),
-                $lines,
-            );
-
-            return Response::created(['id' => $entryId], 'Journal entry created successfully');
-        } catch (\RuntimeException $e) {
-            $code = $e->getCode() >= 400 ? $e->getCode() : 422;
-            return Response::error($e->getMessage(), $code);
-        }
-    }
-
-    /**
-     * GET /api/v1/reports/chart-of-accounts
-     *
-     * List all GL accounts for the current tenant with balances.
-     */
-    public function chartOfAccounts(Request $request): Response
-    {
-        $tenantId = $this->db->getTenantId();
-
-        $accounts = $this->db->fetchAll(
-            'SELECT id, code, name, type, balance, created_at, updated_at
-             FROM gl_accounts
-             WHERE tenant_id = ?
-             ORDER BY code',
-            [$tenantId]
-        );
-
-        return Response::ok($accounts);
-    }
-
-    /**
-     * POST /api/v1/reports/chart-of-accounts
-     *
-     * Create a new GL account.
-     */
-    public function createGlAccount(Request $request): Response
-    {
-        $validator = new Validator($request->all(), [
-            'code' => 'required|string|max:10',
-            'name' => 'required|string|max:100',
-            'type' => 'required|in:asset,liability,equity,revenue,expense',
-        ]);
-
-        if ($validator->fails()) {
-            return Response::validationError($validator->errors());
-        }
-
-        $code = $request->input('code');
-        if (!preg_match('/^[a-zA-Z0-9]+$/', $code)) {
-            return Response::error('Account code must be alphanumeric', 422);
-        }
-
-        try {
-            // Check if account code already exists
-            $existing = $this->ledger->getGlAccount($code);
-            if ($existing) {
-                return Response::error('An account with this code already exists', 409);
-            }
-
-            $account = $this->ledger->createGlAccount(
-                $code,
-                $request->input('name'),
-                $request->input('type'),
-            );
-
-            return Response::created($account, 'GL account created successfully');
-        } catch (\RuntimeException $e) {
-            $code = $e->getCode() >= 400 ? $e->getCode() : 422;
-            return Response::error($e->getMessage(), $code);
-        }
-    }
-
-    // ------------------------------------------------------------------
     // Growth & Analytics
     // ------------------------------------------------------------------
 
@@ -813,11 +691,4 @@ final class ReportController
         return $to;
     }
 
-    private function generateUuid(): string
-    {
-        $data = random_bytes(16);
-        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
-        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-    }
 }

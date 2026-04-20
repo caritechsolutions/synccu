@@ -223,9 +223,6 @@ $router->group([
     $router->get('/member-growth',      [ReportController::class, 'memberGrowth']);
     $router->get('/delinquency',        [ReportController::class, 'delinquency']);
     $router->get('/export',             [ReportController::class, 'export']);
-    $router->post('/journal-entry',     [ReportController::class, 'createJournalEntry']);
-    $router->get('/chart-of-accounts',  [ReportController::class, 'chartOfAccounts']);
-    $router->post('/chart-of-accounts', [ReportController::class, 'createGlAccount']);
 });
 
 // ------------------------------------------------------------------

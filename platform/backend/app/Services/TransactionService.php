@@ -10,21 +10,19 @@ use RuntimeException;
 /**
  * Transaction processing service.
  *
- * Handles deposits, withdrawals, and transfers between accounts.
- * Every transaction creates double-entry ledger entries and runs
- * inside a database transaction for full atomicity.
+ * Handles deposits, withdrawals, transfers, fees, adjustments, and expenses.
+ * All financial activity is recorded in the transactions table; reports are
+ * computed on-the-fly from that single source of truth.
  */
 final class TransactionService
 {
     private Database $db;
     private AccountService $accounts;
-    private LedgerService $ledger;
 
     public function __construct()
     {
         $this->db       = Database::getInstance();
         $this->accounts = new AccountService();
-        $this->ledger   = new LedgerService();
     }
 
     // ------------------------------------------------------------------
@@ -90,9 +88,6 @@ final class TransactionService
 
             $this->accounts->updateBalance($accountId, $amount);
 
-            $this->tryLedgerEntry($txnId, "Deposit to account {$account['account_number']}",
-                LedgerService::GL_MEMBER_DEPOSITS, $this->glAccountForType($account['account_type']), $amount);
-
             return $this->findById($txnId);
         });
     }
@@ -146,9 +141,6 @@ final class TransactionService
             );
 
             $this->accounts->updateBalance($accountId, -$amount);
-
-            $this->tryLedgerEntry($txnId, "Withdrawal from account {$account['account_number']}",
-                $this->glAccountForType($account['account_type']), LedgerService::GL_MEMBER_DEPOSITS, $amount);
 
             return $this->findById($txnId);
         });
@@ -234,12 +226,6 @@ final class TransactionService
             $this->accounts->updateBalance($fromAccountId, -$amount);
             $this->accounts->updateBalance($toAccountId, $amount);
 
-            $fromGl = $this->glAccountForType($fromAccount['account_type']);
-            $toGl   = $this->glAccountForType($toAccount['account_type']);
-            $this->tryLedgerEntry($txnId,
-                "Transfer {$fromAccount['account_number']} -> {$toAccount['account_number']}",
-                $toGl, $fromGl, $amount);
-
             return $this->findById($txnId);
         });
     }
@@ -294,10 +280,6 @@ final class TransactionService
             );
 
             $this->accounts->updateBalance($accountId, -$amount);
-
-            // Debit member liability GL, credit Fee Income
-            $this->tryLedgerEntry($txnId, "Fee charged on account {$account['account_number']}",
-                $this->glAccountForType($account['account_type']), LedgerService::GL_FEE_INCOME, $amount);
 
             return $this->findById($txnId);
         });
@@ -358,18 +340,6 @@ final class TransactionService
             );
 
             $this->accounts->updateBalance($accountId, $amount);
-
-            $memberGl = $this->glAccountForType($account['account_type']);
-
-            if ($amount > 0) {
-                // Credit adjustment: increase member balance
-                $this->tryLedgerEntry($txnId, "Credit adjustment on account {$account['account_number']}",
-                    LedgerService::GL_OPERATING_EXPENSE, $memberGl, $absAmount);
-            } else {
-                // Debit adjustment: decrease member balance
-                $this->tryLedgerEntry($txnId, "Debit adjustment on account {$account['account_number']}",
-                    $memberGl, LedgerService::GL_OPERATING_EXPENSE, $absAmount);
-            }
 
             return $this->findById($txnId);
         });
@@ -433,15 +403,6 @@ final class TransactionService
                 $metadata,
                 $now,
             ],
-        );
-
-        // Ledger: debit Operating Expense, credit Cash/Bank (Operating Expense)
-        $this->tryLedgerEntry(
-            $txnId,
-            ucfirst(str_replace('_', ' ', $category)) . ' expense',
-            LedgerService::GL_OPERATING_EXPENSE,
-            LedgerService::GL_OPERATING_EXPENSE,
-            $amount,
         );
 
         return $this->findById($txnId);
@@ -536,18 +497,6 @@ final class TransactionService
     // Helpers
     // ------------------------------------------------------------------
 
-    /**
-     * Try to create ledger entries. Failure is non-fatal.
-     */
-    private function tryLedgerEntry(string $txnId, string $desc, string $debit, string $credit, float $amount): void
-    {
-        try {
-            $this->ledger->createDoubleEntry($txnId, $desc, $debit, $credit, $amount);
-        } catch (\Throwable $e) {
-            error_log('Ledger entry failed: ' . $e->getMessage());
-        }
-    }
-
     private function assertAccountActive(array $account): void
     {
         if ($account['status'] !== 'active') {
@@ -560,20 +509,6 @@ final class TransactionService
         if ((float) $account['available_balance'] < $amount) {
             throw new RuntimeException('Insufficient funds.', 422);
         }
-    }
-
-    /**
-     * Map an account type to its GL account code.
-     */
-    private function glAccountForType(string $accountType): string
-    {
-        return match ($accountType) {
-            'savings'       => LedgerService::GL_MEMBER_SAVINGS,
-            'checking'      => LedgerService::GL_MEMBER_CHECKING,
-            'shares'        => LedgerService::GL_MEMBER_SHARES,
-            'loan'          => LedgerService::GL_LOAN_RECEIVABLE,
-            default         => LedgerService::GL_MEMBER_SAVINGS,
-        };
     }
 
     /**

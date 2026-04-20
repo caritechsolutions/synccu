@@ -17,13 +17,11 @@ final class LoanService
 {
     private Database $db;
     private AccountService $accounts;
-    private LedgerService $ledger;
 
     public function __construct()
     {
         $this->db       = Database::getInstance();
         $this->accounts = new AccountService();
-        $this->ledger   = new LedgerService();
         $this->ensureLateFeeCols();
         $this->ensureLoanTransactionSchema();
     }
@@ -152,14 +150,6 @@ final class LoanService
                     "Loan disbursement - {$loan['loan_type']} #{$loan['loan_number']}",
                     $now,
                 ],
-            );
-
-            $this->ledger->createDoubleEntry(
-                $txnId,
-                "Loan disbursement #{$loan['loan_number']}",
-                LedgerService::GL_LOAN_RECEIVABLE,
-                LedgerService::GL_MEMBER_DEPOSITS,
-                $principal,
             );
 
             $this->generateSchedule($loanId, $loan);
@@ -308,26 +298,6 @@ final class LoanService
                     $now,
                 ],
             );
-
-            if ($principalPortion > 0) {
-                $this->ledger->createDoubleEntry(
-                    $txnId,
-                    "Loan principal payment #{$loan['loan_number']}",
-                    LedgerService::GL_MEMBER_DEPOSITS,
-                    LedgerService::GL_LOAN_RECEIVABLE,
-                    $principalPortion,
-                );
-            }
-
-            if ($interestPortion > 0) {
-                $this->ledger->createDoubleEntry(
-                    $txnId,
-                    "Loan interest payment #{$loan['loan_number']}",
-                    LedgerService::GL_MEMBER_DEPOSITS,
-                    LedgerService::GL_LOAN_INTEREST_INCOME,
-                    $interestPortion,
-                );
-            }
 
             return [
                 'payment_id'   => $txnId,
@@ -489,15 +459,6 @@ final class LoanService
                 'outstanding_balance' => (float) $loan['outstanding_balance'] + $feeAmount,
                 'updated_at'          => $now,
             ], ['id' => $loanId]);
-
-            // GL entry: debit Member Deposits (cash in), credit Late Fee Income
-            $this->ledger->createDoubleEntry(
-                $txnId,
-                "Late fee charged on loan #{$loanId}",
-                LedgerService::GL_MEMBER_DEPOSITS,
-                LedgerService::GL_LATE_FEE_INCOME,
-                $feeAmount,
-            );
 
             return [
                 'transaction_id' => $txnId,
