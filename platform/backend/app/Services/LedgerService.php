@@ -17,15 +17,29 @@ use RuntimeException;
 final class LedgerService
 {
     private Database $db;
+    private bool $initialized = false;
 
     public function __construct()
     {
         $this->db = Database::getInstance();
         try {
             $this->ensureTables();
-            $this->ensureDefaultAccounts();
         } catch (\Throwable) {
-            // Ignore — tables may already exist or DB not yet available.
+        }
+    }
+
+    private function ensureInitialized(): void
+    {
+        if ($this->initialized) {
+            return;
+        }
+        $this->initialized = true;
+        $tenantId = $this->db->getTenantId();
+        if ($tenantId !== null && $tenantId !== '') {
+            try {
+                $this->ensureDefaultAccounts();
+            } catch (\Throwable) {
+            }
         }
     }
 
@@ -46,6 +60,7 @@ final class LedgerService
      */
     public function createEntry(string $transactionId, string $description, array $lines, ?string $tenantId = null): string
     {
+        $this->ensureInitialized();
         $tenantId = $tenantId ?? $this->db->getTenantId();
 
         // Validate that debits equal credits
@@ -184,6 +199,7 @@ final class LedgerService
      */
     public function trialBalance(?string $tenantId = null): array
     {
+        $this->ensureInitialized();
         $tenantId = $tenantId ?? $this->db->getTenantId();
 
         $accounts = $this->db->fetchAll(

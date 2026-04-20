@@ -298,8 +298,8 @@ final class TransactionService
     {
         try {
             $this->ledger->createDoubleEntry($txnId, $desc, $debit, $credit, $amount);
-        } catch (\Throwable) {
-            // Ledger tables may not exist yet; don't break the transaction
+        } catch (\Throwable $e) {
+            error_log('Ledger entry failed: ' . $e->getMessage());
         }
     }
 
