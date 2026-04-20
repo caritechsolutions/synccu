@@ -40,6 +40,14 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Parse flags
+RESET_DB=0
+for arg in "$@"; do
+    case "$arg" in
+        --reset-db) RESET_DB=1 ;;
+    esac
+done
+
 ################################################################################
 # 1. Find installation
 ################################################################################
@@ -153,36 +161,83 @@ rm -rf "$DOWNLOAD_DIR"
 success "Platform files updated"
 
 ################################################################################
-# 5. Run database migrations
+# 5. Run database migrations / reset
 ################################################################################
-step "Running database migrations..."
 
-MIGRATION_DIR="$INSTALL_DIR/platform/database/migrations"
-MIGRATION_TRACKER="$INSTALL_DIR/platform/database/.migrations_applied"
+if [ "$RESET_DB" -eq 1 ]; then
+    step "Resetting database (preserving login credentials)..."
 
-if [ -d "$MIGRATION_DIR" ] && ls "$MIGRATION_DIR"/*.sql &>/dev/null 2>&1; then
-    touch "$MIGRATION_TRACKER"
-    APPLIED=0
+    # Save users and tenants
+    RESET_TMP=$(mktemp -d)
+    $DUMP_CMD "$DB_NAME" users tenants --single-transaction --no-create-info 2>/dev/null > "$RESET_TMP/users_tenants.sql" || true
 
-    for migration in "$MIGRATION_DIR"/*.sql; do
-        NAME=$(basename "$migration")
-        if grep -qF "$NAME" "$MIGRATION_TRACKER" 2>/dev/null; then
-            continue
-        fi
-        info "Applying: $NAME"
-        $MYSQL_CMD "$DB_NAME" < "$migration" && {
-            echo "$NAME" >> "$MIGRATION_TRACKER"
-            success "Applied: $NAME"
-            APPLIED=$((APPLIED + 1))
-        } || {
-            error "Migration failed: $NAME"
-            exit 1
-        }
-    done
+    # Drop and recreate
+    $MYSQL_CMD -e "DROP DATABASE IF EXISTS \`${DB_NAME}\`; CREATE DATABASE \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    success "Database dropped and recreated"
 
-    [ $APPLIED -eq 0 ] && info "No new migrations" || success "$APPLIED migration(s) applied"
+    # Import fresh schema
+    SCHEMA_FILE="$INSTALL_DIR/platform/database/schema.sql"
+    if [ -f "$SCHEMA_FILE" ]; then
+        $MYSQL_CMD "$DB_NAME" < "$SCHEMA_FILE"
+        success "Fresh schema imported"
+    fi
+
+    # Run post-schema migrations
+    $MYSQL_CMD "$DB_NAME" <<-'EOSQL'
+        ALTER TABLE `transactions`
+            MODIFY COLUMN `type` ENUM('deposit','withdrawal','transfer','payment','fee','late_fee','interest','adjustment','loan_disbursement','loan_payment','expense') NOT NULL,
+            MODIFY COLUMN `account_id` CHAR(36) DEFAULT NULL,
+            MODIFY COLUMN `balance_after` DECIMAL(15,2) DEFAULT NULL;
+        ALTER TABLE `loans` MODIFY COLUMN `account_id` CHAR(36) DEFAULT NULL;
+EOSQL
+    success "Migrations applied"
+
+    # Import seed data
+    SEED_FILE="$INSTALL_DIR/platform/database/seed.sql"
+    if [ -f "$SEED_FILE" ]; then
+        $MYSQL_CMD "$DB_NAME" < "$SEED_FILE"
+        success "Seed data imported"
+    fi
+
+    # Restore saved users/tenants (IGNORE duplicates from seed)
+    if [ -f "$RESET_TMP/users_tenants.sql" ] && [ -s "$RESET_TMP/users_tenants.sql" ]; then
+        # Convert INSERT to INSERT IGNORE to skip seed duplicates
+        sed 's/INSERT INTO/INSERT IGNORE INTO/g' "$RESET_TMP/users_tenants.sql" | $MYSQL_CMD "$DB_NAME"
+        success "Login credentials restored"
+    fi
+
+    rm -rf "$RESET_TMP"
+    success "Database reset complete"
 else
-    info "No migrations to run"
+    step "Running database migrations..."
+
+    MIGRATION_DIR="$INSTALL_DIR/platform/database/migrations"
+    MIGRATION_TRACKER="$INSTALL_DIR/platform/database/.migrations_applied"
+
+    if [ -d "$MIGRATION_DIR" ] && ls "$MIGRATION_DIR"/*.sql &>/dev/null 2>&1; then
+        touch "$MIGRATION_TRACKER"
+        APPLIED=0
+
+        for migration in "$MIGRATION_DIR"/*.sql; do
+            NAME=$(basename "$migration")
+            if grep -qF "$NAME" "$MIGRATION_TRACKER" 2>/dev/null; then
+                continue
+            fi
+            info "Applying: $NAME"
+            $MYSQL_CMD "$DB_NAME" < "$migration" && {
+                echo "$NAME" >> "$MIGRATION_TRACKER"
+                success "Applied: $NAME"
+                APPLIED=$((APPLIED + 1))
+            } || {
+                error "Migration failed: $NAME"
+                exit 1
+            }
+        done
+
+        [ $APPLIED -eq 0 ] && info "No new migrations" || success "$APPLIED migration(s) applied"
+    else
+        info "No migrations to run"
+    fi
 fi
 
 ################################################################################

@@ -43,7 +43,7 @@ INSERT INTO `users` (`id`, `tenant_id`, `email`, `password_hash`, `first_name`, 
 INSERT INTO `accounts` (`id`, `tenant_id`, `user_id`, `account_number`, `account_type`, `name`, `balance`, `available_balance`, `currency`, `status`, `interest_rate`) VALUES
 ('a0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000010', '1000000001', 'savings', 'Primary Savings', 15250.75, 15250.75, 'USD', 'active', 0.0250),
 ('a0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000010', '1000000002', 'checking', 'Daily Checking', 3420.50, 3420.50, 'USD', 'active', 0.0010),
-('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000010', '1000000003', 'loan', 'Auto Loan', -18500.00, 0.00, 'USD', 'active', 0.0425);
+('a0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000010', '1000000003', 'loan', 'Auto Loan - LN-2025-000001', 18500.00, 18500.00, 'USD', 'active', 0.0425);
 
 -- Bob Smith's accounts (Default tenant)
 INSERT INTO `accounts` (`id`, `tenant_id`, `user_id`, `account_number`, `account_type`, `name`, `balance`, `available_balance`, `currency`, `status`, `interest_rate`) VALUES
@@ -87,7 +87,7 @@ INSERT INTO `transactions` (`id`, `tenant_id`, `account_id`, `type`, `amount`, `
 
 INSERT INTO `loans` (`id`, `tenant_id`, `user_id`, `account_id`, `loan_number`, `loan_type`, `principal_amount`, `interest_rate`, `term_months`, `monthly_payment`, `outstanding_balance`, `disbursed_amount`, `total_paid`, `status`, `approved_by`, `approved_at`, `disbursed_at`, `next_payment_date`, `maturity_date`) VALUES
 ('l0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000010', 'a0000000-0000-0000-0000-000000000003', 'LN-2025-000001', 'auto', 25000.00, 0.0425, 60, 463.58, 18500.00, 25000.00, 6500.00, 'active', '10000000-0000-0000-0000-000000000002', '2025-06-15 10:00:00', '2025-06-20 14:00:00', '2026-04-20', '2030-06-20'),
-('l0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000012', 'a0000000-0000-0000-0000-000000000008', 'LN-2026-000001', 'personal', 5000.00, 0.0850, 24, 226.14, 5000.00, 0.00, 0.00, 'approved', '10000000-0000-0000-0000-000000000002', '2026-03-25 11:30:00', NULL, NULL, '2028-03-25');
+('l0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000012', NULL, 'LN-2026-000001', 'personal', 5000.00, 0.0850, 24, 226.14, 5000.00, 0.00, 0.00, 'application', NULL, NULL, NULL, NULL, NULL);
 
 -- ============================================================
 -- Loan Schedules (first 3 payments for Alice's auto loan)
