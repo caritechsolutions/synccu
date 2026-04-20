@@ -269,6 +269,37 @@ final class TransactionController
     }
 
     /**
+     * POST /api/v1/transactions/expense
+     *
+     * Record an operating expense (admin/manager only).
+     */
+    public function recordExpense(Request $request): Response
+    {
+        $validator = new Validator($request->all(), [
+            'category'    => 'required|string',
+            'amount'      => 'required|numeric|positive',
+            'description' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        try {
+            $txn = $this->transactions->recordExpense(
+                $request->input('category'),
+                (float) $request->input('amount'),
+                $request->input('description', ''),
+                $request->getAttribute('user_id'),
+            );
+
+            return Response::created($txn, 'Expense recorded');
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+        }
+    }
+
+    /**
      * GET /api/transactions/{id}
      */
     public function show(Request $request): Response

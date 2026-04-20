@@ -249,8 +249,8 @@ final class LoanService
             $this->db->query(
                 'INSERT INTO transactions
                     (id, tenant_id, reference_number, type, status, amount, currency,
-                     from_account_id, user_id, description, created_at, completed_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     from_account_id, user_id, description, metadata, created_at, completed_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $loan['tenant_id'],
@@ -262,6 +262,7 @@ final class LoanService
                     $fromAccountId,
                     $userId,
                     "Loan payment - principal: {$principalPortion}, interest: {$interestPortion}",
+                    json_encode(['principal' => $principalPortion, 'interest' => $interestPortion, 'loan_id' => $loanId]),
                     $now,
                     $now,
                 ],

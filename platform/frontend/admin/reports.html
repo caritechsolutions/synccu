@@ -134,6 +134,11 @@
           <h4>Member Growth</h4>
           <p>Membership and account trends</p>
         </button>
+        <button class="report-card" data-report="record-expense">
+          <div class="report-card-icon"><svg><use href="#icon-dollar"/></svg></div>
+          <h4>Record Expense</h4>
+          <p>Log operating costs and expenses</p>
+        </button>
         <button class="report-card" data-report="journal-entry">
           <div class="report-card-icon"><svg><use href="#icon-file-text"/></svg></div>
           <h4>Journal Entry</h4>
@@ -231,6 +236,7 @@
           case 'loan-portfolio':   await renderLoanPortfolio(); break;
           case 'delinquency':      await renderDelinquency(); break;
           case 'member-growth':      await renderMemberGrowth(from, to); break;
+          case 'record-expense':     renderExpenseForm(); break;
           case 'journal-entry':      await renderJournalEntry(); break;
           case 'chart-of-accounts':  await renderChartOfAccounts(); break;
           default: el.innerHTML = '<p style="text-align:center;padding:2rem">Unknown report type.</p>';
@@ -266,19 +272,21 @@
         </div>
         <div class="table-responsive" style="margin-top:1.5rem">
           <table class="data-table">
-            <thead><tr><th>Account Code</th><th>Account Name</th><th>Amount</th></tr></thead>
+            <thead><tr><th>Category</th><th style="text-align:right">Amount</th></tr></thead>
             <tbody>
-              <tr><td colspan="3"><strong>Revenue</strong></td></tr>`;
+              <tr><td colspan="2"><strong>Revenue</strong></td></tr>`;
       (d.revenue || []).forEach(r => {
-        html += `<tr><td class="font-mono">${r.code}</td><td style="padding-left:2rem">${r.name}</td><td>${fmt(r.net_amount)}</td></tr>`;
+        html += `<tr><td style="padding-left:2rem">${r.name}</td><td style="text-align:right">${fmt(r.amount)}</td></tr>`;
       });
-      html += `<tr style="border-top:2px solid var(--border)"><td></td><td><strong>Total Revenue</strong></td><td><strong>${fmt(d.total_revenue)}</strong></td></tr>
-              <tr><td colspan="3"><strong>Expenses</strong></td></tr>`;
+      if (!(d.revenue || []).length) html += '<tr><td colspan="2" style="padding-left:2rem;color:var(--text-muted)">No revenue recorded</td></tr>';
+      html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Revenue</strong></td><td style="text-align:right"><strong>${fmt(d.total_revenue)}</strong></td></tr>
+              <tr><td colspan="2"><strong>Expenses</strong></td></tr>`;
       (d.expenses || []).forEach(r => {
-        html += `<tr><td class="font-mono">${r.code}</td><td style="padding-left:2rem">${r.name}</td><td>${fmt(r.net_amount)}</td></tr>`;
+        html += `<tr><td style="padding-left:2rem">${r.name}</td><td style="text-align:right">${fmt(r.amount)}</td></tr>`;
       });
-      html += `<tr style="border-top:2px solid var(--border)"><td></td><td><strong>Total Expenses</strong></td><td><strong>${fmt(d.total_expenses)}</strong></td></tr>
-              <tr style="border-top:3px double var(--border)"><td></td><td><strong>Net Income</strong></td><td><strong>${fmt(d.net_income)}</strong></td></tr>
+      if (!(d.expenses || []).length) html += '<tr><td colspan="2" style="padding-left:2rem;color:var(--text-muted)">No expenses recorded</td></tr>';
+      html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Expenses</strong></td><td style="text-align:right"><strong>${fmt(d.total_expenses)}</strong></td></tr>
+              <tr style="border-top:3px double var(--border)"><td><strong>Net Income</strong></td><td style="text-align:right"><strong>${fmt(d.net_income)}</strong></td></tr>
             </tbody></table></div>`;
       el.innerHTML = html;
     }
@@ -309,24 +317,24 @@
         </div>
         <div class="table-responsive" style="margin-top:1.5rem">
           <table class="data-table">
-            <thead><tr><th>Account Code</th><th>Account Name</th><th>Balance</th></tr></thead>
+            <thead><tr><th>Category</th><th style="text-align:right">Balance</th></tr></thead>
             <tbody>
-              <tr><td colspan="3"><strong>Assets</strong></td></tr>`;
+              <tr><td colspan="2"><strong>Assets</strong></td></tr>`;
       (d.assets || []).forEach(a => {
-        html += `<tr><td class="font-mono">${a.code}</td><td style="padding-left:2rem">${a.name}</td><td>${fmt(a.balance)}</td></tr>`;
+        html += `<tr><td style="padding-left:2rem">${a.name}</td><td style="text-align:right">${fmt(a.balance)}</td></tr>`;
       });
-      html += `<tr style="border-top:2px solid var(--border)"><td></td><td><strong>Total Assets</strong></td><td><strong>${fmt(d.total_assets)}</strong></td></tr>
-              <tr><td colspan="3"><strong>Liabilities</strong></td></tr>`;
+      html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Assets</strong></td><td style="text-align:right"><strong>${fmt(d.total_assets)}</strong></td></tr>
+              <tr><td colspan="2"><strong>Liabilities</strong></td></tr>`;
       (d.liabilities || []).forEach(a => {
-        html += `<tr><td class="font-mono">${a.code}</td><td style="padding-left:2rem">${a.name}</td><td>${fmt(Math.abs(a.balance))}</td></tr>`;
+        html += `<tr><td style="padding-left:2rem">${a.name}</td><td style="text-align:right">${fmt(a.balance)}</td></tr>`;
       });
-      html += `<tr style="border-top:2px solid var(--border)"><td></td><td><strong>Total Liabilities</strong></td><td><strong>${fmt(d.total_liabilities)}</strong></td></tr>
-              <tr><td colspan="3"><strong>Equity</strong></td></tr>`;
+      html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Liabilities</strong></td><td style="text-align:right"><strong>${fmt(d.total_liabilities)}</strong></td></tr>
+              <tr><td colspan="2"><strong>Equity</strong></td></tr>`;
       (d.equity || []).forEach(a => {
-        html += `<tr><td class="font-mono">${a.code}</td><td style="padding-left:2rem">${a.name}</td><td>${fmt(Math.abs(a.balance))}</td></tr>`;
+        html += `<tr><td style="padding-left:2rem">${a.name}</td><td style="text-align:right">${fmt(a.balance)}</td></tr>`;
       });
-      html += `<tr style="border-top:2px solid var(--border)"><td></td><td><strong>Total Equity</strong></td><td><strong>${fmt(d.total_equity)}</strong></td></tr>
-              <tr style="border-top:3px double var(--border)"><td></td><td><strong>Liabilities + Equity</strong></td><td><strong>${fmt(d.total_liabilities + d.total_equity)}</strong></td></tr>
+      html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Equity</strong></td><td style="text-align:right"><strong>${fmt(d.total_equity)}</strong></td></tr>
+              <tr style="border-top:3px double var(--border)"><td><strong>Liabilities + Equity</strong></td><td style="text-align:right"><strong>${fmt(d.total_liabilities + d.total_equity)}</strong></td></tr>
             </tbody></table></div>`;
       el.innerHTML = html;
     }
@@ -841,6 +849,64 @@
           msgEl.innerHTML = '<span style="color:#dc2626">' + e.message + '</span>';
           msgEl.style.display = 'block';
           document.getElementById('jePostBtn').disabled = false;
+        }
+      });
+    }
+
+    // === RECORD EXPENSE ===
+    function renderExpenseForm() {
+      const el = document.getElementById('reportContent');
+      const categories = [
+        ['rent', 'Rent'], ['payroll', 'Payroll'], ['utilities', 'Utilities'],
+        ['insurance', 'Insurance'], ['office_supplies', 'Office Supplies'],
+        ['technology', 'Technology'], ['marketing', 'Marketing'],
+        ['professional_services', 'Professional Services'], ['maintenance', 'Maintenance'],
+        ['travel', 'Travel'], ['training', 'Training'], ['regulatory', 'Regulatory'],
+        ['depreciation', 'Depreciation'], ['interest_paid', 'Interest Paid'], ['other', 'Other'],
+      ];
+      el.innerHTML = `
+        <div style="max-width:500px">
+          <h4 style="margin:0 0 1rem 0">Record an Expense</h4>
+          <form id="expenseForm">
+            <div class="form-group">
+              <label for="expCategory">Category</label>
+              <select id="expCategory" class="form-select" required>
+                <option value="">Select category...</option>
+                ${categories.map(([v, l]) => '<option value="' + v + '">' + l + '</option>').join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="expAmount">Amount</label>
+              <input type="number" id="expAmount" class="form-input" step="0.01" min="0.01" placeholder="0.00" required>
+            </div>
+            <div class="form-group">
+              <label for="expDesc">Description</label>
+              <input type="text" id="expDesc" class="form-input" placeholder="e.g. April office rent" maxlength="500">
+            </div>
+            <button type="submit" class="btn btn-primary">Record Expense</button>
+          </form>
+          <div id="expenseResult" style="margin-top:1rem"></div>
+        </div>`;
+      document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+          category: document.getElementById('expCategory').value,
+          amount: parseFloat(document.getElementById('expAmount').value),
+          description: document.getElementById('expDesc').value,
+        };
+        try {
+          const resp = await apiFetch('/api/v1/transactions/expense', {
+            method: 'POST', body: JSON.stringify(data),
+          });
+          const json = await resp.json().catch(() => ({}));
+          if (!resp.ok) {
+            document.getElementById('expenseResult').innerHTML = '<p style="color:#dc2626">Error: ' + (json.message || 'Failed') + '</p>';
+            return;
+          }
+          document.getElementById('expenseResult').innerHTML = '<p style="color:#16a34a;font-weight:600">Expense recorded. Ref: ' + (json.data?.reference_number || '') + '</p>';
+          document.getElementById('expenseForm').reset();
+        } catch (err) {
+          document.getElementById('expenseResult').innerHTML = '<p style="color:#dc2626">Network error: ' + err.message + '</p>';
         }
       });
     }

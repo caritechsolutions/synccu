@@ -362,6 +362,106 @@ final class TransactionService
     }
 
     // ------------------------------------------------------------------
+    // Expense
+    // ------------------------------------------------------------------
+
+    /**
+     * Record an operating expense transaction.
+     *
+     * Expense transactions are not tied to a member account. On first use
+     * the method self-heals the schema by making account_id / balance_after
+     * nullable and adding 'expense' to the type ENUM if needed.
+     */
+    public function recordExpense(
+        string $category,
+        float $amount,
+        string $description = '',
+        ?string $userId = null,
+    ): array {
+        if ($amount <= 0) {
+            throw new RuntimeException('Expense amount must be positive.', 422);
+        }
+
+        $validCategories = [
+            'rent', 'payroll', 'utilities', 'insurance', 'office_supplies',
+            'technology', 'marketing', 'professional_services', 'maintenance',
+            'travel', 'training', 'regulatory', 'depreciation', 'interest_paid', 'other',
+        ];
+
+        if (!in_array($category, $validCategories, true)) {
+            throw new RuntimeException('Invalid expense category.', 422);
+        }
+
+        // Self-heal: ensure the schema supports expense transactions.
+        $this->ensureExpenseSchema();
+
+        $txnId    = $this->generateUuid();
+        $refNo    = $this->generateReferenceNumber();
+        $now      = date('Y-m-d H:i:s');
+        $tenantId = $this->db->getTenantId();
+
+        $metadata = json_encode(['category' => $category]);
+
+        $this->db->query(
+            'INSERT INTO transactions
+                (id, tenant_id, reference_number, type, status, amount,
+                 processed_by, description, metadata, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $txnId,
+                $tenantId,
+                $refNo,
+                'expense',
+                'completed',
+                $amount,
+                $userId,
+                $description ?: ucfirst(str_replace('_', ' ', $category)) . ' expense',
+                $metadata,
+                $now,
+            ],
+        );
+
+        // Ledger: debit Operating Expense, credit Cash/Bank (Operating Expense)
+        $this->tryLedgerEntry(
+            $txnId,
+            ucfirst(str_replace('_', ' ', $category)) . ' expense',
+            LedgerService::GL_OPERATING_EXPENSE,
+            LedgerService::GL_OPERATING_EXPENSE,
+            $amount,
+        );
+
+        return $this->findById($txnId);
+    }
+
+    /**
+     * Ensure the transactions table supports expense records.
+     *
+     * Makes account_id and balance_after nullable and adds 'expense'
+     * to the type ENUM when running against a legacy schema.
+     */
+    private function ensureExpenseSchema(): void
+    {
+        static $checked = false;
+        if ($checked) {
+            return;
+        }
+
+        try {
+            $this->db->query(
+                "ALTER TABLE transactions
+                     MODIFY COLUMN `account_id` CHAR(36) DEFAULT NULL,
+                     MODIFY COLUMN `balance_after` DECIMAL(15,2) DEFAULT NULL,
+                     MODIFY COLUMN `type` ENUM('deposit','withdrawal','transfer','payment','fee','interest','adjustment','loan_disbursement','loan_payment','expense') NOT NULL"
+            );
+        } catch (\Throwable $e) {
+            // Schema already up-to-date or migration ran – safe to ignore.
+            error_log('Expense schema migration note: ' . $e->getMessage());
+        }
+
+        $checked = true;
+    }
+
+    // ------------------------------------------------------------------
     // Read
     // ------------------------------------------------------------------
 

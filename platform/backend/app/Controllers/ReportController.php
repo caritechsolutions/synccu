@@ -77,7 +77,7 @@ final class ReportController
     /**
      * GET /api/v1/reports/income-statement
      *
-     * Revenue and expense accounts for a date range.
+     * Revenue and expenses computed from the transactions table.
      */
     public function incomeStatement(Request $request): Response
     {
@@ -85,98 +85,161 @@ final class ReportController
         $from = $request->query('from', date('Y-m-01'));
         $to = $request->query('to', date('Y-m-d') . ' 23:59:59');
 
-        // Revenue accounts (type='revenue'): credit increases
-        $revenue = $this->db->fetchAll(
-            'SELECT ga.code, ga.name,
-                    COALESCE(SUM(jel.credit), 0) AS total_credits,
-                    COALESCE(SUM(jel.debit), 0) AS total_debits,
-                    COALESCE(SUM(jel.credit), 0) - COALESCE(SUM(jel.debit), 0) AS net_amount
-             FROM gl_accounts ga
-             LEFT JOIN journal_entry_lines jel ON jel.gl_account_code = ga.code AND jel.tenant_id = ga.tenant_id
-                 AND jel.created_at BETWEEN ? AND ?
-             WHERE ga.tenant_id = ? AND ga.type = ?
-             GROUP BY ga.code, ga.name
-             ORDER BY ga.code',
-            [$from, $to, $tenantId, 'revenue']
-        );
+        // --- Revenue ---
+        $revenue = [];
 
-        // Expense accounts (type='expense'): debit increases
-        $expenses = $this->db->fetchAll(
-            'SELECT ga.code, ga.name,
-                    COALESCE(SUM(jel.debit), 0) AS total_debits,
-                    COALESCE(SUM(jel.credit), 0) AS total_credits,
-                    COALESCE(SUM(jel.debit), 0) - COALESCE(SUM(jel.credit), 0) AS net_amount
-             FROM gl_accounts ga
-             LEFT JOIN journal_entry_lines jel ON jel.gl_account_code = ga.code AND jel.tenant_id = ga.tenant_id
-                 AND jel.created_at BETWEEN ? AND ?
-             WHERE ga.tenant_id = ? AND ga.type = ?
-             GROUP BY ga.code, ga.name
-             ORDER BY ga.code',
-            [$from, $to, $tenantId, 'expense']
+        // Loan interest income: extract from loan_payment metadata
+        $loanPayments = $this->db->fetchAll(
+            "SELECT metadata FROM transactions
+             WHERE tenant_id = ? AND type = 'loan_payment' AND status = 'completed'
+               AND created_at BETWEEN ? AND ?",
+            [$tenantId, $from, $to],
         );
+        $interestIncome = 0.0;
+        foreach ($loanPayments as $lp) {
+            $meta = json_decode($lp['metadata'] ?? '{}', true);
+            $interestIncome += (float) ($meta['interest'] ?? 0);
+        }
+        if ($interestIncome > 0) {
+            $revenue[] = ['name' => 'Loan Interest Income', 'amount' => round($interestIncome, 2)];
+        }
 
-        $totalRevenue = array_sum(array_column($revenue, 'net_amount'));
-        $totalExpenses = array_sum(array_column($expenses, 'net_amount'));
+        // Fee income
+        $feeIncome = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount), 0) FROM transactions
+             WHERE tenant_id = ? AND type = 'fee' AND status = 'completed'
+               AND created_at BETWEEN ? AND ?",
+            [$tenantId, $from, $to],
+        ) ?? 0);
+        if ($feeIncome > 0) {
+            $revenue[] = ['name' => 'Fee Income', 'amount' => round($feeIncome, 2)];
+        }
+
+        // Late fee income
+        $lateFeeIncome = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount), 0) FROM transactions
+             WHERE tenant_id = ? AND type = 'late_fee' AND status = 'completed'
+               AND created_at BETWEEN ? AND ?",
+            [$tenantId, $from, $to],
+        ) ?? 0);
+        if ($lateFeeIncome > 0) {
+            $revenue[] = ['name' => 'Late Fee Income', 'amount' => round($lateFeeIncome, 2)];
+        }
+
+        $totalRevenue = array_sum(array_column($revenue, 'amount'));
+
+        // --- Expenses ---
+        $expenseRows = $this->db->fetchAll(
+            "SELECT
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.category')), 'other') AS category,
+                SUM(amount) AS amount
+             FROM transactions
+             WHERE tenant_id = ? AND type = 'expense' AND status = 'completed'
+               AND created_at BETWEEN ? AND ?
+             GROUP BY category
+             ORDER BY amount DESC",
+            [$tenantId, $from, $to],
+        );
+        $expenses = [];
+        foreach ($expenseRows as $row) {
+            $expenses[] = [
+                'name'   => ucwords(str_replace('_', ' ', $row['category'])),
+                'amount' => round((float) $row['amount'], 2),
+            ];
+        }
+        $totalExpenses = array_sum(array_column($expenses, 'amount'));
 
         return Response::ok([
-            'revenue' => $revenue,
-            'expenses' => $expenses,
-            'total_revenue' => round($totalRevenue, 2),
+            'revenue'        => $revenue,
+            'expenses'       => $expenses,
+            'total_revenue'  => round($totalRevenue, 2),
             'total_expenses' => round($totalExpenses, 2),
-            'net_income' => round($totalRevenue - $totalExpenses, 2),
+            'net_income'     => round($totalRevenue - $totalExpenses, 2),
         ]);
     }
 
     /**
      * GET /api/v1/reports/balance-sheet
      *
-     * Assets, liabilities, and equity with balance check.
+     * Assets, liabilities, and equity computed from live data.
      */
     public function balanceSheet(Request $request): Response
     {
         $tenantId = $this->db->getTenantId();
 
-        $accounts = $this->db->fetchAll(
-            'SELECT ga.code, ga.name, ga.type, ga.balance
-             FROM gl_accounts ga
-             WHERE ga.tenant_id = ?
-             ORDER BY ga.code',
-            [$tenantId]
+        // --- Assets ---
+        // Cash & equivalents: total deposits held (sum of all account balances)
+        $cashOnHand = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(balance), 0) FROM accounts
+             WHERE tenant_id = ? AND status = 'active'",
+            [$tenantId],
+        ) ?? 0);
+
+        // Loan receivables: outstanding loan balances
+        $loanReceivables = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(outstanding_balance), 0) FROM loans
+             WHERE tenant_id = ? AND status IN ('active', 'delinquent', 'approved')",
+            [$tenantId],
+        ) ?? 0);
+
+        $assets = [
+            ['name' => 'Cash & Deposits', 'balance' => round($cashOnHand, 2)],
+            ['name' => 'Loan Receivables', 'balance' => round($loanReceivables, 2)],
+        ];
+        $totalAssets = round($cashOnHand + $loanReceivables, 2);
+
+        // --- Liabilities ---
+        // Member deposits: money owed back to members
+        $memberDeposits = $cashOnHand; // same as cash — member balances are our liability
+
+        $liabilities = [
+            ['name' => 'Member Deposits', 'balance' => round($memberDeposits, 2)],
+        ];
+        $totalLiabilities = round($memberDeposits, 2);
+
+        // --- Equity ---
+        // Retained earnings: cumulative net income (all-time revenue - expenses)
+        $allTimeRevenue = 0.0;
+
+        // Interest income from loan payments
+        $loanPayments = $this->db->fetchAll(
+            "SELECT metadata FROM transactions
+             WHERE tenant_id = ? AND type = 'loan_payment' AND status = 'completed'",
+            [$tenantId],
         );
-
-        $assets = [];
-        $liabilities = [];
-        $equity = [];
-        $totalAssets = 0;
-        $totalLiabilities = 0;
-        $totalEquity = 0;
-
-        foreach ($accounts as $a) {
-            $bal = (float) $a['balance'];
-            switch ($a['type']) {
-                case 'asset':
-                    $assets[] = $a;
-                    $totalAssets += $bal;
-                    break;
-                case 'liability':
-                    $liabilities[] = $a;
-                    $totalLiabilities += abs($bal);
-                    break;
-                case 'equity':
-                    $equity[] = $a;
-                    $totalEquity += abs($bal);
-                    break;
-            }
+        foreach ($loanPayments as $lp) {
+            $meta = json_decode($lp['metadata'] ?? '{}', true);
+            $allTimeRevenue += (float) ($meta['interest'] ?? 0);
         }
 
+        // Fee + late fee income
+        $allTimeRevenue += (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount), 0) FROM transactions
+             WHERE tenant_id = ? AND type IN ('fee', 'late_fee') AND status = 'completed'",
+            [$tenantId],
+        ) ?? 0);
+
+        $allTimeExpenses = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount), 0) FROM transactions
+             WHERE tenant_id = ? AND type = 'expense' AND status = 'completed'",
+            [$tenantId],
+        ) ?? 0);
+
+        $retainedEarnings = round($allTimeRevenue - $allTimeExpenses, 2);
+
+        $equity = [
+            ['name' => 'Retained Earnings', 'balance' => $retainedEarnings],
+        ];
+        $totalEquity = $retainedEarnings;
+
         return Response::ok([
-            'assets' => $assets,
-            'liabilities' => $liabilities,
-            'equity' => $equity,
-            'total_assets' => round($totalAssets, 2),
-            'total_liabilities' => round($totalLiabilities, 2),
-            'total_equity' => round($totalEquity, 2),
-            'balanced' => abs($totalAssets - ($totalLiabilities + $totalEquity)) < 0.01,
+            'assets'           => $assets,
+            'liabilities'      => $liabilities,
+            'equity'           => $equity,
+            'total_assets'     => $totalAssets,
+            'total_liabilities' => $totalLiabilities,
+            'total_equity'     => $totalEquity,
+            'balanced'         => abs($totalAssets - ($totalLiabilities + $totalEquity)) < 0.01,
         ]);
     }
 
@@ -438,42 +501,53 @@ final class ReportController
                 break;
 
             case 'income-statement':
-                $accounts = $this->db->fetchAll(
-                    'SELECT ga.code, ga.name, ga.type,
-                            COALESCE(SUM(jel.debit), 0) AS total_debits,
-                            COALESCE(SUM(jel.credit), 0) AS total_credits
-                     FROM gl_accounts ga
-                     LEFT JOIN journal_entry_lines jel ON jel.gl_account_code = ga.code AND jel.tenant_id = ga.tenant_id
-                         AND jel.created_at BETWEEN ? AND ?
-                     WHERE ga.tenant_id = ? AND ga.type IN (?, ?)
-                     GROUP BY ga.code, ga.name, ga.type
-                     ORDER BY ga.type, ga.code',
-                    [$from, $to, $tenantId, 'revenue', 'expense']
+                $csv = "Category,Type,Amount\n";
+                // Interest income
+                $lpRows = $this->db->fetchAll(
+                    "SELECT metadata FROM transactions
+                     WHERE tenant_id = ? AND type = 'loan_payment' AND status = 'completed'
+                       AND created_at BETWEEN ? AND ?",
+                    [$tenantId, $from, $to],
                 );
-                $csv = "Account Code,Account Name,Type,Debits,Credits,Net\n";
-                foreach ($accounts as $a) {
-                    $net = $a['type'] === 'revenue'
-                        ? ($a['total_credits'] - $a['total_debits'])
-                        : ($a['total_debits'] - $a['total_credits']);
-                    $csv .= implode(',', [
-                        $a['code'], '"' . str_replace('"', '""', $a['name']) . '"',
-                        $a['type'], $a['total_debits'], $a['total_credits'], round($net, 2)
-                    ]) . "\n";
+                $intInc = 0.0;
+                foreach ($lpRows as $lp) {
+                    $m = json_decode($lp['metadata'] ?? '{}', true);
+                    $intInc += (float) ($m['interest'] ?? 0);
                 }
+                if ($intInc > 0) $csv .= "Loan Interest Income,Revenue,{$intInc}\n";
+                $feeInc = (float) ($this->db->fetchColumn(
+                    "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id=? AND type='fee' AND status='completed' AND created_at BETWEEN ? AND ?",
+                    [$tenantId, $from, $to]) ?? 0);
+                if ($feeInc > 0) $csv .= "Fee Income,Revenue,{$feeInc}\n";
+                $lfInc = (float) ($this->db->fetchColumn(
+                    "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id=? AND type='late_fee' AND status='completed' AND created_at BETWEEN ? AND ?",
+                    [$tenantId, $from, $to]) ?? 0);
+                if ($lfInc > 0) $csv .= "Late Fee Income,Revenue,{$lfInc}\n";
+                $expRows = $this->db->fetchAll(
+                    "SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(metadata,'$.category')),'other') AS cat, SUM(amount) AS amt
+                     FROM transactions WHERE tenant_id=? AND type='expense' AND status='completed' AND created_at BETWEEN ? AND ?
+                     GROUP BY cat ORDER BY amt DESC",
+                    [$tenantId, $from, $to],
+                );
+                foreach ($expRows as $er) {
+                    $csv .= '"' . ucwords(str_replace('_', ' ', $er['cat'])) . '",Expense,' . round((float)$er['amt'], 2) . "\n";
+                }
+                $totalRev = $intInc + $feeInc + $lfInc;
+                $totalExp = array_sum(array_column($expRows, 'amt'));
+                $csv .= "\nTotal Revenue,,{$totalRev}\nTotal Expenses,,{$totalExp}\nNet Income,," . round($totalRev - $totalExp, 2) . "\n";
                 break;
 
             case 'balance-sheet':
-                $accounts = $this->db->fetchAll(
-                    'SELECT code, name, type, balance FROM gl_accounts WHERE tenant_id = ? ORDER BY code',
-                    [$tenantId]
-                );
-                $csv = "Account Code,Account Name,Type,Balance\n";
-                foreach ($accounts as $a) {
-                    $csv .= implode(',', [
-                        $a['code'], '"' . str_replace('"', '""', $a['name']) . '"',
-                        $a['type'], $a['balance']
-                    ]) . "\n";
-                }
+                $csv = "Category,Type,Balance\n";
+                $cash = (float) ($this->db->fetchColumn(
+                    "SELECT COALESCE(SUM(balance),0) FROM accounts WHERE tenant_id=? AND status='active'", [$tenantId]) ?? 0);
+                $loanRec = (float) ($this->db->fetchColumn(
+                    "SELECT COALESCE(SUM(outstanding_balance),0) FROM loans WHERE tenant_id=? AND status IN ('active','delinquent','approved')", [$tenantId]) ?? 0);
+                $csv .= "Cash & Deposits,Asset," . round($cash, 2) . "\n";
+                $csv .= "Loan Receivables,Asset," . round($loanRec, 2) . "\n";
+                $csv .= "Member Deposits,Liability," . round($cash, 2) . "\n";
+                $csv .= "Total Assets,," . round($cash + $loanRec, 2) . "\n";
+                $csv .= "Total Liabilities,," . round($cash, 2) . "\n";
                 break;
 
             case 'transactions':
