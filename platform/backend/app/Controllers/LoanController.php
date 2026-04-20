@@ -101,7 +101,7 @@ final class LoanController
     public function apply(Request $request): Response
     {
         $validator = new Validator($request->all(), [
-            'loan_type'     => 'required|in:personal,auto,mortgage,business,student,credit_line',
+            'loan_type'     => 'required|in:personal,auto,mortgage,business,education,credit_line',
             'amount'        => 'required|numeric|positive',
             'interest_rate' => 'required|numeric',
             'term_months'   => 'required|integer|min:1|max:360',

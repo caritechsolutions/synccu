@@ -108,7 +108,7 @@ final class AccountController
 
         $validator = new Validator($request->all(), [
             'member_id'       => $isAdmin ? 'required|string' : 'nullable|string',
-            'account_type'    => 'required|in:checking,savings,loan,certificate',
+            'account_type'    => 'required|in:checking,savings,certificate',
             'name'            => 'nullable|string|max:100',
             'currency'        => 'nullable|in:USD,EUR,GBP,CAD',
             'initial_deposit' => 'nullable|string|max:20',
