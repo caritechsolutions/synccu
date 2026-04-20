@@ -112,7 +112,7 @@
         <button class="report-card" data-report="general-ledger">
           <div class="report-card-icon"><svg><use href="#icon-send"/></svg></div>
           <h4>General Ledger</h4>
-          <p>All journal entries and line items</p>
+          <p>All transactions as debit/credit entries</p>
         </button>
         <button class="report-card" data-report="transactions">
           <div class="report-card-icon"><svg><use href="#icon-credit-card"/></svg></div>
@@ -133,11 +133,6 @@
           <div class="report-card-icon"><svg><use href="#icon-users"/></svg></div>
           <h4>Member Growth</h4>
           <p>Membership and account trends</p>
-        </button>
-        <button class="report-card" data-report="record-expense">
-          <div class="report-card-icon"><svg><use href="#icon-dollar"/></svg></div>
-          <h4>Record Expense</h4>
-          <p>Log operating costs and expenses</p>
         </button>
         <button class="report-card" data-report="journal-entry">
           <div class="report-card-icon"><svg><use href="#icon-file-text"/></svg></div>
@@ -236,7 +231,6 @@
           case 'loan-portfolio':   await renderLoanPortfolio(); break;
           case 'delinquency':      await renderDelinquency(); break;
           case 'member-growth':      await renderMemberGrowth(from, to); break;
-          case 'record-expense':     renderExpenseForm(); break;
           case 'journal-entry':      await renderJournalEntry(); break;
           case 'chart-of-accounts':  await renderChartOfAccounts(); break;
           default: el.innerHTML = '<p style="text-align:center;padding:2rem">Unknown report type.</p>';
@@ -351,17 +345,18 @@
       let html = `<div style="margin-bottom:1rem;font-weight:600;${d.balanced ? 'color:#16a34a' : 'color:#dc2626'}">${d.balanced ? 'Ledger is balanced.' : 'WARNING: Ledger is NOT balanced!'}</div>
         <div class="table-responsive">
           <table class="data-table">
-            <thead><tr><th>Code</th><th>Account Name</th><th>Type</th><th style="text-align:right">Debits</th><th style="text-align:right">Credits</th><th style="text-align:right">Balance</th></tr></thead>
+            <thead><tr><th>Account Name</th><th>Type</th><th style="text-align:right">Debits</th><th style="text-align:right">Credits</th><th style="text-align:right">Balance</th></tr></thead>
             <tbody>`;
       accounts.forEach(a => {
+        const typeLabel = a.type.charAt(0).toUpperCase() + a.type.slice(1);
         html += `<tr>
-          <td class="font-mono">${a.code}</td><td>${a.name}</td><td>${a.type}</td>
-          <td style="text-align:right">${fmt(a.total_debits)}</td>
-          <td style="text-align:right">${fmt(a.total_credits)}</td>
+          <td>${a.name}</td><td>${typeLabel}</td>
+          <td style="text-align:right">${fmt(a.debits)}</td>
+          <td style="text-align:right">${fmt(a.credits)}</td>
           <td style="text-align:right">${fmt(a.balance)}</td></tr>`;
       });
       html += `<tr style="border-top:3px double var(--border);font-weight:700">
-          <td colspan="3">Totals</td>
+          <td colspan="2">Totals</td>
           <td style="text-align:right">${fmt(d.total_debits)}</td>
           <td style="text-align:right">${fmt(d.total_credits)}</td>
           <td></td></tr></tbody></table></div>`;
@@ -380,22 +375,23 @@
       const meta = json.meta || {};
       const el = document.getElementById('reportContent');
 
-      if (!entries.length) { el.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--text-muted)">No journal entries found for this period.</p>'; return; }
+      if (!entries.length) { el.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--text-muted)">No ledger entries found for this period.</p>'; return; }
 
-      let html = '<div class="table-responsive"><table class="data-table"><thead><tr><th>Date</th><th>Description</th><th>Account</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th></tr></thead><tbody>';
+      let html = '<div class="table-responsive"><table class="data-table"><thead><tr><th>Date</th><th>Reference</th><th>Description</th><th>Account</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th></tr></thead><tbody>';
       entries.forEach(e => {
         const date = e.created_at ? new Date(e.created_at).toLocaleDateString() : '-';
         const lines = e.lines || [];
+        const typeLabel = (e.type || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         lines.forEach((ln, i) => {
           html += '<tr>';
           if (i === 0) {
-            html += `<td rowspan="${lines.length}">${date}</td><td rowspan="${lines.length}">${e.description || '-'}</td>`;
+            html += `<td rowspan="${lines.length}">${date}</td><td rowspan="${lines.length}" class="font-mono" style="font-size:.75rem">${e.reference_number || '-'}</td><td rowspan="${lines.length}">${e.description || typeLabel}</td>`;
           }
-          html += `<td class="font-mono">${ln.gl_account_code} ${ln.account_name ? '- ' + ln.account_name : ''}</td>
+          html += `<td>${ln.account || '-'}</td>
             <td style="text-align:right">${Number(ln.debit) > 0 ? fmt(ln.debit) : ''}</td>
             <td style="text-align:right">${Number(ln.credit) > 0 ? fmt(ln.credit) : ''}</td></tr>`;
         });
-        html += '<tr><td colspan="5" style="padding:0;border:none;height:4px;background:var(--bg-muted)"></td></tr>';
+        html += '<tr><td colspan="6" style="padding:0;border:none;height:4px;background:var(--bg-muted)"></td></tr>';
       });
       html += '</tbody></table></div>';
 
@@ -849,64 +845,6 @@
           msgEl.innerHTML = '<span style="color:#dc2626">' + e.message + '</span>';
           msgEl.style.display = 'block';
           document.getElementById('jePostBtn').disabled = false;
-        }
-      });
-    }
-
-    // === RECORD EXPENSE ===
-    function renderExpenseForm() {
-      const el = document.getElementById('reportContent');
-      const categories = [
-        ['rent', 'Rent'], ['payroll', 'Payroll'], ['utilities', 'Utilities'],
-        ['insurance', 'Insurance'], ['office_supplies', 'Office Supplies'],
-        ['technology', 'Technology'], ['marketing', 'Marketing'],
-        ['professional_services', 'Professional Services'], ['maintenance', 'Maintenance'],
-        ['travel', 'Travel'], ['training', 'Training'], ['regulatory', 'Regulatory'],
-        ['depreciation', 'Depreciation'], ['interest_paid', 'Interest Paid'], ['other', 'Other'],
-      ];
-      el.innerHTML = `
-        <div style="max-width:500px">
-          <h4 style="margin:0 0 1rem 0">Record an Expense</h4>
-          <form id="expenseForm">
-            <div class="form-group">
-              <label for="expCategory">Category</label>
-              <select id="expCategory" class="form-select" required>
-                <option value="">Select category...</option>
-                ${categories.map(([v, l]) => '<option value="' + v + '">' + l + '</option>').join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="expAmount">Amount</label>
-              <input type="number" id="expAmount" class="form-input" step="0.01" min="0.01" placeholder="0.00" required>
-            </div>
-            <div class="form-group">
-              <label for="expDesc">Description</label>
-              <input type="text" id="expDesc" class="form-input" placeholder="e.g. April office rent" maxlength="500">
-            </div>
-            <button type="submit" class="btn btn-primary">Record Expense</button>
-          </form>
-          <div id="expenseResult" style="margin-top:1rem"></div>
-        </div>`;
-      document.getElementById('expenseForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const data = {
-          category: document.getElementById('expCategory').value,
-          amount: parseFloat(document.getElementById('expAmount').value),
-          description: document.getElementById('expDesc').value,
-        };
-        try {
-          const resp = await apiFetch('/api/v1/transactions/expense', {
-            method: 'POST', body: JSON.stringify(data),
-          });
-          const json = await resp.json().catch(() => ({}));
-          if (!resp.ok) {
-            document.getElementById('expenseResult').innerHTML = '<p style="color:#dc2626">Error: ' + (json.message || 'Failed') + '</p>';
-            return;
-          }
-          document.getElementById('expenseResult').innerHTML = '<p style="color:#16a34a;font-weight:600">Expense recorded. Ref: ' + (json.data?.reference_number || '') + '</p>';
-          document.getElementById('expenseForm').reset();
-        } catch (err) {
-          document.getElementById('expenseResult').innerHTML = '<p style="color:#dc2626">Network error: ' + err.message + '</p>';
         }
       });
     }

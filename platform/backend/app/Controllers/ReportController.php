@@ -35,43 +35,172 @@ final class ReportController
     /**
      * GET /api/v1/reports/trial-balance
      *
-     * Trial balance showing all GL accounts with debit/credit totals.
+     * Aggregated debit/credit summary by transaction type, computed from
+     * the transactions table.
      */
     public function trialBalance(Request $request): Response
     {
-        $result = $this->ledger->trialBalance();
-        return Response::ok($result);
+        $tenantId = $this->db->getTenantId();
+
+        // Deposits = debits to Cash, credits to Member Liabilities
+        $deposits = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id = ? AND type = 'deposit' AND status = 'completed'",
+            [$tenantId],
+        ) ?? 0);
+
+        // Withdrawals = debits to Member Liabilities, credits to Cash
+        $withdrawals = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id = ? AND type = 'withdrawal' AND status = 'completed'",
+            [$tenantId],
+        ) ?? 0);
+
+        // Loan disbursements = debits to Loan Receivable, credits to Cash
+        $disbursements = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id = ? AND type = 'loan_disbursement' AND status = 'completed'",
+            [$tenantId],
+        ) ?? 0);
+
+        // Loan payments: principal reduces Loan Receivable, interest is revenue
+        $loanPayments = $this->db->fetchAll(
+            "SELECT amount, metadata FROM transactions WHERE tenant_id = ? AND type = 'loan_payment' AND status = 'completed'",
+            [$tenantId],
+        );
+        $principalPayments = 0.0;
+        $interestPayments = 0.0;
+        foreach ($loanPayments as $lp) {
+            $meta = json_decode($lp['metadata'] ?? '{}', true);
+            $interestPayments += (float) ($meta['interest'] ?? 0);
+            $principalPayments += (float) ($meta['principal'] ?? ((float) $lp['amount'] - (float) ($meta['interest'] ?? 0)));
+        }
+
+        // Fees & late fees = revenue
+        $fees = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id = ? AND type IN ('fee','late_fee') AND status = 'completed'",
+            [$tenantId],
+        ) ?? 0);
+
+        // Expenses
+        $expenses = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id = ? AND type = 'expense' AND status = 'completed'",
+            [$tenantId],
+        ) ?? 0);
+
+        $accounts = [
+            ['name' => 'Cash & Deposits',      'type' => 'asset',     'debits' => round($deposits + $principalPayments + $interestPayments + $fees, 2), 'credits' => round($withdrawals + $disbursements + $expenses, 2)],
+            ['name' => 'Loan Receivables',      'type' => 'asset',     'debits' => round($disbursements, 2), 'credits' => round($principalPayments, 2)],
+            ['name' => 'Member Deposits',       'type' => 'liability', 'debits' => round($withdrawals, 2),   'credits' => round($deposits, 2)],
+            ['name' => 'Loan Interest Income',  'type' => 'revenue',   'debits' => 0, 'credits' => round($interestPayments, 2)],
+            ['name' => 'Fee & Late Fee Income', 'type' => 'revenue',   'debits' => 0, 'credits' => round($fees, 2)],
+            ['name' => 'Operating Expenses',    'type' => 'expense',   'debits' => round($expenses, 2), 'credits' => 0],
+        ];
+
+        // Compute balances
+        foreach ($accounts as &$a) {
+            $a['balance'] = round($a['debits'] - $a['credits'], 2);
+        }
+        unset($a);
+
+        $totalDebits = round(array_sum(array_column($accounts, 'debits')), 2);
+        $totalCredits = round(array_sum(array_column($accounts, 'credits')), 2);
+
+        return Response::ok([
+            'accounts'      => $accounts,
+            'total_debits'  => $totalDebits,
+            'total_credits' => $totalCredits,
+            'balanced'      => abs($totalDebits - $totalCredits) < 0.01,
+        ]);
     }
 
     /**
      * GET /api/v1/reports/general-ledger
      *
-     * Paginated journal entries with their debit/credit lines.
+     * All transactions displayed as ledger entries, computed from the
+     * transactions table.
      */
     public function generalLedger(Request $request): Response
     {
+        $tenantId = $this->db->getTenantId();
         $from = $request->query('from', date('Y-m-01'));
-        $to = $request->query('to', date('Y-m-d') . ' 23:59:59');
+        $to = $this->normalizeToDate($request->query('to', date('Y-m-d')));
         $page = max(1, (int) ($request->query('page', '1')));
         $perPage = min(100, max(1, (int) ($request->query('per_page', '50'))));
+        $offset = ($page - 1) * $perPage;
 
-        $result = $this->ledger->getEntries($from, $to, $page, $perPage);
+        $items = $this->db->fetchAll(
+            "SELECT t.id, t.reference_number, t.type, t.amount, t.description,
+                    t.created_at, t.metadata,
+                    a.account_number,
+                    CONCAT(u.first_name, ' ', u.last_name) AS member_name
+             FROM transactions t
+             LEFT JOIN accounts a ON a.id = t.account_id
+             LEFT JOIN users u ON u.id = COALESCE(t.processed_by, t.user_id) AND u.tenant_id = t.tenant_id
+             WHERE t.tenant_id = ? AND t.created_at BETWEEN ? AND ?
+             ORDER BY t.created_at DESC
+             LIMIT {$perPage} OFFSET {$offset}",
+            [$tenantId, $from, $to],
+        );
 
-        // Load lines for each entry
-        $tenantId = $this->db->getTenantId();
-        foreach ($result['items'] as &$entry) {
-            $entry['lines'] = $this->db->fetchAll(
-                'SELECT jel.*, ga.name AS account_name, ga.type AS account_type
-                 FROM journal_entry_lines jel
-                 LEFT JOIN gl_accounts ga ON ga.code = jel.gl_account_code AND ga.tenant_id = jel.tenant_id
-                 WHERE jel.journal_entry_id = ? AND jel.tenant_id = ?
-                 ORDER BY jel.debit DESC',
-                [$entry['id'], $tenantId]
-            );
+        $total = (int) $this->db->fetchColumn(
+            "SELECT COUNT(*) FROM transactions
+             WHERE tenant_id = ? AND created_at BETWEEN ? AND ?",
+            [$tenantId, $from, $to],
+        );
+
+        // Build ledger-style lines for each transaction
+        foreach ($items as &$item) {
+            $amount = (float) $item['amount'];
+            $meta = json_decode($item['metadata'] ?? '{}', true);
+            $lines = [];
+
+            switch ($item['type']) {
+                case 'deposit':
+                    $lines[] = ['account' => 'Cash & Deposits', 'debit' => $amount, 'credit' => 0];
+                    $lines[] = ['account' => 'Member Deposits', 'debit' => 0, 'credit' => $amount];
+                    break;
+                case 'withdrawal':
+                    $lines[] = ['account' => 'Member Deposits', 'debit' => $amount, 'credit' => 0];
+                    $lines[] = ['account' => 'Cash & Deposits', 'debit' => 0, 'credit' => $amount];
+                    break;
+                case 'transfer':
+                    $lines[] = ['account' => 'Member Deposits (from)', 'debit' => $amount, 'credit' => 0];
+                    $lines[] = ['account' => 'Member Deposits (to)', 'debit' => 0, 'credit' => $amount];
+                    break;
+                case 'loan_disbursement':
+                    $lines[] = ['account' => 'Loan Receivables', 'debit' => $amount, 'credit' => 0];
+                    $lines[] = ['account' => 'Cash & Deposits', 'debit' => 0, 'credit' => $amount];
+                    break;
+                case 'loan_payment':
+                    $principal = (float) ($meta['principal'] ?? $amount);
+                    $interest = (float) ($meta['interest'] ?? 0);
+                    if ($principal > 0) {
+                        $lines[] = ['account' => 'Cash & Deposits', 'debit' => $principal, 'credit' => 0];
+                        $lines[] = ['account' => 'Loan Receivables', 'debit' => 0, 'credit' => $principal];
+                    }
+                    if ($interest > 0) {
+                        $lines[] = ['account' => 'Cash & Deposits', 'debit' => $interest, 'credit' => 0];
+                        $lines[] = ['account' => 'Loan Interest Income', 'debit' => 0, 'credit' => $interest];
+                    }
+                    break;
+                case 'fee':
+                case 'late_fee':
+                    $lines[] = ['account' => 'Cash & Deposits', 'debit' => $amount, 'credit' => 0];
+                    $lines[] = ['account' => 'Fee Income', 'debit' => 0, 'credit' => $amount];
+                    break;
+                case 'expense':
+                    $cat = ucwords(str_replace('_', ' ', $meta['category'] ?? 'Operating'));
+                    $lines[] = ['account' => $cat . ' Expense', 'debit' => $amount, 'credit' => 0];
+                    $lines[] = ['account' => 'Cash & Deposits', 'debit' => 0, 'credit' => $amount];
+                    break;
+                default:
+                    $lines[] = ['account' => 'Other', 'debit' => $amount, 'credit' => 0];
+                    $lines[] = ['account' => 'Other', 'debit' => 0, 'credit' => $amount];
+            }
+
+            $item['lines'] = $lines;
         }
-        unset($entry);
+        unset($item);
 
-        return Response::paginated($result['items'], $result['total'], $page, $perPage);
+        return Response::paginated($items, $total, $page, $perPage);
     }
 
     /**
@@ -83,7 +212,7 @@ final class ReportController
     {
         $tenantId = $this->db->getTenantId();
         $from = $request->query('from', date('Y-m-01'));
-        $to = $request->query('to', date('Y-m-d') . ' 23:59:59');
+        $to = $this->normalizeToDate($request->query('to', date('Y-m-d')));
 
         // --- Revenue ---
         $revenue = [];
@@ -373,7 +502,7 @@ final class ReportController
     {
         $tenantId = $this->db->getTenantId();
         $from = $request->query('from', date('Y-01-01'));
-        $to = $request->query('to', date('Y-m-d') . ' 23:59:59');
+        $to = $this->normalizeToDate($request->query('to', date('Y-m-d')));
 
         $members = $this->db->fetchAll(
             "SELECT DATE_FORMAT(created_at, '%Y-%m') AS month,
@@ -458,45 +587,83 @@ final class ReportController
     {
         $type = $request->query('type', 'summary');
         $from = $request->query('from', date('Y-m-01'));
-        $to = $request->query('to', date('Y-m-d') . ' 23:59:59');
+        $to = $this->normalizeToDate($request->query('to', date('Y-m-d')));
         $tenantId = $this->db->getTenantId();
 
         $csv = '';
 
         switch ($type) {
             case 'trial-balance':
-                $tb = $this->ledger->trialBalance();
-                $csv = "Account Code,Account Name,Type,Total Debits,Total Credits,Balance\n";
-                foreach ($tb['accounts'] as $a) {
+                $tbBody = $this->trialBalance($request)->getBody();
+                $tbData = $tbBody['data'] ?? $tbBody;
+                $csv = "Account Name,Type,Debits,Credits,Balance\n";
+                foreach ($tbData['accounts'] ?? [] as $a) {
                     $csv .= implode(',', [
-                        $a['code'], '"' . str_replace('"', '""', $a['name']) . '"',
-                        $a['type'], $a['total_debits'], $a['total_credits'], $a['balance']
+                        '"' . str_replace('"', '""', $a['name']) . '"',
+                        $a['type'], $a['debits'], $a['credits'], $a['balance']
                     ]) . "\n";
                 }
-                $csv .= "\n,,,{$tb['total_debits']},{$tb['total_credits']},\n";
+                $td = $tbData['total_debits'] ?? 0;
+                $tc = $tbData['total_credits'] ?? 0;
+                $csv .= "\nTotals,,{$td},{$tc},\n";
                 break;
 
             case 'general-ledger':
-                $entries = $this->db->fetchAll(
-                    'SELECT je.*, jel.gl_account_code, jel.debit, jel.credit,
-                            ga.name AS account_name
-                     FROM journal_entries je
-                     JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id AND jel.tenant_id = je.tenant_id
-                     LEFT JOIN gl_accounts ga ON ga.code = jel.gl_account_code AND ga.tenant_id = je.tenant_id
-                     WHERE je.tenant_id = ? AND je.created_at BETWEEN ? AND ?
-                     ORDER BY je.created_at DESC
-                     LIMIT 10000',
+                $txns = $this->db->fetchAll(
+                    "SELECT t.id, t.reference_number, t.type, t.amount, t.description,
+                            t.created_at, t.metadata,
+                            a.account_number
+                     FROM transactions t
+                     LEFT JOIN accounts a ON a.id = t.account_id
+                     WHERE t.tenant_id = ? AND t.created_at BETWEEN ? AND ?
+                     ORDER BY t.created_at DESC
+                     LIMIT 10000",
                     [$tenantId, $from, $to]
                 );
-                $csv = "Date,Description,Account Code,Account Name,Debit,Credit\n";
-                foreach ($entries as $e) {
-                    $csv .= implode(',', [
-                        $e['created_at'],
-                        '"' . str_replace('"', '""', $e['description'] ?? '') . '"',
-                        $e['gl_account_code'],
-                        '"' . str_replace('"', '""', $e['account_name'] ?? '') . '"',
-                        $e['debit'], $e['credit']
-                    ]) . "\n";
+                $csv = "Date,Reference,Type,Description,Account,Debit,Credit\n";
+                foreach ($txns as $txn) {
+                    $amount = (float) $txn['amount'];
+                    $meta = json_decode($txn['metadata'] ?? '{}', true);
+                    $lines = [];
+                    switch ($txn['type']) {
+                        case 'deposit':
+                            $lines[] = ['Cash & Deposits', $amount, 0];
+                            $lines[] = ['Member Deposits', 0, $amount];
+                            break;
+                        case 'withdrawal':
+                            $lines[] = ['Member Deposits', $amount, 0];
+                            $lines[] = ['Cash & Deposits', 0, $amount];
+                            break;
+                        case 'loan_disbursement':
+                            $lines[] = ['Loan Receivables', $amount, 0];
+                            $lines[] = ['Cash & Deposits', 0, $amount];
+                            break;
+                        case 'loan_payment':
+                            $principal = (float) ($meta['principal'] ?? $amount);
+                            $interest = (float) ($meta['interest'] ?? 0);
+                            if ($principal > 0) { $lines[] = ['Cash & Deposits', $principal, 0]; $lines[] = ['Loan Receivables', 0, $principal]; }
+                            if ($interest > 0) { $lines[] = ['Cash & Deposits', $interest, 0]; $lines[] = ['Loan Interest Income', 0, $interest]; }
+                            break;
+                        case 'fee': case 'late_fee':
+                            $lines[] = ['Cash & Deposits', $amount, 0];
+                            $lines[] = ['Fee Income', 0, $amount];
+                            break;
+                        case 'expense':
+                            $cat = ucwords(str_replace('_', ' ', $meta['category'] ?? 'Operating'));
+                            $lines[] = [$cat . ' Expense', $amount, 0];
+                            $lines[] = ['Cash & Deposits', 0, $amount];
+                            break;
+                        default:
+                            $lines[] = ['Other', $amount, 0];
+                            $lines[] = ['Other', 0, $amount];
+                    }
+                    foreach ($lines as $ln) {
+                        $csv .= implode(',', [
+                            $txn['created_at'], $txn['reference_number'] ?? '', $txn['type'],
+                            '"' . str_replace('"', '""', $txn['description'] ?? '') . '"',
+                            '"' . $ln[0] . '"', $ln[1], $ln[2]
+                        ]) . "\n";
+                    }
                 }
                 break;
 
@@ -637,6 +804,14 @@ final class ReportController
     }
 
     // ------------------------------------------------------------------
+
+    private function normalizeToDate(string $to): string
+    {
+        if (strlen($to) === 10) {
+            return $to . ' 23:59:59';
+        }
+        return $to;
+    }
 
     private function generateUuid(): string
     {

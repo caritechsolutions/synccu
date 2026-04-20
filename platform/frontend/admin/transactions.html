@@ -33,6 +33,7 @@
     <symbol id="icon-credit-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
     <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
     <symbol id="icon-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+    <symbol id="icon-dollar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></symbol>
   </svg>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -95,6 +96,9 @@
           <button class="btn btn-secondary" id="exportCsvBtn">
             <svg><use href="#icon-download"/></svg> Export CSV
           </button>
+          <button class="btn btn-secondary" id="recordExpenseBtn">
+            <svg><use href="#icon-dollar"/></svg> Record Expense
+          </button>
           <button class="btn btn-primary" id="newTransactionBtn">
             <svg><use href="#icon-plus"/></svg> New Transaction
           </button>
@@ -117,6 +121,10 @@
           <option value="withdrawal">Withdrawal</option>
           <option value="transfer">Transfer</option>
           <option value="payment">Payment</option>
+          <option value="loan_payment">Loan Payment</option>
+          <option value="loan_disbursement">Loan Disbursement</option>
+          <option value="fee">Fee</option>
+          <option value="expense">Expense</option>
         </select>
         <select id="txnStatusFilter" class="form-select">
           <option value="all">All Statuses</option>
@@ -327,6 +335,53 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="closeTxnDetailBtn">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Record Expense Modal -->
+  <div class="modal-overlay" id="expenseModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Record Expense</h3>
+        <button class="icon-btn modal-close" id="closeExpenseModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <form id="expenseForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="expCategory">Category</label>
+            <select id="expCategory" class="form-select" required>
+              <option value="">Select category...</option>
+              <option value="rent">Rent</option>
+              <option value="payroll">Payroll</option>
+              <option value="utilities">Utilities</option>
+              <option value="insurance">Insurance</option>
+              <option value="office_supplies">Office Supplies</option>
+              <option value="technology">Technology</option>
+              <option value="marketing">Marketing</option>
+              <option value="professional_services">Professional Services</option>
+              <option value="maintenance">Maintenance</option>
+              <option value="travel">Travel</option>
+              <option value="training">Training</option>
+              <option value="regulatory">Regulatory</option>
+              <option value="depreciation">Depreciation</option>
+              <option value="interest_paid">Interest Paid</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="expAmount">Amount</label>
+            <input type="number" id="expAmount" class="form-input" step="0.01" min="0.01" placeholder="0.00" required>
+          </div>
+          <div class="form-group">
+            <label for="expDesc">Description</label>
+            <input type="text" id="expDesc" class="form-input" placeholder="e.g. April office rent" maxlength="500">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelExpenseBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="expenseSubmitBtn">Record Expense</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -659,13 +714,13 @@
         tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">No transactions found</td></tr>';
         return;
       }
-      const typeClasses = { deposit: 'badge-success', withdrawal: 'badge-danger', transfer: 'badge-info', payment: 'badge-warning', fee: 'badge-muted', interest: 'badge-purple', adjustment: 'badge-muted' };
+      const typeClasses = { deposit: 'badge-success', withdrawal: 'badge-danger', transfer: 'badge-info', payment: 'badge-warning', loan_payment: 'badge-warning', loan_disbursement: 'badge-info', fee: 'badge-muted', late_fee: 'badge-danger', interest: 'badge-purple', adjustment: 'badge-muted', expense: 'badge-danger' };
       const statusClasses = { completed: 'badge-success', pending: 'badge-warning', failed: 'badge-danger', reversed: 'badge-muted', cancelled: 'badge-muted' };
 
       tbody.innerHTML = txns.map(t => {
         const dt = t.created_at ? new Date(t.created_at) : null;
         const date = dt ? dt.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) + ' ' + dt.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '-';
-        const isCredit = ['deposit','interest'].includes(t.type);
+        const isCredit = ['deposit','interest','loan_payment'].includes(t.type);
         const amtClass = isCredit ? 'text-green' : t.type === 'transfer' ? '' : 'text-red';
         const amtSign = isCredit ? '+' : (t.type === 'transfer' ? '' : '-');
         const acctDisplay = t.account_number || '-';
@@ -869,6 +924,43 @@
     document.getElementById('dateTo').addEventListener('change', () => { currentPage = 1; loadTransactions(); });
     let searchTimeout;
     document.getElementById('txnSearch').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => { currentPage = 1; loadTransactions(); }, 300); });
+
+    // --- Expense Modal ---
+    const expenseModal = document.getElementById('expenseModal');
+    document.getElementById('recordExpenseBtn').addEventListener('click', () => expenseModal.classList.add('active'));
+    document.getElementById('closeExpenseModal').addEventListener('click', () => expenseModal.classList.remove('active'));
+    document.getElementById('cancelExpenseBtn').addEventListener('click', () => expenseModal.classList.remove('active'));
+    expenseModal.addEventListener('click', (e) => { if (e.target === expenseModal) expenseModal.classList.remove('active'); });
+
+    document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = document.getElementById('expenseSubmitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Recording...';
+      const data = {
+        category: document.getElementById('expCategory').value,
+        amount: parseFloat(document.getElementById('expAmount').value),
+        description: document.getElementById('expDesc').value,
+      };
+      try {
+        const resp = await apiFetch('/api/v1/transactions/expense', {
+          method: 'POST', body: JSON.stringify(data),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          alert('Error: ' + (json.message || json.error || 'Failed to record expense'));
+          return;
+        }
+        expenseModal.classList.remove('active');
+        document.getElementById('expenseForm').reset();
+        loadTransactions();
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Record Expense';
+      }
+    });
 
     if (new URLSearchParams(window.location.search).get('action') === 'new') { txnModal.classList.add('active'); }
 
