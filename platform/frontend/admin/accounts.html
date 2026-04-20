@@ -149,11 +149,11 @@
       </div>
       <form id="accountForm">
         <div class="modal-body">
-          <div class="form-group">
+          <div class="form-group" style="position:relative">
             <label for="accountMemberSearch">Member</label>
-            <input type="text" id="accountMemberSearch" class="form-input" placeholder="Search member by name or ID..." autocomplete="off" required>
+            <input type="text" id="accountMemberSearch" class="form-input" placeholder="Search member by name or email..." autocomplete="off" required>
             <input type="hidden" id="accountMemberId" name="member_id">
-            <div class="search-results" id="memberSearchResults"></div>
+            <div class="search-results" id="memberSearchResults" style="position:absolute;z-index:50;background:var(--bg-card,#fff);border:1px solid var(--border,#ddd);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:280px;overflow-y:auto;width:100%;left:0;top:100%"></div>
           </div>
           <div class="form-group">
             <label for="accountType">Account Type</label>
@@ -255,10 +255,20 @@
     const closeSlideOver = document.getElementById('closeSlideOver');
     const accountForm = document.getElementById('accountForm');
 
-    createAccountBtn.addEventListener('click', () => accountModal.classList.add('active'));
-    closeAccountModal.addEventListener('click', () => accountModal.classList.remove('active'));
-    cancelAccountBtn.addEventListener('click', () => accountModal.classList.remove('active'));
-    accountModal.addEventListener('click', (e) => { if (e.target === accountModal) accountModal.classList.remove('active'); });
+    function openAccountModal() {
+      accountForm.reset();
+      document.getElementById('accountMemberId').value = '';
+      document.getElementById('memberSearchResults').innerHTML = '';
+      accountModal.classList.add('active');
+    }
+    function closeAccountModalFn() {
+      accountModal.classList.remove('active');
+      document.getElementById('memberSearchResults').innerHTML = '';
+    }
+    createAccountBtn.addEventListener('click', openAccountModal);
+    closeAccountModal.addEventListener('click', closeAccountModalFn);
+    cancelAccountBtn.addEventListener('click', closeAccountModalFn);
+    accountModal.addEventListener('click', (e) => { if (e.target === accountModal) closeAccountModalFn(); });
 
     const slidePanel = accountSlideOver.querySelector('.slideover');
     const detailView = document.getElementById('accountDetailView');
@@ -329,23 +339,36 @@
 
     // Member search for create account form
     let memberSearchTimeout;
-    document.getElementById('accountMemberSearch').addEventListener('input', (e) => {
+    const acctMemberInput = document.getElementById('accountMemberSearch');
+    const acctMemberResults = document.getElementById('memberSearchResults');
+
+    acctMemberInput.addEventListener('input', (e) => {
       clearTimeout(memberSearchTimeout);
       const q = e.target.value.trim();
-      if (q.length < 2) { document.getElementById('memberSearchResults').innerHTML = ''; return; }
+      if (q.length < 2) { acctMemberResults.innerHTML = ''; return; }
+      document.getElementById('accountMemberId').value = '';
       memberSearchTimeout = setTimeout(async () => {
         try {
           const resp = await apiFetch('/api/v1/members?search=' + encodeURIComponent(q) + '&per_page=5');
           if (!resp.ok) return;
           const json = await resp.json();
-          const members = json.data || [];
-          const el = document.getElementById('memberSearchResults');
-          el.innerHTML = members.map(m => `<div class="search-result-item" data-id="${m.id}">${m.first_name} ${m.last_name} (${m.email})</div>`).join('');
-          el.querySelectorAll('.search-result-item').forEach(item => {
+          const members = (json.data || []).filter(m => m.role === 'member');
+          if (!members.length) { acctMemberResults.innerHTML = '<div style="padding:.75rem;color:var(--text-muted,#888);font-size:.875rem">No members found</div>'; return; }
+          acctMemberResults.innerHTML = members.map(m => {
+            const accts = m.account_numbers || '';
+            return `<div class="search-result-item" data-id="${m.id}" data-label="${m.first_name} ${m.last_name} — ${m.email}" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid var(--border,#eee)">
+              <strong>${m.first_name} ${m.last_name}</strong>
+              <div style="font-size:.8rem;color:var(--text-secondary,#555)">${m.email}</div>
+              <div style="font-size:.75rem;color:var(--text-muted,#888)">${m.phone || 'No phone'}${accts ? ' · Acct: ' + accts : ''}</div>
+            </div>`;
+          }).join('');
+          acctMemberResults.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('mouseenter', () => item.style.background = 'var(--bg-muted,#f5f5f5)');
+            item.addEventListener('mouseleave', () => item.style.background = '');
             item.addEventListener('click', () => {
               document.getElementById('accountMemberId').value = item.dataset.id;
-              document.getElementById('accountMemberSearch').value = item.textContent;
-              el.innerHTML = '';
+              acctMemberInput.value = item.dataset.label;
+              acctMemberResults.innerHTML = '';
             });
           });
         } catch (e) { /* ignore */ }

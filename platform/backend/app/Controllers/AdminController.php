@@ -117,7 +117,9 @@ final class AdminController
         $members = $this->db->fetchAll(
             "SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.role, u.status,
                     u.last_login_at, u.created_at,
-                    (SELECT COUNT(*) FROM accounts a WHERE a.user_id = u.id AND a.tenant_id = u.tenant_id) AS accounts_count
+                    (SELECT COUNT(*) FROM accounts a WHERE a.user_id = u.id AND a.tenant_id = u.tenant_id) AS accounts_count,
+                    (SELECT GROUP_CONCAT(a2.account_number ORDER BY a2.created_at SEPARATOR ', ')
+                     FROM accounts a2 WHERE a2.user_id = u.id AND a2.tenant_id = u.tenant_id AND a2.account_type != 'loan') AS account_numbers
              FROM users u {$where}
              ORDER BY u.created_at DESC
              LIMIT {$perPage} OFFSET {$offset}",

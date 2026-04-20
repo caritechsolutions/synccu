@@ -457,10 +457,22 @@
     const loanForm        = document.getElementById('loanForm');
 
     // === MODAL OPEN/CLOSE ===
-    document.getElementById('newLoanBtn').addEventListener('click', () => loanModal.classList.add('active'));
-    document.getElementById('closeLoanModal').addEventListener('click', () => loanModal.classList.remove('active'));
-    document.getElementById('cancelLoanBtn').addEventListener('click', () => loanModal.classList.remove('active'));
-    loanModal.addEventListener('click', (e) => { if (e.target === loanModal) loanModal.classList.remove('active'); });
+    function openLoanModal() {
+      loanForm.reset();
+      document.getElementById('loanMemberId').value = '';
+      const list = loanModal.querySelector('.search-results');
+      if (list) list.innerHTML = '';
+      loanModal.classList.add('active');
+    }
+    function closeLoanModal() {
+      loanModal.classList.remove('active');
+      const list = loanModal.querySelector('.search-results');
+      if (list) list.innerHTML = '';
+    }
+    document.getElementById('newLoanBtn').addEventListener('click', openLoanModal);
+    document.getElementById('closeLoanModal').addEventListener('click', closeLoanModal);
+    document.getElementById('cancelLoanBtn').addEventListener('click', closeLoanModal);
+    loanModal.addEventListener('click', (e) => { if (e.target === loanModal) closeLoanModal(); });
 
     document.getElementById('closeLoanDetailModal').addEventListener('click', () => loanDetailModal.classList.remove('active'));
     document.getElementById('closeLoanDetailBtn').addEventListener('click', () => loanDetailModal.classList.remove('active'));
@@ -490,29 +502,48 @@
 
     // === MEMBER SEARCH (loan form) ===
     let loanMemberTimeout;
-    document.getElementById('loanMember').addEventListener('input', (e) => {
+    const loanMemberInput = document.getElementById('loanMember');
+
+    function getLoanMemberList() {
+      let list = loanMemberInput.parentElement.querySelector('.search-results');
+      if (!list) {
+        list = document.createElement('div');
+        list.className = 'search-results';
+        list.style.cssText = 'position:absolute;z-index:50;background:var(--bg-card,#fff);border:1px solid var(--border,#ddd);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:280px;overflow-y:auto;width:100%;left:0;top:100%';
+        loanMemberInput.parentElement.style.position = 'relative';
+        loanMemberInput.parentElement.appendChild(list);
+      }
+      return list;
+    }
+
+    loanMemberInput.addEventListener('input', (e) => {
       clearTimeout(loanMemberTimeout);
       const q = e.target.value.trim();
-      if (q.length < 2) return;
+      const list = getLoanMemberList();
+      if (q.length < 2) { list.innerHTML = ''; return; }
+      // Clear selected member when user edits the field
+      document.getElementById('loanMemberId').value = '';
       loanMemberTimeout = setTimeout(async () => {
         try {
           const resp = await apiFetch('/api/v1/members?search=' + encodeURIComponent(q) + '&per_page=10');
           if (!resp.ok) return;
           const json = await resp.json();
-          const members = json.data || [];
-          const input = document.getElementById('loanMember');
-          let list = input.parentElement.querySelector('.search-results');
-          if (!list) { list = document.createElement('div'); list.className = 'search-results'; list.style.cssText = 'position:absolute;z-index:50;background:var(--bg-card,#fff);border:1px solid var(--border,#ddd);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:240px;overflow-y:auto;width:100%;left:0;top:100%'; input.parentElement.style.position = 'relative'; input.parentElement.appendChild(list); }
-          list.innerHTML = members.map(m => `<div class="search-result-item" data-id="${m.id}" data-label="${m.first_name} ${m.last_name}" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid var(--border,#eee)">
-            <strong>${m.first_name} ${m.last_name}</strong>${m.role && m.role !== 'member' ? ' <span class="badge badge-warning" style="font-size:.65rem">' + m.role + '</span>' : ''}
-            <div style="font-size:.75rem;color:var(--text-muted,#888)">${m.email}${m.phone ? ' &middot; ' + m.phone : ''} &middot; ${m.accounts_count || 0} account(s)</div>
-          </div>`).join('');
+          const members = (json.data || []).filter(m => m.role === 'member');
+          if (!members.length) { list.innerHTML = '<div style="padding:.75rem;color:var(--text-muted,#888);font-size:.875rem">No members found</div>'; return; }
+          list.innerHTML = members.map(m => {
+            const accts = m.account_numbers || '';
+            return `<div class="search-result-item" data-id="${m.id}" data-label="${m.first_name} ${m.last_name} — ${m.email}" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid var(--border,#eee)">
+              <strong>${m.first_name} ${m.last_name}</strong>
+              <div style="font-size:.8rem;color:var(--text-secondary,#555)">${m.email}</div>
+              <div style="font-size:.75rem;color:var(--text-muted,#888)">${m.phone || 'No phone'}${accts ? ' · Acct: ' + accts : ''} · ${m.accounts_count || 0} account(s)</div>
+            </div>`;
+          }).join('');
           list.querySelectorAll('.search-result-item').forEach(item => {
             item.addEventListener('mouseenter', () => item.style.background = 'var(--bg-muted,#f5f5f5)');
             item.addEventListener('mouseleave', () => item.style.background = '');
             item.addEventListener('click', () => {
               document.getElementById('loanMemberId').value = item.dataset.id;
-              document.getElementById('loanMember').value = item.dataset.label;
+              loanMemberInput.value = item.dataset.label;
               list.innerHTML = '';
             });
           });
