@@ -128,7 +128,7 @@ final class ReportController
                     CONCAT(u.first_name, ' ', u.last_name) AS member_name
              FROM transactions t
              LEFT JOIN accounts a ON a.id = t.account_id
-             LEFT JOIN users u ON u.id = COALESCE(t.processed_by, t.user_id) AND u.tenant_id = t.tenant_id
+             LEFT JOIN users u ON u.id = t.processed_by AND u.tenant_id = t.tenant_id
              WHERE t.tenant_id = ? AND t.created_at BETWEEN ? AND ?
              ORDER BY t.created_at DESC
              LIMIT {$perPage} OFFSET {$offset}",
