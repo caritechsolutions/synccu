@@ -329,10 +329,8 @@ $MYSQL_CMD "$DB_NAME" <<-'EOSQL'
         MODIFY COLUMN `account_id` CHAR(36) DEFAULT NULL,
         MODIFY COLUMN `balance_after` DECIMAL(15,2) DEFAULT NULL;
 
-    -- Remove orphaned loan-type accounts (account_type='loan' with no matching loans record)
-    DELETE a FROM `accounts` a
-        LEFT JOIN `loans` l ON l.account_id = a.id
-        WHERE a.account_type = 'loan' AND l.id IS NULL;
+    -- Make loans.account_id nullable (loan account created at approval, not application)
+    ALTER TABLE `loans` MODIFY COLUMN `account_id` CHAR(36) DEFAULT NULL;
 EOSQL
 success "Migrations applied"
 

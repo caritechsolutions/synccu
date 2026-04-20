@@ -45,12 +45,12 @@ final class LoanService
         $monthlyPayment = $this->calculateMonthlyPayment($amount, $rate, $term);
         $loanNumber = 'LN-' . date('Y') . '-' . str_pad((string) random_int(1, 9999), 4, '0', STR_PAD_LEFT);
 
-        // Get or create a placeholder account_id (user's first account)
+        // Link to user's first active account if available; loan account created at approval
         $userAccount = $this->db->fetchOne(
-            'SELECT id FROM accounts WHERE user_id = ? AND tenant_id = ? AND status = ? LIMIT 1',
-            [$userId, $tenantId, 'active'],
+            'SELECT id FROM accounts WHERE user_id = ? AND tenant_id = ? AND status = ? AND account_type != ? LIMIT 1',
+            [$userId, $tenantId, 'active', 'loan'],
         );
-        $accountId = $userAccount ? $userAccount['id'] : $this->generateUuid();
+        $accountId = $userAccount ? $userAccount['id'] : null;
 
         $this->db->query(
             'INSERT INTO loans
@@ -87,7 +87,8 @@ final class LoanService
     /**
      * Approve a loan application.
      *
-     * Creates a loan account and disburses funds.
+     * Creates a dedicated loan account (type='loan') with balance = principal,
+     * records the disbursement transaction, and generates the amortisation schedule.
      */
     public function approve(string $loanId, string $approvedBy): array
     {
@@ -104,16 +105,22 @@ final class LoanService
             $now = date('Y-m-d H:i:s');
             $principal = (float) $loan['principal_amount'];
 
-            // Calculate monthly payment
             $monthlyPayment = $this->calculateMonthlyPayment(
                 $principal,
                 (float) $loan['interest_rate'],
                 (int) $loan['term_months'],
             );
 
-            // Update loan record
+            // Create a dedicated loan account for this member
+            $loanAccount = $this->accounts->createLoanAccount([
+                'user_id'       => $loan['user_id'],
+                'name'          => ucfirst($loan['loan_type']) . ' Loan - ' . $loan['loan_number'],
+                'interest_rate' => $loan['interest_rate'],
+            ], $loan['tenant_id'], $principal);
+
             $this->db->updateScoped('loans', [
                 'status'              => 'approved',
+                'account_id'          => $loanAccount['id'],
                 'approved_by'         => $approvedBy,
                 'approved_at'         => $now,
                 'disbursed_at'        => $now,
@@ -125,13 +132,13 @@ final class LoanService
                 'updated_at'          => $now,
             ], ['id' => $loanId]);
 
-            // Create ledger entry for disbursement
+            // Record disbursement transaction linked to the loan account
             $txnId = $this->generateUuid();
             $this->db->query(
                 'INSERT INTO transactions
                     (id, tenant_id, reference_number, type, status, amount,
-                     account_id, processed_by, description, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     account_id, balance_after, processed_by, description, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $loan['tenant_id'],
@@ -139,23 +146,22 @@ final class LoanService
                     'loan_disbursement',
                     'completed',
                     $principal,
-                    $loan['account_id'],
+                    $loanAccount['id'],
+                    $principal,
                     $approvedBy,
-                    "Loan disbursement - {$loan['loan_type']}",
+                    "Loan disbursement - {$loan['loan_type']} #{$loan['loan_number']}",
                     $now,
                 ],
             );
 
-            // Debit Loan Receivable, Credit Cash
             $this->ledger->createDoubleEntry(
                 $txnId,
-                "Loan disbursement #{$loanId}",
+                "Loan disbursement #{$loan['loan_number']}",
                 LedgerService::GL_LOAN_RECEIVABLE,
                 LedgerService::GL_MEMBER_DEPOSITS,
                 $principal,
             );
 
-            // Generate amortisation schedule
             $this->generateSchedule($loanId, $loan);
 
             return $this->findById($loanId);
@@ -190,6 +196,12 @@ final class LoanService
 
     /**
      * Process a loan payment.
+     *
+     * Interest is calculated daily at payment time:
+     *   accrued = outstanding_balance * (annual_rate / 100 / 365) * days_since_last_activity
+     *
+     * Payment is applied interest-first, remainder to principal.
+     * Both the loan record and the loan account balance are updated.
      */
     public function makePayment(string $loanId, float $amount, ?string $fromAccountId = null, ?string $userId = null): array
     {
@@ -202,54 +214,79 @@ final class LoanService
             throw new RuntimeException('Loan not found.', 404);
         }
 
-        if (!in_array($loan['status'], ['approved', 'active'], true)) {
+        if (!in_array($loan['status'], ['approved', 'active', 'delinquent'], true)) {
             throw new RuntimeException('Loan is not in a payable state.', 422);
         }
 
-        $remainingBalance = (float) $loan['outstanding_balance'];
-        if ($amount > $remainingBalance) {
-            $amount = $remainingBalance; // Cap at remaining balance
-        }
-
         return $this->db->transaction(function () use ($loanId, $loan, $amount, $fromAccountId, $userId) {
-            $paymentId = $this->generateUuid();
-            $now       = date('Y-m-d H:i:s');
+            $now = date('Y-m-d H:i:s');
+            $outstandingBalance = (float) $loan['outstanding_balance'];
+            $annualRate = (float) $loan['interest_rate'];
 
-            // Split payment into principal and interest
-            $interestPortion  = $this->calculateInterestPortion($loan, $amount);
+            // Calculate accrued interest based on days since last activity
+            $lastActivityDate = $this->getLastActivityDate($loanId, $loan);
+            $lastDate = new \DateTimeImmutable($lastActivityDate);
+            $today = new \DateTimeImmutable('today');
+            $daysSince = max(0, (int) $today->diff($lastDate)->days);
+
+            $dailyRate = $annualRate / 100 / 365;
+            $accruedInterest = round($outstandingBalance * $dailyRate * $daysSince, 2);
+
+            // Total owed = principal balance + accrued interest
+            $totalOwed = $outstandingBalance + $accruedInterest;
+
+            // Cap payment at total owed
+            if ($amount > $totalOwed) {
+                $amount = $totalOwed;
+            }
+
+            // Split: interest first, remainder to principal
+            $interestPortion = min($accruedInterest, $amount);
             $principalPortion = $amount - $interestPortion;
-
-            $newBalance = (float) $loan['outstanding_balance'] - $principalPortion;
+            $newBalance = round($outstandingBalance - $principalPortion, 2);
 
             // Debit source account if specified
             if ($fromAccountId !== null) {
                 $this->accounts->updateBalance($fromAccountId, -$amount);
             }
 
-            // Update loan balance
+            // Update loan account balance: subtract principal portion
+            if ($loan['account_id']) {
+                $this->accounts->updateBalance($loan['account_id'], -$principalPortion);
+            }
+
+            // Update loan record
             $updates = [
                 'outstanding_balance' => max(0, $newBalance),
                 'total_paid'          => (float) ($loan['total_paid'] ?? 0) + $amount,
-                'next_payment_date'   => $newBalance > 0 ? date('Y-m-d', strtotime('+1 month')) : null,
+                'next_payment_date'   => $newBalance > 0.01 ? date('Y-m-d', strtotime('+1 month')) : null,
                 'updated_at'          => $now,
             ];
 
             if ($newBalance <= 0.01) {
-                $updates['status']             = 'paid_off';
+                $updates['status'] = 'paid_off';
                 $updates['outstanding_balance'] = 0;
+                // Close loan account
+                if ($loan['account_id']) {
+                    $this->db->execute(
+                        'UPDATE accounts SET balance = 0, available_balance = 0, status = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?',
+                        ['closed', $loan['account_id'], $loan['tenant_id']],
+                    );
+                }
             } else {
                 $updates['status'] = 'active';
             }
 
             $this->db->updateScoped('loans', $updates, ['id' => $loanId]);
 
-            // Ledger entries
+            // Record transaction linked to the loan account
             $txnId = $this->generateUuid();
+            $balanceAfter = max(0, $newBalance);
             $this->db->query(
                 'INSERT INTO transactions
                     (id, tenant_id, reference_number, type, status, amount,
-                     account_id, processed_by, description, metadata, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     account_id, balance_after, processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $loan['tenant_id'],
@@ -257,19 +294,25 @@ final class LoanService
                     'loan_payment',
                     'completed',
                     $amount,
-                    $fromAccountId,
+                    $loan['account_id'],
+                    $balanceAfter,
                     $userId,
-                    "Loan payment - principal: {$principalPortion}, interest: {$interestPortion}",
-                    json_encode(['principal' => $principalPortion, 'interest' => $interestPortion, 'loan_id' => $loanId]),
+                    "Loan payment - {$loan['loan_number']}",
+                    json_encode([
+                        'principal'    => $principalPortion,
+                        'interest'     => $interestPortion,
+                        'loan_id'      => $loanId,
+                        'days_accrued' => $daysSince,
+                        'daily_rate'   => $dailyRate,
+                    ]),
                     $now,
                 ],
             );
 
-            // Credit Loan Receivable for principal, Credit Interest Income for interest
             if ($principalPortion > 0) {
                 $this->ledger->createDoubleEntry(
                     $txnId,
-                    "Loan principal payment #{$loanId}",
+                    "Loan principal payment #{$loan['loan_number']}",
                     LedgerService::GL_MEMBER_DEPOSITS,
                     LedgerService::GL_LOAN_RECEIVABLE,
                     $principalPortion,
@@ -279,7 +322,7 @@ final class LoanService
             if ($interestPortion > 0) {
                 $this->ledger->createDoubleEntry(
                     $txnId,
-                    "Loan interest payment #{$loanId}",
+                    "Loan interest payment #{$loan['loan_number']}",
                     LedgerService::GL_MEMBER_DEPOSITS,
                     LedgerService::GL_LOAN_INTEREST_INCOME,
                     $interestPortion,
@@ -287,12 +330,13 @@ final class LoanService
             }
 
             return [
-                'payment_id'    => $paymentId,
-                'amount'        => $amount,
-                'principal'     => $principalPortion,
-                'interest'      => $interestPortion,
-                'new_balance'   => max(0, $newBalance),
-                'loan'          => $this->findById($loanId),
+                'payment_id'   => $txnId,
+                'amount'       => $amount,
+                'principal'    => $principalPortion,
+                'interest'     => $interestPortion,
+                'days_accrued' => $daysSince,
+                'new_balance'  => max(0, $newBalance),
+                'loan'         => $this->findById($loanId),
             ];
         });
     }
@@ -516,15 +560,20 @@ final class LoanService
      */
     public function getPaymentHistory(string $loanId): array
     {
+        $loan = $this->findById($loanId);
+        if ($loan === null || !$loan['account_id']) {
+            return [];
+        }
+
         $tenantId = $this->db->getTenantId();
 
         return $this->db->fetchAll(
             "SELECT t.*, CONCAT(u.first_name, ' ', u.last_name) AS processed_by_name
              FROM transactions t
-             LEFT JOIN users u ON u.id = t.user_id AND u.tenant_id = t.tenant_id
-             WHERE t.tenant_id = ? AND t.type = 'loan_payment' AND t.description LIKE ?
+             LEFT JOIN users u ON u.id = t.processed_by AND u.tenant_id = t.tenant_id
+             WHERE t.tenant_id = ? AND t.account_id = ? AND t.type IN ('loan_payment', 'loan_disbursement')
              ORDER BY t.created_at DESC",
-            [$tenantId, "%{$loanId}%"],
+            [$tenantId, $loan['account_id']],
         );
     }
 
@@ -546,16 +595,7 @@ final class LoanService
         $annualRate         = (float) $loan['interest_rate'];
         $dailyRate          = $annualRate / 100 / 365;
 
-        // Find the most recent payment date, or fall back to disbursed_at
-        $tenantId = $this->db->getTenantId();
-        $lastPayment = $this->db->fetchOne(
-            "SELECT MAX(t.created_at) AS last_payment_date
-             FROM transactions t
-             WHERE t.tenant_id = ? AND t.type = 'loan_payment' AND t.description LIKE ?",
-            [$tenantId, "%{$loanId}%"],
-        );
-
-        $lastPaymentDate = $lastPayment['last_payment_date'] ?? $loan['disbursed_at'] ?? $loan['created_at'];
+        $lastPaymentDate = $this->getLastActivityDate($loanId, $loan);
         $lastDate  = new \DateTimeImmutable($lastPaymentDate);
         $today     = new \DateTimeImmutable('today');
         $daysSince = max(0, (int) $today->diff($lastDate)->days);
@@ -678,14 +718,34 @@ final class LoanService
     }
 
     /**
-     * Calculate the interest portion of a payment based on the outstanding balance.
+     * Find the date of the last payment or disbursement for a loan.
+     */
+    private function getLastActivityDate(string $loanId, array $loan): string
+    {
+        if ($loan['account_id']) {
+            $tenantId = $this->db->getTenantId();
+            $lastPayment = $this->db->fetchOne(
+                "SELECT MAX(t.created_at) AS last_date
+                 FROM transactions t
+                 WHERE t.tenant_id = ? AND t.account_id = ? AND t.type IN ('loan_payment', 'loan_disbursement')",
+                [$tenantId, $loan['account_id']],
+            );
+            if ($lastPayment && $lastPayment['last_date']) {
+                return $lastPayment['last_date'];
+            }
+        }
+
+        return $loan['disbursed_at'] ?? $loan['approved_at'] ?? $loan['created_at'];
+    }
+
+    /**
+     * Calculate the interest portion of a payment (daily accrual, 30-day estimate).
      */
     private function calculateInterestPortion(array $loan, float $paymentAmount): float
     {
-        $monthlyRate = (float) $loan['interest_rate'] / 100 / 12;
-        $interest    = (float) $loan['outstanding_balance'] * $monthlyRate;
+        $dailyRate = (float) $loan['interest_rate'] / 100 / 365;
+        $interest  = (float) $loan['outstanding_balance'] * $dailyRate * 30;
 
-        // Interest cannot exceed total payment
         return round(min($interest, $paymentAmount), 2);
     }
 

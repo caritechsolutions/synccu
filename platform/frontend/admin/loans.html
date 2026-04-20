@@ -355,10 +355,10 @@
           <div class="table-responsive">
             <table class="data-table data-table-sm">
               <thead>
-                <tr><th>Date</th><th>Amount</th><th>Reference</th><th>Description</th></tr>
+                <tr><th>Date</th><th>Type</th><th>Amount</th><th>Principal</th><th>Interest</th><th>Reference</th></tr>
               </thead>
               <tbody id="paymentHistoryTable">
-                <tr><td colspan="4" style="text-align:center;padding:1rem">Loading...</td></tr>
+                <tr><td colspan="6" style="text-align:center;padding:1rem">Loading...</td></tr>
               </tbody>
             </table>
           </div>
@@ -763,21 +763,28 @@
 
     async function loadPayments(loanId) {
       const tbody = document.getElementById('paymentHistoryTable');
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1rem">Loading...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1rem">Loading...</td></tr>';
       try {
         const resp = await apiFetch('/api/v1/loans/' + loanId + '/payments');
-        if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1rem">No payments yet.</td></tr>'; return; }
+        if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1rem">No payments yet.</td></tr>'; return; }
         const json = await resp.json();
         const payments = json.data || [];
-        if (!payments.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1rem">No payments yet.</td></tr>'; return; }
-        tbody.innerHTML = payments.map(p => `
-          <tr>
+        if (!payments.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1rem">No payments yet.</td></tr>'; return; }
+        tbody.innerHTML = payments.map(p => {
+          let meta = {};
+          try { meta = p.metadata ? (typeof p.metadata === 'string' ? JSON.parse(p.metadata) : p.metadata) : {}; } catch(e) {}
+          const typeLabel = p.type === 'loan_disbursement' ? 'Disbursement' : 'Payment';
+          const typeBadge = p.type === 'loan_disbursement' ? 'badge-info' : 'badge-success';
+          return `<tr>
             <td>${p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</td>
+            <td><span class="badge ${typeBadge}">${typeLabel}</span></td>
             <td>$${Number(p.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-            <td class="font-mono">${p.reference || '-'}</td>
-            <td>${p.description || '-'}</td>
-          </tr>`).join('');
-      } catch (e) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1rem">Error loading payments.</td></tr>'; }
+            <td>${meta.principal != null ? '$' + Number(meta.principal).toFixed(2) : '-'}</td>
+            <td>${meta.interest != null ? '$' + Number(meta.interest).toFixed(2) : '-'}</td>
+            <td class="font-mono">${p.reference_number || '-'}</td>
+          </tr>`;
+        }).join('');
+      } catch (e) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1rem">Error loading payments.</td></tr>'; }
     }
 
     async function loadDocuments(loanId) {
@@ -879,7 +886,13 @@
         });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok) { alert('Error: ' + (json.message || 'Payment failed')); return; }
-        alert('Payment posted.');
+        const d = json.data || {};
+        const msg = 'Payment posted: $' + Number(d.amount || amount).toFixed(2) +
+          '\nPrincipal: $' + Number(d.principal || 0).toFixed(2) +
+          '\nInterest: $' + Number(d.interest || 0).toFixed(2) +
+          (d.days_accrued ? '\nDays accrued: ' + d.days_accrued : '') +
+          '\nNew balance: $' + Number(d.new_balance || 0).toFixed(2);
+        alert(msg);
         document.getElementById('paymentForm').reset();
         await openLoanDetail(currentLoan.id);
         loadLoans(currentLoanPage);

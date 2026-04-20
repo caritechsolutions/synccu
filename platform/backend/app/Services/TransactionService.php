@@ -33,6 +33,9 @@ final class TransactionService
 
     /**
      * Deposit funds into an account.
+     *
+     * If the target account is a loan account, the deposit is treated as a
+     * loan payment: interest is calculated daily and the balance is reduced.
      */
     public function deposit(string $accountId, float $amount, string $description = '', ?string $userId = null, array $metadata = []): array
     {
@@ -45,6 +48,17 @@ final class TransactionService
             throw new RuntimeException('Account not found.', 404);
         }
         $this->assertAccountActive($account);
+
+        // Loan account deposits are handled as loan payments
+        if ($account['account_type'] === 'loan') {
+            $loan = $this->db->findScoped('loans', ['account_id' => $accountId]);
+            if ($loan === null) {
+                throw new RuntimeException('No loan found for this account.', 404);
+            }
+            $loanService = new LoanService();
+            $result = $loanService->makePayment($loan['id'], $amount, null, $userId);
+            return $this->findById($result['payment_id']) ?? $result;
+        }
 
         return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account, $metadata) {
             $txnId   = $this->generateUuid();
@@ -557,6 +571,7 @@ final class TransactionService
             'savings'       => LedgerService::GL_MEMBER_SAVINGS,
             'checking'      => LedgerService::GL_MEMBER_CHECKING,
             'shares'        => LedgerService::GL_MEMBER_SHARES,
+            'loan'          => LedgerService::GL_LOAN_RECEIVABLE,
             default         => LedgerService::GL_MEMBER_SAVINGS,
         };
     }

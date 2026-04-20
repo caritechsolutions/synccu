@@ -68,6 +68,40 @@ final class AccountService
         return $this->findById($accountId);
     }
 
+    /**
+     * Create a loan account with an initial balance (amount owed).
+     */
+    public function createLoanAccount(array $data, string $tenantId, float $initialBalance): array
+    {
+        $accountId     = $this->generateUuid();
+        $accountNumber = $this->generateAccountNumber($tenantId);
+        $now           = date('Y-m-d H:i:s');
+
+        $this->db->query(
+            'INSERT INTO accounts
+                (id, tenant_id, user_id, account_number, account_type, name, currency, balance, available_balance, interest_rate, status, opened_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $accountId,
+                $tenantId,
+                $data['user_id'],
+                $accountNumber,
+                'loan',
+                $data['name'] ?? 'Loan Account',
+                $data['currency'] ?? 'USD',
+                $initialBalance,
+                $initialBalance,
+                (float) ($data['interest_rate'] ?? 0),
+                'active',
+                $now,
+                $now,
+                $now,
+            ],
+        );
+
+        return $this->findById($accountId);
+    }
+
     // ------------------------------------------------------------------
     // Read
     // ------------------------------------------------------------------
