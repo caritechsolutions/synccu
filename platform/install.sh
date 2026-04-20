@@ -319,6 +319,23 @@ if [ -f "database/seed.sql" ]; then
     success "Seed data imported"
 fi
 
+# Post-install migrations & data cleanup
+step "Running database migrations..."
+
+$MYSQL_CMD "$DB_NAME" <<-'EOSQL'
+    -- Add late_fee to transactions type ENUM if not present
+    ALTER TABLE `transactions`
+        MODIFY COLUMN `type` ENUM('deposit','withdrawal','transfer','payment','fee','late_fee','interest','adjustment','loan_disbursement','loan_payment','expense') NOT NULL,
+        MODIFY COLUMN `account_id` CHAR(36) DEFAULT NULL,
+        MODIFY COLUMN `balance_after` DECIMAL(15,2) DEFAULT NULL;
+
+    -- Remove orphaned loan-type accounts (account_type='loan' with no matching loans record)
+    DELETE a FROM `accounts` a
+        LEFT JOIN `loans` l ON l.account_id = a.id
+        WHERE a.account_type = 'loan' AND l.id IS NULL;
+EOSQL
+success "Migrations applied"
+
 # Create admin user (use PHP for bcrypt since it's guaranteed installed)
 HASHED_PASS=$(php -r "echo password_hash('${ADMIN_PASS}', PASSWORD_BCRYPT, ['cost' => 12]);")
 ADMIN_UUID=$(python3 -c "import uuid; print(str(uuid.uuid4()))")

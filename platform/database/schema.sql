@@ -97,7 +97,7 @@ CREATE TABLE `transactions` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) NOT NULL,
   `account_id` CHAR(36) DEFAULT NULL,
-  `type` ENUM('deposit','withdrawal','transfer','payment','fee','interest','adjustment','loan_disbursement','loan_payment','expense') NOT NULL,
+  `type` ENUM('deposit','withdrawal','transfer','payment','fee','late_fee','interest','adjustment','loan_disbursement','loan_payment','expense') NOT NULL,
   `amount` DECIMAL(15,2) NOT NULL,
   `balance_after` DECIMAL(15,2) DEFAULT NULL,
   `description` VARCHAR(500) DEFAULT NULL,
