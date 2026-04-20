@@ -104,11 +104,6 @@
           <h4>Balance Sheet</h4>
           <p>Assets, liabilities, and equity</p>
         </button>
-        <button class="report-card" data-report="trial-balance">
-          <div class="report-card-icon"><svg><use href="#icon-file-text"/></svg></div>
-          <h4>Trial Balance</h4>
-          <p>Debit and credit summary by category</p>
-        </button>
         <button class="report-card" data-report="general-ledger">
           <div class="report-card-icon"><svg><use href="#icon-send"/></svg></div>
           <h4>General Ledger</h4>
@@ -215,7 +210,6 @@
         switch (currentReport) {
           case 'income-statement': await renderIncomeStatement(from, to); break;
           case 'balance-sheet':    await renderBalanceSheet(); break;
-          case 'trial-balance':    await renderTrialBalance(); break;
           case 'general-ledger':   await renderGeneralLedger(from, to); break;
           case 'transactions':     await renderTransactions(from, to); break;
           case 'loan-portfolio':   await renderLoanPortfolio(); break;
@@ -318,36 +312,6 @@
       html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Equity</strong></td><td style="text-align:right"><strong>${fmt(d.total_equity)}</strong></td></tr>
               <tr style="border-top:3px double var(--border)"><td><strong>Liabilities + Equity</strong></td><td style="text-align:right"><strong>${fmt(d.total_liabilities + d.total_equity)}</strong></td></tr>
             </tbody></table></div>`;
-      el.innerHTML = html;
-    }
-
-    // === TRIAL BALANCE ===
-    async function renderTrialBalance() {
-      const resp = await apiFetch('/api/v1/reports/trial-balance');
-      const json = await resp.json();
-      if (!resp.ok) throw new Error(json.message || 'Failed');
-      const d = json.data;
-      const el = document.getElementById('reportContent');
-      const accounts = d.accounts || [];
-
-      let html = `<div style="margin-bottom:1rem;font-weight:600;${d.balanced ? 'color:#16a34a' : 'color:#dc2626'}">${d.balanced ? 'Ledger is balanced.' : 'WARNING: Ledger is NOT balanced!'}</div>
-        <div class="table-responsive">
-          <table class="data-table">
-            <thead><tr><th>Account Name</th><th>Type</th><th style="text-align:right">Debits</th><th style="text-align:right">Credits</th><th style="text-align:right">Balance</th></tr></thead>
-            <tbody>`;
-      accounts.forEach(a => {
-        const typeLabel = a.type.charAt(0).toUpperCase() + a.type.slice(1);
-        html += `<tr>
-          <td>${a.name}</td><td>${typeLabel}</td>
-          <td style="text-align:right">${fmt(a.debits)}</td>
-          <td style="text-align:right">${fmt(a.credits)}</td>
-          <td style="text-align:right">${fmt(a.balance)}</td></tr>`;
-      });
-      html += `<tr style="border-top:3px double var(--border);font-weight:700">
-          <td colspan="2">Totals</td>
-          <td style="text-align:right">${fmt(d.total_debits)}</td>
-          <td style="text-align:right">${fmt(d.total_credits)}</td>
-          <td></td></tr></tbody></table></div>`;
       el.innerHTML = html;
     }
 

@@ -216,7 +216,6 @@ $router->group([
         AuditMiddleware::class,
     ],
 ], function ($router) {
-    $router->get('/trial-balance',      [ReportController::class, 'trialBalance']);
     $router->get('/general-ledger',     [ReportController::class, 'generalLedger']);
     $router->get('/income-statement',   [ReportController::class, 'incomeStatement']);
     $router->get('/balance-sheet',      [ReportController::class, 'balanceSheet']);

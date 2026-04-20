@@ -28,85 +28,6 @@ final class ReportController
     // ------------------------------------------------------------------
 
     /**
-     * GET /api/v1/reports/trial-balance
-     *
-     * Aggregated debit/credit summary by transaction type, computed from
-     * the transactions table.
-     */
-    public function trialBalance(Request $request): Response
-    {
-        $tenantId = $this->db->getTenantId();
-
-        // Deposits = debits to Cash, credits to Member Liabilities
-        $deposits = (float) ($this->db->fetchColumn(
-            "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id = ? AND type = 'deposit' AND status = 'completed'",
-            [$tenantId],
-        ) ?? 0);
-
-        // Withdrawals = debits to Member Liabilities, credits to Cash
-        $withdrawals = (float) ($this->db->fetchColumn(
-            "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id = ? AND type = 'withdrawal' AND status = 'completed'",
-            [$tenantId],
-        ) ?? 0);
-
-        // Loan disbursements = debits to Loan Receivable, credits to Cash
-        $disbursements = (float) ($this->db->fetchColumn(
-            "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id = ? AND type = 'loan_disbursement' AND status = 'completed'",
-            [$tenantId],
-        ) ?? 0);
-
-        // Loan payments: principal reduces Loan Receivable, interest is revenue
-        $loanPayments = $this->db->fetchAll(
-            "SELECT amount, metadata FROM transactions WHERE tenant_id = ? AND type = 'loan_payment' AND status = 'completed'",
-            [$tenantId],
-        );
-        $principalPayments = 0.0;
-        $interestPayments = 0.0;
-        foreach ($loanPayments as $lp) {
-            $meta = json_decode($lp['metadata'] ?? '{}', true);
-            $interestPayments += (float) ($meta['interest'] ?? 0);
-            $principalPayments += (float) ($meta['principal'] ?? ((float) $lp['amount'] - (float) ($meta['interest'] ?? 0)));
-        }
-
-        // Fees & late fees = revenue
-        $fees = (float) ($this->db->fetchColumn(
-            "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id = ? AND type IN ('fee','late_fee') AND status = 'completed'",
-            [$tenantId],
-        ) ?? 0);
-
-        // Expenses
-        $expenses = (float) ($this->db->fetchColumn(
-            "SELECT COALESCE(SUM(amount),0) FROM transactions WHERE tenant_id = ? AND type = 'expense' AND status = 'completed'",
-            [$tenantId],
-        ) ?? 0);
-
-        $accounts = [
-            ['name' => 'Cash & Deposits',      'type' => 'asset',     'debits' => round($deposits + $principalPayments + $interestPayments + $fees, 2), 'credits' => round($withdrawals + $disbursements + $expenses, 2)],
-            ['name' => 'Loan Receivables',      'type' => 'asset',     'debits' => round($disbursements, 2), 'credits' => round($principalPayments, 2)],
-            ['name' => 'Member Deposits',       'type' => 'liability', 'debits' => round($withdrawals, 2),   'credits' => round($deposits, 2)],
-            ['name' => 'Loan Interest Income',  'type' => 'revenue',   'debits' => 0, 'credits' => round($interestPayments, 2)],
-            ['name' => 'Fee & Late Fee Income', 'type' => 'revenue',   'debits' => 0, 'credits' => round($fees, 2)],
-            ['name' => 'Operating Expenses',    'type' => 'expense',   'debits' => round($expenses, 2), 'credits' => 0],
-        ];
-
-        // Compute balances
-        foreach ($accounts as &$a) {
-            $a['balance'] = round($a['debits'] - $a['credits'], 2);
-        }
-        unset($a);
-
-        $totalDebits = round(array_sum(array_column($accounts, 'debits')), 2);
-        $totalCredits = round(array_sum(array_column($accounts, 'credits')), 2);
-
-        return Response::ok([
-            'accounts'      => $accounts,
-            'total_debits'  => $totalDebits,
-            'total_credits' => $totalCredits,
-            'balanced'      => abs($totalDebits - $totalCredits) < 0.01,
-        ]);
-    }
-
-    /**
      * GET /api/v1/reports/general-ledger
      *
      * All transactions displayed as ledger entries, computed from the
@@ -471,21 +392,6 @@ final class ReportController
         $csv = '';
 
         switch ($type) {
-            case 'trial-balance':
-                $tbBody = $this->trialBalance($request)->getBody();
-                $tbData = $tbBody['data'] ?? $tbBody;
-                $csv = "Account Name,Type,Debits,Credits,Balance\n";
-                foreach ($tbData['accounts'] ?? [] as $a) {
-                    $csv .= implode(',', [
-                        '"' . str_replace('"', '""', $a['name']) . '"',
-                        $a['type'], $a['debits'], $a['credits'], $a['balance']
-                    ]) . "\n";
-                }
-                $td = $tbData['total_debits'] ?? 0;
-                $tc = $tbData['total_credits'] ?? 0;
-                $csv .= "\nTotals,,{$td},{$tc},\n";
-                break;
-
             case 'general-ledger':
                 $txns = $this->db->fetchAll(
                     "SELECT t.id, t.reference_number, t.type, t.amount, t.description,
