@@ -100,7 +100,11 @@ final class LoanController
      */
     public function apply(Request $request): Response
     {
+        $role = $request->getAttribute('role');
+        $isAdmin = in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true);
+
         $validator = new Validator($request->all(), [
+            'user_id'       => $isAdmin ? 'required|string' : 'nullable|string',
             'loan_type'     => 'required|in:personal,auto,mortgage,business,education,credit_line',
             'amount'        => 'required|numeric|positive',
             'interest_rate' => 'required|numeric',
@@ -113,10 +117,16 @@ final class LoanController
         }
 
         try {
+            $data = $validator->validated();
+            $memberId = ($isAdmin && !empty($data['user_id']))
+                ? $data['user_id']
+                : $request->getAttribute('user_id');
+            unset($data['user_id']);
+
             $loan = $this->loans->apply(
-                $validator->validated(),
+                $data,
                 $request->getAttribute('tenant_id'),
-                $request->getAttribute('user_id'),
+                $memberId,
             );
 
             return Response::created($loan, 'Loan application submitted');
