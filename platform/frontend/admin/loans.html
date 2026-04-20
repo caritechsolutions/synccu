@@ -209,10 +209,25 @@
       </div>
       <form id="loanForm">
         <div class="modal-body">
-          <div class="form-group">
-            <label for="loanMember">Member</label>
-            <input type="text" id="loanMember" class="form-input" placeholder="Search member by name or ID..." required>
+          <div class="form-group" style="position:relative">
+            <label>Member</label>
             <input type="hidden" id="loanMemberId" name="member_id">
+            <!-- Search state -->
+            <div id="memberSearchWrap">
+              <input type="text" id="loanMember" class="form-input" placeholder="Type name, email, or phone to search..." autocomplete="off">
+              <div id="loanMemberResults" style="position:absolute;z-index:50;background:var(--bg-card,#fff);border:1px solid var(--border,#ddd);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:280px;overflow-y:auto;width:100%;left:0"></div>
+            </div>
+            <!-- Selected state (hidden until a member is picked) -->
+            <div id="memberSelectedCard" style="display:none;padding:.6rem .75rem;border:2px solid var(--primary,#3b82f6);border-radius:8px;background:var(--bg-muted,#f8f9fa)">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div>
+                  <strong id="selectedMemberName" style="font-size:.95rem"></strong>
+                  <div id="selectedMemberEmail" style="font-size:.8rem;color:var(--text-secondary,#555)"></div>
+                  <div id="selectedMemberInfo" style="font-size:.75rem;color:var(--text-muted,#888);margin-top:2px"></div>
+                </div>
+                <button type="button" id="changeMemberBtn" class="btn btn-secondary btn-sm" style="white-space:nowrap;margin-left:.5rem">Change</button>
+              </div>
+            </div>
           </div>
           <div class="form-group">
             <label for="loanType">Loan Type</label>
@@ -459,15 +474,12 @@
     // === MODAL OPEN/CLOSE ===
     function openLoanModal() {
       loanForm.reset();
-      document.getElementById('loanMemberId').value = '';
-      const list = loanModal.querySelector('.search-results');
-      if (list) list.innerHTML = '';
+      clearMemberSelection();
       loanModal.classList.add('active');
     }
     function closeLoanModal() {
       loanModal.classList.remove('active');
-      const list = loanModal.querySelector('.search-results');
-      if (list) list.innerHTML = '';
+      loanMemberResults.innerHTML = '';
     }
     document.getElementById('newLoanBtn').addEventListener('click', openLoanModal);
     document.getElementById('closeLoanModal').addEventListener('click', closeLoanModal);
@@ -503,49 +515,60 @@
     // === MEMBER SEARCH (loan form) ===
     let loanMemberTimeout;
     const loanMemberInput = document.getElementById('loanMember');
+    const loanMemberResults = document.getElementById('loanMemberResults');
+    const memberSearchWrap = document.getElementById('memberSearchWrap');
+    const memberSelectedCard = document.getElementById('memberSelectedCard');
 
-    function getLoanMemberList() {
-      let list = loanMemberInput.parentElement.querySelector('.search-results');
-      if (!list) {
-        list = document.createElement('div');
-        list.className = 'search-results';
-        list.style.cssText = 'position:absolute;z-index:50;background:var(--bg-card,#fff);border:1px solid var(--border,#ddd);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:280px;overflow-y:auto;width:100%;left:0;top:100%';
-        loanMemberInput.parentElement.style.position = 'relative';
-        loanMemberInput.parentElement.appendChild(list);
-      }
-      return list;
+    function selectMember(m) {
+      document.getElementById('loanMemberId').value = m.id;
+      document.getElementById('selectedMemberName').textContent = m.first_name + ' ' + m.last_name;
+      document.getElementById('selectedMemberEmail').textContent = m.email;
+      const parts = [];
+      if (m.phone) parts.push(m.phone);
+      if (m.account_numbers) parts.push('Acct: ' + m.account_numbers);
+      else parts.push(m.accounts_count + ' account(s)');
+      document.getElementById('selectedMemberInfo').textContent = parts.join(' · ');
+      memberSearchWrap.style.display = 'none';
+      memberSelectedCard.style.display = 'block';
+      loanMemberResults.innerHTML = '';
     }
+
+    function clearMemberSelection() {
+      document.getElementById('loanMemberId').value = '';
+      loanMemberInput.value = '';
+      loanMemberResults.innerHTML = '';
+      memberSelectedCard.style.display = 'none';
+      memberSearchWrap.style.display = 'block';
+      loanMemberInput.focus();
+    }
+
+    document.getElementById('changeMemberBtn').addEventListener('click', clearMemberSelection);
 
     loanMemberInput.addEventListener('input', (e) => {
       clearTimeout(loanMemberTimeout);
       const q = e.target.value.trim();
-      const list = getLoanMemberList();
-      if (q.length < 2) { list.innerHTML = ''; return; }
-      // Clear selected member when user edits the field
-      document.getElementById('loanMemberId').value = '';
+      if (q.length < 2) { loanMemberResults.innerHTML = ''; return; }
       loanMemberTimeout = setTimeout(async () => {
         try {
           const resp = await apiFetch('/api/v1/members?search=' + encodeURIComponent(q) + '&per_page=10');
           if (!resp.ok) return;
           const json = await resp.json();
           const members = (json.data || []).filter(m => m.role === 'member');
-          if (!members.length) { list.innerHTML = '<div style="padding:.75rem;color:var(--text-muted,#888);font-size:.875rem">No members found</div>'; return; }
-          list.innerHTML = members.map(m => {
+          if (!members.length) { loanMemberResults.innerHTML = '<div style="padding:.75rem;color:var(--text-muted,#888);font-size:.875rem">No members found</div>'; return; }
+          loanMemberResults.innerHTML = members.map(m => {
             const accts = m.account_numbers || '';
-            return `<div class="search-result-item" data-id="${m.id}" data-label="${m.first_name} ${m.last_name} — ${m.email}" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid var(--border,#eee)">
+            return `<div class="search-result-item" data-idx="${m.id}" style="padding:.6rem .75rem;cursor:pointer;border-bottom:1px solid var(--border,#eee)">
               <strong>${m.first_name} ${m.last_name}</strong>
               <div style="font-size:.8rem;color:var(--text-secondary,#555)">${m.email}</div>
               <div style="font-size:.75rem;color:var(--text-muted,#888)">${m.phone || 'No phone'}${accts ? ' · Acct: ' + accts : ''} · ${m.accounts_count || 0} account(s)</div>
             </div>`;
           }).join('');
-          list.querySelectorAll('.search-result-item').forEach(item => {
+          const memberData = {};
+          members.forEach(m => memberData[m.id] = m);
+          loanMemberResults.querySelectorAll('.search-result-item').forEach(item => {
             item.addEventListener('mouseenter', () => item.style.background = 'var(--bg-muted,#f5f5f5)');
             item.addEventListener('mouseleave', () => item.style.background = '');
-            item.addEventListener('click', () => {
-              document.getElementById('loanMemberId').value = item.dataset.id;
-              loanMemberInput.value = item.dataset.label;
-              list.innerHTML = '';
-            });
+            item.addEventListener('click', () => selectMember(memberData[item.dataset.idx]));
           });
         } catch (e) { /* ignore */ }
       }, 300);
@@ -562,7 +585,11 @@
         purpose:       document.getElementById('loanPurpose').value,
       };
       const memberId = document.getElementById('loanMemberId').value;
-      if (memberId) data.user_id = memberId;
+      if (!memberId) {
+        alert('Please select a member first.');
+        return;
+      }
+      data.user_id = memberId;
       try {
         const resp = await apiFetch('/api/v1/loans/apply', {
           method: 'POST',
