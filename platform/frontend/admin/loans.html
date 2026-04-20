@@ -496,18 +496,23 @@
       if (q.length < 2) return;
       loanMemberTimeout = setTimeout(async () => {
         try {
-          const resp = await apiFetch('/api/v1/members?search=' + encodeURIComponent(q) + '&per_page=5');
+          const resp = await apiFetch('/api/v1/members?search=' + encodeURIComponent(q) + '&per_page=10');
           if (!resp.ok) return;
           const json = await resp.json();
           const members = json.data || [];
           const input = document.getElementById('loanMember');
           let list = input.parentElement.querySelector('.search-results');
-          if (!list) { list = document.createElement('div'); list.className = 'search-results'; input.parentElement.appendChild(list); }
-          list.innerHTML = members.map(m => `<div class="search-result-item" data-id="${m.id}">${m.first_name} ${m.last_name} (${m.email})</div>`).join('');
+          if (!list) { list = document.createElement('div'); list.className = 'search-results'; list.style.cssText = 'position:absolute;z-index:50;background:var(--bg-card,#fff);border:1px solid var(--border,#ddd);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:240px;overflow-y:auto;width:100%;left:0;top:100%'; input.parentElement.style.position = 'relative'; input.parentElement.appendChild(list); }
+          list.innerHTML = members.map(m => `<div class="search-result-item" data-id="${m.id}" data-label="${m.first_name} ${m.last_name}" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid var(--border,#eee)">
+            <strong>${m.first_name} ${m.last_name}</strong>${m.role && m.role !== 'member' ? ' <span class="badge badge-warning" style="font-size:.65rem">' + m.role + '</span>' : ''}
+            <div style="font-size:.75rem;color:var(--text-muted,#888)">${m.email}${m.phone ? ' &middot; ' + m.phone : ''} &middot; ${m.accounts_count || 0} account(s)</div>
+          </div>`).join('');
           list.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('mouseenter', () => item.style.background = 'var(--bg-muted,#f5f5f5)');
+            item.addEventListener('mouseleave', () => item.style.background = '');
             item.addEventListener('click', () => {
               document.getElementById('loanMemberId').value = item.dataset.id;
-              document.getElementById('loanMember').value = item.textContent;
+              document.getElementById('loanMember').value = item.dataset.label;
               list.innerHTML = '';
             });
           });
