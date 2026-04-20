@@ -21,6 +21,10 @@ INSERT IGNORE INTO `tenants` (`id`, `name`, `slug`, `domain`, `primary_color`, `
 -- ============================================================
 -- bcrypt hash of 'password123': $2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
 
+-- Production admin (Password!10)
+INSERT IGNORE INTO `users` (`id`, `tenant_id`, `email`, `password_hash`, `first_name`, `last_name`, `phone`, `role`, `status`, `email_verified_at`, `password_changed_at`) VALUES
+('10000000-0000-0000-0000-000000000099', '00000000-0000-0000-0000-000000000001', 'rrawlins@caritech.net', '$2b$12$FFeNqC2TTzD5tubCOisn6u.2bkXWQjgYggb2odjt8Gos7KHzBwo2a', 'Rawle', 'Rawlins', NULL, 'super_admin', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
 -- Default tenant users
 INSERT IGNORE INTO `users` (`id`, `tenant_id`, `email`, `password_hash`, `first_name`, `last_name`, `phone`, `role`, `status`, `email_verified_at`, `password_changed_at`) VALUES
 ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'admin@synccu.local', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'System', 'Administrator', '+15551000001', 'super_admin', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
