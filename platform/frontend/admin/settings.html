@@ -293,89 +293,11 @@
       <!-- API Keys Tab -->
       <div class="tab-content" id="tab-api-keys">
         <div class="card">
-          <div class="card-header">
-            <h3>API Keys</h3>
-            <button class="btn btn-primary btn-sm" id="generateKeyBtn">
-              <svg><use href="#icon-plus"/></svg> Generate New Key
-            </button>
-          </div>
-          <div class="table-responsive">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Key</th>
-                  <th>Created</th>
-                  <th>Last Used</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="apiKeysTable">
-                <tr>
-                  <td><strong>Production API</strong></td>
-                  <td class="font-mono">sk_live_****...a3f8</td>
-                  <td>Jan 15, 2026</td>
-                  <td>Mar 27, 2026</td>
-                  <td><span class="badge badge-success">Active</span></td>
-                  <td>
-                    <div class="action-btns">
-                      <button class="icon-btn" title="View Key"><svg><use href="#icon-eye"/></svg></button>
-                      <button class="icon-btn icon-btn-danger" title="Revoke"><svg><use href="#icon-trash"/></svg></button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td><strong>Testing API</strong></td>
-                  <td class="font-mono">sk_test_****...b7d2</td>
-                  <td>Feb 3, 2026</td>
-                  <td>Mar 26, 2026</td>
-                  <td><span class="badge badge-success">Active</span></td>
-                  <td>
-                    <div class="action-btns">
-                      <button class="icon-btn" title="View Key"><svg><use href="#icon-eye"/></svg></button>
-                      <button class="icon-btn icon-btn-danger" title="Revoke"><svg><use href="#icon-trash"/></svg></button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td><strong>Mobile App</strong></td>
-                  <td class="font-mono">sk_live_****...c9e1</td>
-                  <td>Mar 1, 2026</td>
-                  <td>Mar 27, 2026</td>
-                  <td><span class="badge badge-success">Active</span></td>
-                  <td>
-                    <div class="action-btns">
-                      <button class="icon-btn" title="View Key"><svg><use href="#icon-eye"/></svg></button>
-                      <button class="icon-btn icon-btn-danger" title="Revoke"><svg><use href="#icon-trash"/></svg></button>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td><strong>Legacy Integration</strong></td>
-                  <td class="font-mono">sk_live_****...d4a0</td>
-                  <td>Nov 20, 2025</td>
-                  <td>Dec 15, 2025</td>
-                  <td><span class="badge badge-muted">Revoked</span></td>
-                  <td>
-                    <div class="action-btns">
-                      <button class="icon-btn" title="View Key"><svg><use href="#icon-eye"/></svg></button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- New Key Detail (hidden by default) -->
-          <div class="api-key-reveal" id="apiKeyReveal" style="display:none">
-            <div class="alert alert-warning">
-              <strong>Your new API key has been generated.</strong> Copy it now. You will not be able to see it again.
-            </div>
-            <div class="api-key-display">
-              <code id="newKeyValue">syncu_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code>
-              <button class="btn btn-secondary btn-sm" id="copyKeyBtn">Copy</button>
-            </div>
+          <div class="card-header"><h3>API Keys</h3></div>
+          <div style="padding:3rem;text-align:center;color:var(--text-muted)">
+            <svg style="width:3rem;height:3rem;margin-bottom:1rem;opacity:.4"><use href="#icon-key"/></svg>
+            <h4 style="margin:0 0 .5rem">Coming Soon</h4>
+            <p>API key management will be available in a future update.</p>
           </div>
         </div>
       </div>
@@ -432,30 +354,6 @@
       logoUpload.querySelector('p').textContent = file.name;
     }
 
-    // Generate API Key
-    document.getElementById('generateKeyBtn').addEventListener('click', async () => {
-      try {
-        const resp = await apiFetch('/api/v1/api-keys', {
-          method: 'POST',
-          body: JSON.stringify({ name: 'New API Key' })
-        });
-        if (!resp.ok) return;
-        const data = await resp.json();
-        document.getElementById('newKeyValue').textContent = data.key;
-        document.getElementById('apiKeyReveal').style.display = '';
-      } catch (e) {
-        // Demo: show a dummy key
-        document.getElementById('newKeyValue').textContent = 'sk_live_' + Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
-        document.getElementById('apiKeyReveal').style.display = '';
-      }
-    });
-
-    document.getElementById('copyKeyBtn').addEventListener('click', () => {
-      navigator.clipboard.writeText(document.getElementById('newKeyValue').textContent);
-      document.getElementById('copyKeyBtn').textContent = 'Copied!';
-      setTimeout(() => { document.getElementById('copyKeyBtn').textContent = 'Copy'; }, 2000);
-    });
-
     // Load settings from API
     async function loadSettings() {
       try {
@@ -487,6 +385,9 @@
         // Security
         if (settings.min_password_length) document.getElementById('minPasswordLength').value = settings.min_password_length;
         if (settings.password_expiry) document.getElementById('passwordExpiry').value = settings.password_expiry;
+        if (settings.require_uppercase !== undefined) document.getElementById('requireUppercase').checked = !!settings.require_uppercase;
+        if (settings.require_special !== undefined) document.getElementById('requireSpecial').checked = !!settings.require_special;
+        if (settings.require_2fa !== undefined) document.getElementById('enforce2fa').checked = !!settings.require_2fa;
         if (settings.session_timeout) document.getElementById('sessionTimeout').value = settings.session_timeout;
         if (settings.rate_limit) document.getElementById('rateLimit').value = settings.rate_limit;
         if (settings.max_login_attempts) document.getElementById('maxLoginAttempts').value = settings.max_login_attempts;
@@ -505,6 +406,10 @@
             name: document.getElementById('cuName').value,
             timezone: document.getElementById('timezone').value,
             currency: document.getElementById('currency').value,
+            savings_rate: document.getElementById('savingsRate').value,
+            checking_rate: document.getElementById('checkingRate').value,
+            loan_base_rate: document.getElementById('loanBaseRate').value,
+            cd_rate: document.getElementById('cdRate').value,
           })
         });
         alert('Settings saved.');
@@ -535,6 +440,9 @@
           body: JSON.stringify({
             min_password_length: document.getElementById('minPasswordLength').value,
             password_expiry: document.getElementById('passwordExpiry').value,
+            require_uppercase: document.getElementById('requireUppercase').checked,
+            require_special: document.getElementById('requireSpecial').checked,
+            require_2fa: document.getElementById('enforce2fa').checked,
             session_timeout: document.getElementById('sessionTimeout').value,
             rate_limit: document.getElementById('rateLimit').value,
             max_login_attempts: document.getElementById('maxLoginAttempts').value,

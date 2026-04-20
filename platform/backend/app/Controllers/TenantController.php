@@ -69,12 +69,24 @@ final class TenantController
         $tenantId = $request->getAttribute('tenant_id');
 
         $validator = new Validator($request->all(), [
-            'name'              => 'nullable|string|max:255',
-            'timezone'          => 'nullable|string|max:50',
-            'currency'          => 'nullable|string|max:3',
-            'locale'            => 'nullable|string|max:10',
-            'fiscal_year_start' => 'nullable|date',
-            'require_2fa'       => 'nullable|boolean',
+            'name'                => 'nullable|string|max:255',
+            'timezone'            => 'nullable|string|max:50',
+            'currency'            => 'nullable|string|max:3',
+            'locale'              => 'nullable|string|max:10',
+            'fiscal_year_start'   => 'nullable|date',
+            'savings_rate'        => 'nullable|numeric',
+            'checking_rate'       => 'nullable|numeric',
+            'loan_base_rate'      => 'nullable|numeric',
+            'cd_rate'             => 'nullable|numeric',
+            'min_password_length' => 'nullable|integer',
+            'password_expiry'     => 'nullable|integer',
+            'require_uppercase'   => 'nullable|boolean',
+            'require_special'     => 'nullable|boolean',
+            'require_2fa'         => 'nullable|boolean',
+            'session_timeout'     => 'nullable|integer',
+            'rate_limit'          => 'nullable|integer',
+            'max_login_attempts'  => 'nullable|integer',
+            'lockout_duration'    => 'nullable|integer',
         ]);
 
         if ($validator->fails()) {
