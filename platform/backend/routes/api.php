@@ -213,13 +213,16 @@ $router->group([
         AuditMiddleware::class,
     ],
 ], function ($router) {
-    $router->get('/trial-balance',    [ReportController::class, 'trialBalance']);
-    $router->get('/general-ledger',   [ReportController::class, 'generalLedger']);
-    $router->get('/income-statement', [ReportController::class, 'incomeStatement']);
-    $router->get('/balance-sheet',    [ReportController::class, 'balanceSheet']);
-    $router->get('/member-growth',    [ReportController::class, 'memberGrowth']);
-    $router->get('/delinquency',      [ReportController::class, 'delinquency']);
-    $router->get('/export',           [ReportController::class, 'export']);
+    $router->get('/trial-balance',      [ReportController::class, 'trialBalance']);
+    $router->get('/general-ledger',     [ReportController::class, 'generalLedger']);
+    $router->get('/income-statement',   [ReportController::class, 'incomeStatement']);
+    $router->get('/balance-sheet',      [ReportController::class, 'balanceSheet']);
+    $router->get('/member-growth',      [ReportController::class, 'memberGrowth']);
+    $router->get('/delinquency',        [ReportController::class, 'delinquency']);
+    $router->get('/export',             [ReportController::class, 'export']);
+    $router->post('/journal-entry',     [ReportController::class, 'createJournalEntry']);
+    $router->get('/chart-of-accounts',  [ReportController::class, 'chartOfAccounts']);
+    $router->post('/chart-of-accounts', [ReportController::class, 'createGlAccount']);
 });
 
 // ------------------------------------------------------------------

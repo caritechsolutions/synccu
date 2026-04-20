@@ -134,6 +134,16 @@
           <h4>Member Growth</h4>
           <p>Membership and account trends</p>
         </button>
+        <button class="report-card" data-report="journal-entry">
+          <div class="report-card-icon"><svg><use href="#icon-file-text"/></svg></div>
+          <h4>Journal Entry</h4>
+          <p>Post manual debit/credit entries</p>
+        </button>
+        <button class="report-card" data-report="chart-of-accounts">
+          <div class="report-card-icon"><svg><use href="#icon-chart"/></svg></div>
+          <h4>Chart of Accounts</h4>
+          <p>Manage GL account structure</p>
+        </button>
       </div>
 
       <!-- Date Range & Actions -->
@@ -220,7 +230,9 @@
           case 'transactions':     await renderTransactions(from, to); break;
           case 'loan-portfolio':   await renderLoanPortfolio(); break;
           case 'delinquency':      await renderDelinquency(); break;
-          case 'member-growth':    await renderMemberGrowth(from, to); break;
+          case 'member-growth':      await renderMemberGrowth(from, to); break;
+          case 'journal-entry':      await renderJournalEntry(); break;
+          case 'chart-of-accounts':  await renderChartOfAccounts(); break;
           default: el.innerHTML = '<p style="text-align:center;padding:2rem">Unknown report type.</p>';
         }
       } catch (e) {
@@ -545,6 +557,292 @@
         html += '<p style="text-align:center;padding:2rem;color:var(--text-muted)">No growth data for this period.</p>';
       }
       el.innerHTML = html;
+    }
+
+    // === CHART OF ACCOUNTS ===
+    async function renderChartOfAccounts() {
+      const el = document.getElementById('reportContent');
+      document.getElementById('reportDateRange').textContent = '';
+
+      let accounts = [];
+      try {
+        const resp = await apiFetch('/api/v1/reports/chart-of-accounts');
+        const json = await resp.json();
+        if (!resp.ok) throw new Error(json.message || 'Failed');
+        accounts = json.data || [];
+      } catch (e) {
+        el.innerHTML = '<p style="text-align:center;padding:2rem;color:#dc2626">Error loading chart of accounts: ' + e.message + '</p>';
+        return;
+      }
+
+      let html = `<div id="coaAddForm" style="display:none;margin-bottom:1.5rem;padding:1rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-muted)">
+        <h4 style="margin:0 0 .75rem">Add New GL Account</h4>
+        <div style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end">
+          <div class="form-group" style="margin:0">
+            <label style="font-size:.75rem">Code</label>
+            <input type="text" id="coaNewCode" class="form-input" placeholder="e.g. 5025" maxlength="10" style="width:120px">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:.75rem">Name</label>
+            <input type="text" id="coaNewName" class="form-input" placeholder="e.g. Office Supplies" maxlength="100" style="width:220px">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:.75rem">Type</label>
+            <select id="coaNewType" class="form-input" style="width:150px">
+              <option value="asset">Asset</option>
+              <option value="liability">Liability</option>
+              <option value="equity">Equity</option>
+              <option value="revenue">Revenue</option>
+              <option value="expense">Expense</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" id="coaSaveBtn">Save Account</button>
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('coaAddForm').style.display='none'">Cancel</button>
+        </div>
+        <div id="coaFormError" style="color:#dc2626;font-size:.85rem;margin-top:.5rem;display:none"></div>
+      </div>
+      <div style="margin-bottom:1rem">
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('coaAddForm').style.display='block'">+ Add Account</button>
+      </div>`;
+
+      if (!accounts.length) {
+        html += '<p style="text-align:center;padding:2rem;color:var(--text-muted)">No GL accounts found.</p>';
+      } else {
+        html += `<div class="table-responsive"><table class="data-table">
+          <thead><tr><th>Code</th><th>Name</th><th>Type</th><th style="text-align:right">Balance</th></tr></thead><tbody>`;
+        accounts.forEach(a => {
+          const typeLabel = a.type.charAt(0).toUpperCase() + a.type.slice(1);
+          html += `<tr><td class="font-mono">${a.code}</td><td>${a.name}</td><td>${typeLabel}</td><td style="text-align:right">${fmt(a.balance)}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+      }
+
+      el.innerHTML = html;
+
+      // Bind save button
+      document.getElementById('coaSaveBtn').addEventListener('click', async () => {
+        const code = document.getElementById('coaNewCode').value.trim();
+        const name = document.getElementById('coaNewName').value.trim();
+        const type = document.getElementById('coaNewType').value;
+        const errEl = document.getElementById('coaFormError');
+        errEl.style.display = 'none';
+
+        if (!code || !name) {
+          errEl.textContent = 'Code and Name are required.';
+          errEl.style.display = 'block';
+          return;
+        }
+        if (!/^[a-zA-Z0-9]+$/.test(code)) {
+          errEl.textContent = 'Code must be alphanumeric.';
+          errEl.style.display = 'block';
+          return;
+        }
+
+        try {
+          const resp = await apiFetch('/api/v1/reports/chart-of-accounts', {
+            method: 'POST',
+            body: JSON.stringify({ code, name, type }),
+          });
+          const json = await resp.json();
+          if (!resp.ok) throw new Error(json.message || 'Failed to create account');
+          await renderChartOfAccounts();
+        } catch (e) {
+          errEl.textContent = e.message;
+          errEl.style.display = 'block';
+        }
+      });
+    }
+
+    // === JOURNAL ENTRY ===
+    let jeCoaCache = null;
+
+    async function loadCoaCache() {
+      try {
+        const resp = await apiFetch('/api/v1/reports/chart-of-accounts');
+        const json = await resp.json();
+        if (resp.ok) jeCoaCache = json.data || [];
+      } catch (e) {
+        jeCoaCache = [];
+      }
+    }
+
+    async function renderJournalEntry() {
+      const el = document.getElementById('reportContent');
+      document.getElementById('reportDateRange').textContent = '';
+
+      // Load COA for datalist suggestions
+      await loadCoaCache();
+
+      let datalistOptions = '';
+      (jeCoaCache || []).forEach(a => {
+        datalistOptions += `<option value="${a.code}">${a.code} - ${a.name}</option>`;
+      });
+
+      let html = `<datalist id="jeAccountCodes">${datalistOptions}</datalist>
+        <div style="margin-bottom:1rem">
+          <div class="form-group" style="margin:0 0 1rem">
+            <label for="jeDescription">Description</label>
+            <input type="text" id="jeDescription" class="form-input" placeholder="e.g. Monthly rent payment" maxlength="500" style="max-width:500px">
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table" id="jeLinesTable">
+            <thead>
+              <tr>
+                <th>Account Code</th>
+                <th style="text-align:right">Debit</th>
+                <th style="text-align:right">Credit</th>
+                <th style="width:60px"></th>
+              </tr>
+            </thead>
+            <tbody id="jeLinesBody">
+              <tr class="je-line-row">
+                <td><input type="text" class="form-input je-account" list="jeAccountCodes" placeholder="e.g. 5020" style="width:180px"></td>
+                <td><input type="number" class="form-input je-debit" min="0" step="0.01" value="0" style="width:130px;text-align:right"></td>
+                <td><input type="number" class="form-input je-credit" min="0" step="0.01" value="0" style="width:130px;text-align:right"></td>
+                <td><button class="btn btn-secondary btn-sm je-remove-line" title="Remove line">&times;</button></td>
+              </tr>
+              <tr class="je-line-row">
+                <td><input type="text" class="form-input je-account" list="jeAccountCodes" placeholder="e.g. 1010" style="width:180px"></td>
+                <td><input type="number" class="form-input je-debit" min="0" step="0.01" value="0" style="width:130px;text-align:right"></td>
+                <td><input type="number" class="form-input je-credit" min="0" step="0.01" value="0" style="width:130px;text-align:right"></td>
+                <td><button class="btn btn-secondary btn-sm je-remove-line" title="Remove line">&times;</button></td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr style="font-weight:700;border-top:2px solid var(--border)">
+                <td>Totals</td>
+                <td style="text-align:right" id="jeTotalDebit">$0.00</td>
+                <td style="text-align:right" id="jeTotalCredit">$0.00</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td colspan="4">
+                  <span id="jeBalanceIndicator" style="font-weight:600;color:#dc2626">Unbalanced</span>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div style="display:flex;gap:.75rem;margin-top:1rem;align-items:center">
+          <button class="btn btn-secondary btn-sm" id="jeAddLineBtn">+ Add Line</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-primary" id="jePostBtn" disabled>Post Entry</button>
+        </div>
+        <div id="jeMessage" style="margin-top:1rem;display:none"></div>`;
+
+      el.innerHTML = html;
+
+      // Bind events
+      function updateTotals() {
+        let totalDebit = 0, totalCredit = 0;
+        document.querySelectorAll('.je-debit').forEach(inp => { totalDebit += parseFloat(inp.value) || 0; });
+        document.querySelectorAll('.je-credit').forEach(inp => { totalCredit += parseFloat(inp.value) || 0; });
+        document.getElementById('jeTotalDebit').textContent = fmt(totalDebit);
+        document.getElementById('jeTotalCredit').textContent = fmt(totalCredit);
+        const balanced = Math.abs(totalDebit - totalCredit) < 0.001 && totalDebit > 0;
+        const indicator = document.getElementById('jeBalanceIndicator');
+        if (balanced) {
+          indicator.textContent = 'Balanced';
+          indicator.style.color = '#16a34a';
+        } else {
+          indicator.textContent = 'Unbalanced (difference: ' + fmt(Math.abs(totalDebit - totalCredit)) + ')';
+          indicator.style.color = '#dc2626';
+        }
+        document.getElementById('jePostBtn').disabled = !balanced;
+      }
+
+      function bindLineEvents() {
+        document.querySelectorAll('.je-debit, .je-credit').forEach(inp => {
+          inp.removeEventListener('input', updateTotals);
+          inp.addEventListener('input', updateTotals);
+        });
+        document.querySelectorAll('.je-remove-line').forEach(btn => {
+          btn.onclick = function() {
+            const rows = document.querySelectorAll('.je-line-row');
+            if (rows.length <= 2) return; // Minimum 2 lines
+            btn.closest('tr').remove();
+            updateTotals();
+          };
+        });
+      }
+
+      bindLineEvents();
+
+      document.getElementById('jeAddLineBtn').addEventListener('click', () => {
+        const tbody = document.getElementById('jeLinesBody');
+        const tr = document.createElement('tr');
+        tr.className = 'je-line-row';
+        tr.innerHTML = `
+          <td><input type="text" class="form-input je-account" list="jeAccountCodes" placeholder="e.g. 5020" style="width:180px"></td>
+          <td><input type="number" class="form-input je-debit" min="0" step="0.01" value="0" style="width:130px;text-align:right"></td>
+          <td><input type="number" class="form-input je-credit" min="0" step="0.01" value="0" style="width:130px;text-align:right"></td>
+          <td><button class="btn btn-secondary btn-sm je-remove-line" title="Remove line">&times;</button></td>`;
+        tbody.appendChild(tr);
+        bindLineEvents();
+      });
+
+      document.getElementById('jePostBtn').addEventListener('click', async () => {
+        const description = document.getElementById('jeDescription').value.trim();
+        const msgEl = document.getElementById('jeMessage');
+        msgEl.style.display = 'none';
+
+        if (!description) {
+          msgEl.innerHTML = '<span style="color:#dc2626">Description is required.</span>';
+          msgEl.style.display = 'block';
+          return;
+        }
+
+        const lines = [];
+        let valid = true;
+        document.querySelectorAll('.je-line-row').forEach(row => {
+          const account = row.querySelector('.je-account').value.trim();
+          const debit = parseFloat(row.querySelector('.je-debit').value) || 0;
+          const credit = parseFloat(row.querySelector('.je-credit').value) || 0;
+          if (!account) { valid = false; return; }
+          lines.push({ account_code: account, debit, credit });
+        });
+
+        if (!valid || lines.length < 2) {
+          msgEl.innerHTML = '<span style="color:#dc2626">All lines must have an account code. At least 2 lines required.</span>';
+          msgEl.style.display = 'block';
+          return;
+        }
+
+        document.getElementById('jePostBtn').disabled = true;
+        try {
+          const resp = await apiFetch('/api/v1/reports/journal-entry', {
+            method: 'POST',
+            body: JSON.stringify({ description, lines }),
+          });
+          const json = await resp.json();
+          if (!resp.ok) throw new Error(json.message || 'Failed to post journal entry');
+          msgEl.innerHTML = '<span style="color:#16a34a;font-weight:600">Journal entry posted successfully (ID: ' + (json.data.id || '') + ')</span>';
+          msgEl.style.display = 'block';
+          // Clear the form
+          document.getElementById('jeDescription').value = '';
+          const tbody = document.getElementById('jeLinesBody');
+          tbody.innerHTML = `
+            <tr class="je-line-row">
+              <td><input type="text" class="form-input je-account" list="jeAccountCodes" placeholder="e.g. 5020" style="width:180px"></td>
+              <td><input type="number" class="form-input je-debit" min="0" step="0.01" value="0" style="width:130px;text-align:right"></td>
+              <td><input type="number" class="form-input je-credit" min="0" step="0.01" value="0" style="width:130px;text-align:right"></td>
+              <td><button class="btn btn-secondary btn-sm je-remove-line" title="Remove line">&times;</button></td>
+            </tr>
+            <tr class="je-line-row">
+              <td><input type="text" class="form-input je-account" list="jeAccountCodes" placeholder="e.g. 1010" style="width:180px"></td>
+              <td><input type="number" class="form-input je-debit" min="0" step="0.01" value="0" style="width:130px;text-align:right"></td>
+              <td><input type="number" class="form-input je-credit" min="0" step="0.01" value="0" style="width:130px;text-align:right"></td>
+              <td><button class="btn btn-secondary btn-sm je-remove-line" title="Remove line">&times;</button></td>
+            </tr>`;
+          bindLineEvents();
+          updateTotals();
+        } catch (e) {
+          msgEl.innerHTML = '<span style="color:#dc2626">' + e.message + '</span>';
+          msgEl.style.display = 'block';
+          document.getElementById('jePostBtn').disabled = false;
+        }
+      });
     }
 
     // === PRINT ===

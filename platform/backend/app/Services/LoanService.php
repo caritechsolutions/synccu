@@ -395,6 +395,78 @@ final class LoanService
     }
 
     /**
+     * Charge a late fee on an overdue loan.
+     *
+     * The fee amount is computed from the loan's late_fee_rate applied to the
+     * outstanding monthly payment. A transaction is recorded and GL entries
+     * are posted: debit Member Deposits (1010), credit Late Fee Income (4030).
+     */
+    public function chargeLateFee(string $loanId, ?float $overrideAmount = null): array
+    {
+        $loan = $this->findById($loanId);
+        if ($loan === null) {
+            throw new RuntimeException('Loan not found.', 404);
+        }
+
+        if (!in_array($loan['status'], ['approved', 'active', 'delinquent'], true)) {
+            throw new RuntimeException('Late fees can only be charged on active or delinquent loans.', 422);
+        }
+
+        $feeAmount = $overrideAmount
+            ?? round((float) ($loan['monthly_payment'] ?? 0) * ((float) ($loan['late_fee_rate'] ?? 5) / 100), 2);
+
+        if ($feeAmount <= 0) {
+            throw new RuntimeException('Calculated late fee amount must be positive.', 422);
+        }
+
+        return $this->db->transaction(function () use ($loanId, $loan, $feeAmount) {
+            $txnId = $this->generateUuid();
+            $now   = date('Y-m-d H:i:s');
+
+            $this->db->query(
+                'INSERT INTO transactions
+                    (id, tenant_id, reference_number, type, status, amount, currency,
+                     user_id, description, created_at, completed_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $txnId,
+                    $loan['tenant_id'],
+                    'LF-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4))),
+                    'late_fee',
+                    'completed',
+                    $feeAmount,
+                    'USD',
+                    $loan['user_id'],
+                    "Late fee on loan {$loan['loan_number']}",
+                    $now,
+                    $now,
+                ],
+            );
+
+            // Update outstanding balance to include the late fee
+            $this->db->updateScoped('loans', [
+                'outstanding_balance' => (float) $loan['outstanding_balance'] + $feeAmount,
+                'updated_at'          => $now,
+            ], ['id' => $loanId]);
+
+            // GL entry: debit Member Deposits (cash in), credit Late Fee Income
+            $this->ledger->createDoubleEntry(
+                $txnId,
+                "Late fee charged on loan #{$loanId}",
+                LedgerService::GL_MEMBER_DEPOSITS,
+                LedgerService::GL_LATE_FEE_INCOME,
+                $feeAmount,
+            );
+
+            return [
+                'transaction_id' => $txnId,
+                'fee_amount'     => $feeAmount,
+                'loan'           => $this->findById($loanId),
+            ];
+        });
+    }
+
+    /**
      * Get all delinquent loans for the current tenant.
      */
     public function getDelinquentLoans(): array

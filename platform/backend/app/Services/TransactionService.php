@@ -231,6 +231,137 @@ final class TransactionService
     }
 
     // ------------------------------------------------------------------
+    // Fee
+    // ------------------------------------------------------------------
+
+    /**
+     * Charge a fee to an account.
+     *
+     * Debits the member's liability GL account and credits Fee Income.
+     */
+    public function chargeFee(string $accountId, float $amount, string $description = '', ?string $userId = null, array $metadata = []): array
+    {
+        if ($amount <= 0) {
+            throw new RuntimeException('Fee amount must be positive.', 422);
+        }
+
+        $account = $this->accounts->findById($accountId);
+        if ($account === null) {
+            throw new RuntimeException('Account not found.', 404);
+        }
+        $this->assertAccountActive($account);
+
+        return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account, $metadata) {
+            $txnId   = $this->generateUuid();
+            $refNo   = $this->generateReferenceNumber();
+            $now     = date('Y-m-d H:i:s');
+            $balanceAfter = (float) $account['balance'] - $amount;
+            $metaJson = !empty($metadata) ? json_encode($metadata) : null;
+
+            $this->db->query(
+                'INSERT INTO transactions
+                    (id, tenant_id, account_id, reference_number, type, status, amount,
+                     balance_after, processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $txnId,
+                    $this->db->getTenantId(),
+                    $accountId,
+                    $refNo,
+                    'fee',
+                    'completed',
+                    $amount,
+                    $balanceAfter,
+                    $userId,
+                    $description ?: 'Service fee',
+                    $metaJson,
+                    $now,
+                ],
+            );
+
+            $this->accounts->updateBalance($accountId, -$amount);
+
+            // Debit member liability GL, credit Fee Income
+            $this->tryLedgerEntry($txnId, "Fee charged on account {$account['account_number']}",
+                $this->glAccountForType($account['account_type']), LedgerService::GL_FEE_INCOME, $amount);
+
+            return $this->findById($txnId);
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Adjustment
+    // ------------------------------------------------------------------
+
+    /**
+     * Process a balance adjustment on an account.
+     *
+     * A positive amount credits the account (increase); a negative amount
+     * debits it (decrease). The GL entries mirror the direction:
+     *   - Credit adjustment: debit Operating Expense, credit member liability
+     *   - Debit adjustment:  debit member liability, credit Operating Expense
+     */
+    public function processAdjustment(string $accountId, float $amount, string $description = '', ?string $userId = null, array $metadata = []): array
+    {
+        if ($amount == 0) {
+            throw new RuntimeException('Adjustment amount must be non-zero.', 422);
+        }
+
+        $account = $this->accounts->findById($accountId);
+        if ($account === null) {
+            throw new RuntimeException('Account not found.', 404);
+        }
+        $this->assertAccountActive($account);
+
+        $absAmount = abs($amount);
+
+        return $this->db->transaction(function () use ($accountId, $amount, $absAmount, $description, $userId, $account, $metadata) {
+            $txnId   = $this->generateUuid();
+            $refNo   = $this->generateReferenceNumber();
+            $now     = date('Y-m-d H:i:s');
+            $balanceAfter = (float) $account['balance'] + $amount;
+            $metaJson = !empty($metadata) ? json_encode($metadata) : null;
+
+            $this->db->query(
+                'INSERT INTO transactions
+                    (id, tenant_id, account_id, reference_number, type, status, amount,
+                     balance_after, processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $txnId,
+                    $this->db->getTenantId(),
+                    $accountId,
+                    $refNo,
+                    'adjustment',
+                    'completed',
+                    $amount,
+                    $balanceAfter,
+                    $userId,
+                    $description ?: 'Account adjustment',
+                    $metaJson,
+                    $now,
+                ],
+            );
+
+            $this->accounts->updateBalance($accountId, $amount);
+
+            $memberGl = $this->glAccountForType($account['account_type']);
+
+            if ($amount > 0) {
+                // Credit adjustment: increase member balance
+                $this->tryLedgerEntry($txnId, "Credit adjustment on account {$account['account_number']}",
+                    LedgerService::GL_OPERATING_EXPENSE, $memberGl, $absAmount);
+            } else {
+                // Debit adjustment: decrease member balance
+                $this->tryLedgerEntry($txnId, "Debit adjustment on account {$account['account_number']}",
+                    $memberGl, LedgerService::GL_OPERATING_EXPENSE, $absAmount);
+            }
+
+            return $this->findById($txnId);
+        });
+    }
+
+    // ------------------------------------------------------------------
     // Read
     // ------------------------------------------------------------------
 

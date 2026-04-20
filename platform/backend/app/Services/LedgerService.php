@@ -304,8 +304,13 @@ final class LedgerService
     public const GL_MEMBER_CHECKING      = '2030'; // Liability: Member checking
     public const GL_LOAN_INTEREST_INCOME = '4010'; // Revenue: Interest on loans
     public const GL_FEE_INCOME           = '4020'; // Revenue: Service fees
-    public const GL_INTEREST_EXPENSE     = '5010'; // Expense: Interest paid to members
-    public const GL_OPERATING_EXPENSE    = '5020'; // Expense: Operating costs
+    public const GL_ALLOWANCE_LOAN_LOSSES  = '1210'; // Contra-asset: Allowance for loan losses
+    public const GL_INTEREST_EXPENSE       = '5010'; // Expense: Interest paid to members
+    public const GL_OPERATING_EXPENSE      = '5020'; // Expense: Operating costs
+    public const GL_LATE_FEE_INCOME        = '4030'; // Revenue: Late fee income
+    public const GL_SERVICE_CHARGE_INCOME  = '4040'; // Revenue: Service charge income
+    public const GL_PROVISION_LOAN_LOSSES  = '5030'; // Expense: Provision for loan losses
+    public const GL_RETAINED_EARNINGS      = '3010'; // Equity: Retained earnings
 
     // ------------------------------------------------------------------
     // Self-healing Schema Helpers
@@ -386,8 +391,13 @@ final class LedgerService
             [self::GL_MEMBER_CHECKING,      'Member Checking',      'liability'],
             [self::GL_LOAN_INTEREST_INCOME, 'Loan Interest Income', 'revenue'],
             [self::GL_FEE_INCOME,           'Fee Income',           'revenue'],
+            [self::GL_LATE_FEE_INCOME,      'Late Fee Income',      'revenue'],
+            [self::GL_SERVICE_CHARGE_INCOME,'Service Charge Income','revenue'],
+            [self::GL_ALLOWANCE_LOAN_LOSSES,'Allowance for Loan Losses', 'asset'],
             [self::GL_INTEREST_EXPENSE,     'Interest Expense',     'expense'],
             [self::GL_OPERATING_EXPENSE,    'Operating Expense',    'expense'],
+            [self::GL_PROVISION_LOAN_LOSSES,'Provision for Loan Losses', 'expense'],
+            [self::GL_RETAINED_EARNINGS,    'Retained Earnings',    'equity'],
         ];
 
         $now = date('Y-m-d H:i:s');
