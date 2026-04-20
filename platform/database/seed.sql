@@ -12,7 +12,7 @@ START TRANSACTION;
 -- ============================================================
 -- Default tenant already created in schema.sql
 -- Add a second demo tenant
-INSERT INTO `tenants` (`id`, `name`, `slug`, `domain`, `primary_color`, `secondary_color`, `status`, `settings`) VALUES
+INSERT IGNORE INTO `tenants` (`id`, `name`, `slug`, `domain`, `primary_color`, `secondary_color`, `status`, `settings`) VALUES
 ('00000000-0000-0000-0000-000000000002', 'Riverside Community CU', 'riverside', 'riverside.synccu.local', '#0d6efd', '#6610f2', 'active',
   '{"timezone": "America/Chicago", "currency": "USD", "overdraft_limit": 500.00, "minimum_savings_balance": 5.00}');
 
@@ -22,7 +22,7 @@ INSERT INTO `tenants` (`id`, `name`, `slug`, `domain`, `primary_color`, `seconda
 -- bcrypt hash of 'password123': $2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
 
 -- Default tenant users
-INSERT INTO `users` (`id`, `tenant_id`, `email`, `password_hash`, `first_name`, `last_name`, `phone`, `role`, `status`, `email_verified_at`, `password_changed_at`) VALUES
+INSERT IGNORE INTO `users` (`id`, `tenant_id`, `email`, `password_hash`, `first_name`, `last_name`, `phone`, `role`, `status`, `email_verified_at`, `password_changed_at`) VALUES
 ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'admin@synccu.local', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'System', 'Administrator', '+15551000001', 'super_admin', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
 ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'manager@synccu.local', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Jane', 'Manager', '+15551000002', 'manager', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
 ('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'teller@synccu.local', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Tom', 'Teller', '+15551000003', 'teller', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
@@ -31,7 +31,7 @@ INSERT INTO `users` (`id`, `tenant_id`, `email`, `password_hash`, `first_name`, 
 ('10000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', 'carol.davis@example.com', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Carol', 'Davis', '+15552000003', 'member', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 -- Riverside tenant users
-INSERT INTO `users` (`id`, `tenant_id`, `email`, `password_hash`, `first_name`, `last_name`, `phone`, `role`, `status`, `email_verified_at`, `password_changed_at`) VALUES
+INSERT IGNORE INTO `users` (`id`, `tenant_id`, `email`, `password_hash`, `first_name`, `last_name`, `phone`, `role`, `status`, `email_verified_at`, `password_changed_at`) VALUES
 ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'admin@riverside.synccu.local', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'River', 'Admin', '+15553000001', 'admin', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
 ('20000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000002', 'dave.wilson@example.com', '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Dave', 'Wilson', '+15553000002', 'member', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 

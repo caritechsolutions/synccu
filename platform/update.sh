@@ -171,39 +171,34 @@ if [ "$RESET_DB" -eq 1 ]; then
     RESET_TMP=$(mktemp -d)
     $DUMP_CMD "$DB_NAME" users tenants --single-transaction --no-create-info 2>/dev/null > "$RESET_TMP/users_tenants.sql" || true
 
-    # Drop and recreate
-    $MYSQL_CMD -e "DROP DATABASE IF EXISTS \`${DB_NAME}\`; CREATE DATABASE \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-    success "Database dropped and recreated"
+    # Drop everything except users/tenants, then recreate
+    $MYSQL_CMD "$DB_NAME" <<-'EOSQL'
+        SET FOREIGN_KEY_CHECKS=0;
+        DROP TABLE IF EXISTS loan_schedules, ledger_entries, transactions, loans, accounts,
+            audit_logs, notifications, documents, journal_entry_lines, journal_entries,
+            gl_accounts, chart_of_accounts, api_keys, tenant_settings, refresh_tokens;
+        SET FOREIGN_KEY_CHECKS=1;
+EOSQL
+    success "Data tables dropped (users/tenants preserved)"
 
-    # Import fresh schema
+    # Import fresh schema (uses IF NOT EXISTS so users/tenants survive)
     SCHEMA_FILE="$INSTALL_DIR/platform/database/schema.sql"
     if [ -f "$SCHEMA_FILE" ]; then
         $MYSQL_CMD "$DB_NAME" < "$SCHEMA_FILE"
         success "Fresh schema imported"
     fi
 
-    # Run post-schema migrations
-    $MYSQL_CMD "$DB_NAME" <<-'EOSQL'
-        ALTER TABLE `transactions`
-            MODIFY COLUMN `type` ENUM('deposit','withdrawal','transfer','payment','fee','late_fee','interest','adjustment','loan_disbursement','loan_payment','expense') NOT NULL,
-            MODIFY COLUMN `account_id` CHAR(36) DEFAULT NULL,
-            MODIFY COLUMN `balance_after` DECIMAL(15,2) DEFAULT NULL;
-        ALTER TABLE `loans` MODIFY COLUMN `account_id` CHAR(36) DEFAULT NULL;
-EOSQL
-    success "Migrations applied"
-
-    # Import seed data
+    # Import seed data (uses INSERT IGNORE for tenants/users)
     SEED_FILE="$INSTALL_DIR/platform/database/seed.sql"
     if [ -f "$SEED_FILE" ]; then
         $MYSQL_CMD "$DB_NAME" < "$SEED_FILE"
         success "Seed data imported"
     fi
 
-    # Restore saved users/tenants (IGNORE duplicates from seed)
+    # Restore any custom users not in seed
     if [ -f "$RESET_TMP/users_tenants.sql" ] && [ -s "$RESET_TMP/users_tenants.sql" ]; then
-        # Convert INSERT to INSERT IGNORE to skip seed duplicates
         sed 's/INSERT INTO/INSERT IGNORE INTO/g' "$RESET_TMP/users_tenants.sql" | $MYSQL_CMD "$DB_NAME"
-        success "Login credentials restored"
+        success "Custom login credentials restored"
     fi
 
     rm -rf "$RESET_TMP"

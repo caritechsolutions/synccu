@@ -10,7 +10,7 @@ CREATE DATABASE IF NOT EXISTS `synccu` DEFAULT CHARACTER SET utf8mb4 COLLATE utf
 USE `synccu`;
 
 -- Tenants table
-CREATE TABLE `tenants` (
+CREATE TABLE IF NOT EXISTS `tenants` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `name` VARCHAR(255) NOT NULL,
   `slug` VARCHAR(100) NOT NULL UNIQUE,
@@ -25,7 +25,7 @@ CREATE TABLE `tenants` (
 ) ENGINE=InnoDB;
 
 -- Users table with RBAC
-CREATE TABLE `users` (
+CREATE TABLE IF NOT EXISTS `users` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) NOT NULL,
   `email` VARCHAR(255) NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB;
 
 -- Refresh tokens
-CREATE TABLE `refresh_tokens` (
+CREATE TABLE IF NOT EXISTS `refresh_tokens` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `user_id` CHAR(36) NOT NULL,
   `token_hash` VARCHAR(255) NOT NULL UNIQUE,
@@ -66,7 +66,7 @@ CREATE TABLE `refresh_tokens` (
 ) ENGINE=InnoDB;
 
 -- Accounts (savings, checking, loan)
-CREATE TABLE `accounts` (
+CREATE TABLE IF NOT EXISTS `accounts` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) NOT NULL,
   `user_id` CHAR(36) NOT NULL,
@@ -93,7 +93,7 @@ CREATE TABLE `accounts` (
 ) ENGINE=InnoDB;
 
 -- Transactions
-CREATE TABLE `transactions` (
+CREATE TABLE IF NOT EXISTS `transactions` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) NOT NULL,
   `account_id` CHAR(36) DEFAULT NULL,
@@ -121,7 +121,7 @@ CREATE TABLE `transactions` (
 ) ENGINE=InnoDB;
 
 -- Double-entry ledger
-CREATE TABLE `ledger_entries` (
+CREATE TABLE IF NOT EXISTS `ledger_entries` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) NOT NULL,
   `transaction_id` CHAR(36) NOT NULL,
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS `journal_entry_lines` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Loans
-CREATE TABLE `loans` (
+CREATE TABLE IF NOT EXISTS `loans` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) NOT NULL,
   `user_id` CHAR(36) NOT NULL,
@@ -228,7 +228,7 @@ CREATE TABLE `loans` (
 ) ENGINE=InnoDB;
 
 -- Loan payment schedule
-CREATE TABLE `loan_schedules` (
+CREATE TABLE IF NOT EXISTS `loan_schedules` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `loan_id` CHAR(36) NOT NULL,
   `payment_number` INT NOT NULL,
@@ -248,7 +248,7 @@ CREATE TABLE `loan_schedules` (
 ) ENGINE=InnoDB;
 
 -- Audit logs
-CREATE TABLE `audit_logs` (
+CREATE TABLE IF NOT EXISTS `audit_logs` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) DEFAULT NULL,
   `user_id` CHAR(36) DEFAULT NULL,
@@ -269,7 +269,7 @@ CREATE TABLE `audit_logs` (
 ) ENGINE=InnoDB;
 
 -- API keys
-CREATE TABLE `api_keys` (
+CREATE TABLE IF NOT EXISTS `api_keys` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
@@ -287,7 +287,7 @@ CREATE TABLE `api_keys` (
 ) ENGINE=InnoDB;
 
 -- Notifications
-CREATE TABLE `notifications` (
+CREATE TABLE IF NOT EXISTS `notifications` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) NOT NULL,
   `user_id` CHAR(36) NOT NULL,
@@ -304,7 +304,7 @@ CREATE TABLE `notifications` (
 ) ENGINE=InnoDB;
 
 -- Tenant Settings (key-value per tenant)
-CREATE TABLE `tenant_settings` (
+CREATE TABLE IF NOT EXISTS `tenant_settings` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) NOT NULL,
   `setting_key` VARCHAR(100) NOT NULL,
@@ -316,7 +316,7 @@ CREATE TABLE `tenant_settings` (
 ) ENGINE=InnoDB;
 
 -- Documents / Attachments
-CREATE TABLE `documents` (
+CREATE TABLE IF NOT EXISTS `documents` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) NOT NULL,
   `uploaded_by` CHAR(36) DEFAULT NULL,
@@ -335,7 +335,7 @@ CREATE TABLE `documents` (
 ) ENGINE=InnoDB;
 
 -- Seed default tenant and super admin
-INSERT INTO `tenants` (`id`, `name`, `slug`, `status`) VALUES
+INSERT IGNORE INTO `tenants` (`id`, `name`, `slug`, `status`) VALUES
 ('00000000-0000-0000-0000-000000000001', 'Default Credit Union', 'default', 'active');
 
 COMMIT;
