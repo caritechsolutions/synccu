@@ -24,11 +24,13 @@ use App\Controllers\TransactionController;
 use App\Controllers\TenantController;
 use App\Controllers\DocumentController;
 use App\Controllers\ReportController;
+use App\Controllers\NetworkController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\TenantMiddleware;
 use App\Middleware\RBACMiddleware;
 use App\Middleware\RateLimitMiddleware;
 use App\Middleware\AuditMiddleware;
+use App\Middleware\NodeAuthMiddleware;
 
 /** @var \App\Core\Router $router */
 
@@ -242,4 +244,58 @@ $router->group([
     $router->get('/settings',    [TenantController::class, 'getSettings']);
     $router->put('/settings',    [TenantController::class, 'updateSettings']);
     $router->put('/branding',    [TenantController::class, 'updateBranding']);
+});
+
+// ------------------------------------------------------------------
+// Network routes (admin/manager, tenant-scoped, audited)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/network',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+        RBACMiddleware::class . ':admin,manager',
+        AuditMiddleware::class,
+    ],
+], function ($router) {
+    // Stats
+    $router->get('/stats',                  [NetworkController::class, 'stats']);
+
+    // Nodes
+    $router->get('/nodes',                  [NetworkController::class, 'listNodes']);
+    $router->post('/nodes',                 [NetworkController::class, 'registerNode']);
+    $router->get('/nodes/{id}',             [NetworkController::class, 'showNode']);
+    $router->put('/nodes/{id}',             [NetworkController::class, 'updateNode']);
+    $router->delete('/nodes/{id}',          [NetworkController::class, 'deleteNode']);
+    $router->put('/nodes/{id}/activate',    [NetworkController::class, 'activateNode']);
+    $router->post('/nodes/{id}/regenerate-key', [NetworkController::class, 'regenerateApiKey']);
+
+    // Transfers
+    $router->get('/transfers',              [NetworkController::class, 'listTransfers']);
+    $router->post('/transfers',             [NetworkController::class, 'initiateTransfer']);
+    $router->get('/transfers/{id}',         [NetworkController::class, 'showTransfer']);
+
+    // Settlements
+    $router->get('/settlements',            [NetworkController::class, 'listSettlements']);
+    $router->post('/settlements',           [NetworkController::class, 'generateSettlement']);
+    $router->get('/settlements/{id}',       [NetworkController::class, 'showSettlement']);
+    $router->put('/settlements/{id}/approve',   [NetworkController::class, 'approveSettlement']);
+    $router->put('/settlements/{id}/status',    [NetworkController::class, 'updateSettlementStatus']);
+});
+
+// ------------------------------------------------------------------
+// Node-to-Node API (called by peer CU instances, API key auth)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/node',
+    'middleware'  => [
+        RateLimitMiddleware::class . ':30',
+        TenantMiddleware::class,
+        NodeAuthMiddleware::class,
+    ],
+], function ($router) {
+    $router->post('/transfer',              [NetworkController::class, 'nodeReceiveTransfer']);
+    $router->post('/transfer/{id}/confirm', [NetworkController::class, 'nodeConfirmTransfer']);
+    $router->post('/heartbeat',             [NetworkController::class, 'nodeHeartbeat']);
 });

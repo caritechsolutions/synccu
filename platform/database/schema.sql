@@ -267,6 +267,91 @@ CREATE TABLE IF NOT EXISTS `documents` (
   INDEX `idx_documents_tenant` (`tenant_id`)
 ) ENGINE=InnoDB;
 
+-- Network nodes (peer CU registry)
+CREATE TABLE IF NOT EXISTS `network_nodes` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `node_code` VARCHAR(20) NOT NULL COMMENT 'Short unique code e.g. SYNCU-001',
+  `name` VARCHAR(255) NOT NULL,
+  `endpoint_url` VARCHAR(512) NOT NULL COMMENT 'Base URL of peer instance API',
+  `api_key_hash` VARCHAR(255) NOT NULL COMMENT 'Hashed shared secret for auth',
+  `api_key_prefix` VARCHAR(10) NOT NULL COMMENT 'First 8 chars for identification',
+  `wireguard_endpoint` VARCHAR(255) DEFAULT NULL COMMENT 'WireGuard IP:port',
+  `wireguard_public_key` VARCHAR(255) DEFAULT NULL,
+  `status` ENUM('active','inactive','pending','unreachable') DEFAULT 'pending',
+  `is_router` TINYINT(1) DEFAULT 0 COMMENT 'Whether this peer acts as a router',
+  `last_heartbeat_at` TIMESTAMP NULL DEFAULT NULL,
+  `metadata` JSON DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `unique_tenant_node_code` (`tenant_id`, `node_code`),
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  INDEX `idx_network_nodes_tenant` (`tenant_id`),
+  INDEX `idx_network_nodes_status` (`status`)
+) ENGINE=InnoDB;
+
+-- Network transfers (inter-CU transfers)
+CREATE TABLE IF NOT EXISTS `network_transfers` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `direction` ENUM('outbound','inbound') NOT NULL,
+  `peer_node_id` CHAR(36) DEFAULT NULL COMMENT 'References network_nodes.id',
+  `peer_node_code` VARCHAR(20) NOT NULL,
+  `local_account_id` CHAR(36) DEFAULT NULL,
+  `local_transaction_id` CHAR(36) DEFAULT NULL,
+  `remote_reference` VARCHAR(50) DEFAULT NULL COMMENT 'Reference number on the peer side',
+  `sender_name` VARCHAR(255) NOT NULL,
+  `sender_account` VARCHAR(50) NOT NULL,
+  `sender_institution` VARCHAR(255) NOT NULL,
+  `recipient_name` VARCHAR(255) NOT NULL,
+  `recipient_account` VARCHAR(50) NOT NULL,
+  `recipient_institution` VARCHAR(255) NOT NULL,
+  `amount` DECIMAL(15,2) NOT NULL,
+  `fee` DECIMAL(15,2) DEFAULT 0.00,
+  `currency` CHAR(3) DEFAULT 'USD',
+  `status` ENUM('pending','sent','received','confirmed','failed','reversed','settled') DEFAULT 'pending',
+  `settled_in_batch` CHAR(36) DEFAULT NULL COMMENT 'References network_settlements.id',
+  `failure_reason` VARCHAR(500) DEFAULT NULL,
+  `metadata` JSON DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`local_account_id`) REFERENCES `accounts`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`local_transaction_id`) REFERENCES `transactions`(`id`) ON DELETE SET NULL,
+  INDEX `idx_network_transfers_tenant` (`tenant_id`),
+  INDEX `idx_network_transfers_peer` (`peer_node_code`),
+  INDEX `idx_network_transfers_status` (`status`),
+  INDEX `idx_network_transfers_settled` (`settled_in_batch`),
+  INDEX `idx_network_transfers_created` (`created_at`)
+) ENGINE=InnoDB;
+
+-- Network settlements (month-end reconciliation batches)
+CREATE TABLE IF NOT EXISTS `network_settlements` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `peer_node_id` CHAR(36) DEFAULT NULL,
+  `peer_node_code` VARCHAR(20) NOT NULL,
+  `period_start` DATE NOT NULL,
+  `period_end` DATE NOT NULL,
+  `total_outbound` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `total_inbound` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `net_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Positive = we owe peer, negative = peer owes us',
+  `transfer_count` INT NOT NULL DEFAULT 0,
+  `status` ENUM('draft','pending_approval','approved','invoiced','paid','disputed') DEFAULT 'draft',
+  `approved_by` CHAR(36) DEFAULT NULL,
+  `approved_at` TIMESTAMP NULL DEFAULT NULL,
+  `notes` TEXT DEFAULT NULL,
+  `metadata` JSON DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`approved_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+  INDEX `idx_network_settlements_tenant` (`tenant_id`),
+  INDEX `idx_network_settlements_peer` (`peer_node_code`),
+  INDEX `idx_network_settlements_period` (`period_start`, `period_end`),
+  INDEX `idx_network_settlements_status` (`status`)
+) ENGINE=InnoDB;
+
 -- Seed default tenant and super admin
 INSERT IGNORE INTO `tenants` (`id`, `name`, `slug`, `status`) VALUES
 ('00000000-0000-0000-0000-000000000001', 'Default Credit Union', 'default', 'active');

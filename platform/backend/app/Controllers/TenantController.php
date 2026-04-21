@@ -87,6 +87,15 @@ final class TenantController
             'rate_limit'          => 'nullable|integer',
             'max_login_attempts'  => 'nullable|integer',
             'lockout_duration'    => 'nullable|integer',
+            'network_enabled'       => 'nullable|boolean',
+            'network_router_mode'   => 'nullable|boolean',
+            'network_node_code'     => 'nullable|string|max:20',
+            'network_node_name'     => 'nullable|string|max:255',
+            'network_endpoint_url'  => 'nullable|string|max:512',
+            'network_wg_endpoint'   => 'nullable|string|max:255',
+            'network_wg_public_key' => 'nullable|string|max:255',
+            'network_transfer_fee'  => 'nullable|numeric',
+            'network_fee_type'      => 'nullable|string|max:20',
         ]);
 
         if ($validator->fails()) {
