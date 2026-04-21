@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network - SyncCU Admin</title>
+  <link rel="stylesheet" href="../css/app.css">
+  <style>
+    .stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
+    .stat-card{background:var(--card-bg,#fff);border:1px solid var(--border,#e2e8f0);border-radius:12px;padding:1.25rem}
+    .stat-card .label{font-size:.75rem;color:var(--text-muted,#64748b);text-transform:uppercase;letter-spacing:.05em}
+    .stat-card .value{font-size:1.5rem;font-weight:700;margin:.25rem 0}
+    .stat-card .sub{font-size:.8rem;color:var(--text-muted)}
+    .node-status{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+    .node-status.active{background:#22c55e}.node-status.inactive{background:#94a3b8}
+    .node-status.pending{background:#f59e0b}.node-status.unreachable{background:#ef4444}
+    .dir-badge{font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:600;text-transform:uppercase}
+    .dir-badge.outbound{background:#fee2e2;color:#dc2626}.dir-badge.inbound{background:#dcfce7;color:#16a34a}
+    .settlement-net.positive{color:#dc2626}.settlement-net.negative{color:#16a34a}
+    .api-key-display{font-family:monospace;background:var(--bg-muted,#f1f5f9);padding:.5rem .75rem;border-radius:6px;word-break:break-all;margin:.5rem 0}
+    .tabs-sub{display:flex;gap:0;border-bottom:2px solid var(--border,#e2e8f0);margin-bottom:1.5rem}
+    .tab-sub{padding:.75rem 1.25rem;cursor:pointer;border:none;background:none;font-size:.875rem;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px}
+    .tab-sub.active{color:var(--color-primary,#2563eb);border-bottom-color:var(--color-primary,#2563eb)}
+    .sub-content{display:none}.sub-content.active{display:block}
+  </style>
+  <script>if(!localStorage.getItem('synccu-token')){window.location.href='../index.html';}</script>
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+    <symbol id="icon-credit-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+    <symbol id="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+    <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="icon-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+  </svg>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><h2>SyncCU</h2></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item"><svg class="nav-icon"><use href="#icon-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="members.html" class="nav-item"><svg class="nav-icon"><use href="#icon-users"/></svg><span>Members</span></a>
+      <a href="accounts.html" class="nav-item"><svg class="nav-icon"><use href="#icon-wallet"/></svg><span>Accounts</span></a>
+      <a href="transactions.html" class="nav-item"><svg class="nav-icon"><use href="#icon-send"/></svg><span>Transactions</span></a>
+      <a href="loans.html" class="nav-item"><svg class="nav-icon"><use href="#icon-credit-card"/></svg><span>Loans</span></a>
+      <a href="reports.html" class="nav-item"><svg class="nav-icon"><use href="#icon-chart"/></svg><span>Reports</span></a>
+      <a href="network.html" class="nav-item active"><svg class="nav-icon"><use href="#icon-globe"/></svg><span>Network</span></a>
+      <a href="settings.html" class="nav-item"><svg class="nav-icon"><use href="#icon-settings"/></svg><span>Settings</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" class="nav-item" id="logoutBtn"><svg class="nav-icon"><use href="#icon-logout"/></svg><span>Logout</span></a>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu"><svg><use href="#icon-menu"/></svg></button>
+        <div class="search-box"><svg class="search-icon"><use href="#icon-search"/></svg><input type="text" placeholder="Search..." aria-label="Search"></div>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn theme-toggle" id="themeToggle" aria-label="Toggle theme"><svg class="icon-sun"><use href="#icon-sun"/></svg><svg class="icon-moon" style="display:none"><use href="#icon-moon"/></svg></button>
+        <button class="topbar-btn notification-btn" aria-label="Notifications"><svg><use href="#icon-bell"/></svg><span class="badge">3</span></button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-avatar-btn" id="userAvatarBtn"><div class="avatar">AD</div><svg class="chevron"><use href="#icon-chevron-down"/></svg></button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><strong>Admin User</strong><span>admin@synccu.com</span></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><svg><use href="#icon-settings"/></svg> Settings</a>
+            <a href="#" class="dropdown-item" id="logoutBtn2"><svg><use href="#icon-logout"/></svg> Logout</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div><h1 class="page-title">Network</h1><p class="page-subtitle">Manage inter-CU nodes, transfers, and settlements.</p></div>
+        <div class="page-actions"><button class="btn btn-primary" onclick="openAddNodeModal()"><svg style="width:16px;height:16px;margin-right:4px"><use href="#icon-plus"/></svg> Add Peer Node</button></div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stat-cards" id="statCards"></div>
+
+      <!-- Sub-tabs -->
+      <div class="tabs-sub">
+        <button class="tab-sub active" data-sub="nodes">Peer Nodes</button>
+        <button class="tab-sub" data-sub="transfers">Network Transfers</button>
+        <button class="tab-sub" data-sub="settlements">Settlements</button>
+      </div>
+
+      <!-- Nodes -->
+      <div class="sub-content active" id="sub-nodes">
+        <div class="card"><div class="card-header"><h3>Peer Nodes</h3></div>
+          <div class="table-responsive"><table class="table"><thead><tr><th>Status</th><th>Code</th><th>Name</th><th>Endpoint</th><th>Router</th><th>Last Heartbeat</th><th>Actions</th></tr></thead><tbody id="nodesBody"><tr><td colspan="7" style="text-align:center;padding:2rem">Loading...</td></tr></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- Transfers -->
+      <div class="sub-content" id="sub-transfers">
+        <div class="card"><div class="card-header"><h3>Network Transfers</h3><div style="display:flex;gap:.5rem"><select id="filterDirection" class="form-select" style="width:auto"><option value="">All Directions</option><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select><select id="filterStatus" class="form-select" style="width:auto"><option value="">All Statuses</option><option value="pending">Pending</option><option value="sent">Sent</option><option value="confirmed">Confirmed</option><option value="failed">Failed</option><option value="settled">Settled</option></select></div></div>
+          <div class="table-responsive"><table class="table"><thead><tr><th>Direction</th><th>Peer</th><th>Sender</th><th>Recipient</th><th>Amount</th><th>Fee</th><th>Status</th><th>Date</th></tr></thead><tbody id="transfersBody"><tr><td colspan="8" style="text-align:center;padding:2rem">Loading...</td></tr></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- Settlements -->
+      <div class="sub-content" id="sub-settlements">
+        <div class="card"><div class="card-header"><h3>Settlements</h3><button class="btn btn-primary" onclick="openSettlementModal()"><svg style="width:14px;height:14px;margin-right:4px"><use href="#icon-plus"/></svg> Generate Settlement</button></div>
+          <div class="table-responsive"><table class="table"><thead><tr><th>Peer</th><th>Period</th><th>Outbound</th><th>Inbound</th><th>Net</th><th>Transfers</th><th>Status</th><th>Actions</th></tr></thead><tbody id="settlementsBody"><tr><td colspan="8" style="text-align:center;padding:2rem">Loading...</td></tr></tbody></table></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Node Modal -->
+  <div class="modal-overlay" id="addNodeModal">
+    <div class="modal" style="max-width:560px">
+      <div class="modal-header"><h3>Register Peer Node</h3><button class="modal-close" onclick="closeModal('addNodeModal')">&times;</button></div>
+      <form id="addNodeForm" class="modal-body">
+        <div class="form-row">
+          <div class="form-group"><label>Node Code</label><input type="text" id="nodeCode" class="form-input" placeholder="e.g. CUBANK-001" required maxlength="20" style="text-transform:uppercase"></div>
+          <div class="form-group"><label>Name</label><input type="text" id="nodeName" class="form-input" placeholder="Partner Credit Union" required></div>
+        </div>
+        <div class="form-group"><label>API Endpoint URL</label><input type="text" id="nodeEndpoint" class="form-input" placeholder="https://api.partner-cu.example.com" required></div>
+        <div class="form-row">
+          <div class="form-group"><label>WireGuard Endpoint</label><input type="text" id="nodeWgEndpoint" class="form-input" placeholder="10.0.0.2:51820"></div>
+          <div class="form-group"><label>WireGuard Public Key</label><input type="text" id="nodeWgPubkey" class="form-input" placeholder="Base64 key"></div>
+        </div>
+        <div class="form-group"><label class="toggle-row" style="cursor:pointer"><span>This node acts as a router</span><label class="toggle"><input type="checkbox" id="nodeIsRouter"><span class="toggle-slider"></span></label></label></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('addNodeModal')">Cancel</button><button type="submit" class="btn btn-primary">Register Node</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- API Key Display Modal -->
+  <div class="modal-overlay" id="apiKeyModal">
+    <div class="modal" style="max-width:500px">
+      <div class="modal-header"><h3>Node API Key</h3><button class="modal-close" onclick="closeModal('apiKeyModal')">&times;</button></div>
+      <div class="modal-body">
+        <p style="color:var(--text-muted);margin-bottom:.75rem">Save this API key now. It will not be shown again.</p>
+        <div class="api-key-display" id="apiKeyDisplay"></div>
+        <button class="btn btn-secondary" style="width:100%;margin-top:.5rem" onclick="copyApiKey()">Copy to Clipboard</button>
+      </div>
+      <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal('apiKeyModal')">Done</button></div>
+    </div>
+  </div>
+
+  <!-- Generate Settlement Modal -->
+  <div class="modal-overlay" id="settlementModal">
+    <div class="modal" style="max-width:480px">
+      <div class="modal-header"><h3>Generate Settlement</h3><button class="modal-close" onclick="closeModal('settlementModal')">&times;</button></div>
+      <form id="settlementForm" class="modal-body">
+        <div class="form-group"><label>Peer Node</label><select id="settlePeer" class="form-select" required><option value="">Select peer...</option></select></div>
+        <div class="form-row">
+          <div class="form-group"><label>Period Start</label><input type="date" id="settlePeriodStart" class="form-input" required></div>
+          <div class="form-group"><label>Period End</label><input type="date" id="settlePeriodEnd" class="form-input" required></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('settlementModal')">Cancel</button><button type="submit" class="btn btn-primary">Generate</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Node Detail Modal -->
+  <div class="modal-overlay" id="nodeDetailModal">
+    <div class="modal" style="max-width:560px">
+      <div class="modal-header"><h3>Node Details</h3><button class="modal-close" onclick="closeModal('nodeDetailModal')">&times;</button></div>
+      <div class="modal-body" id="nodeDetailBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('nodeDetailModal')">Close</button>
+        <button class="btn btn-warning" id="btnRegenKey" onclick="regenerateKey()">Regenerate API Key</button>
+        <button class="btn btn-danger" id="btnDeleteNode" onclick="deleteNode()">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/admin-common.js"></script>
+  <script>
+    const fmt = n => parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    let currentNodeId = null;
+    let nodesCache = [];
+
+    // Sub-tab navigation
+    document.querySelectorAll('.tab-sub').forEach(t => {
+      t.addEventListener('click', () => {
+        document.querySelectorAll('.tab-sub').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.sub-content').forEach(c => c.classList.remove('active'));
+        t.classList.add('active');
+        document.getElementById('sub-' + t.dataset.sub).classList.add('active');
+      });
+    });
+
+    // Modal helpers
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    function openAddNodeModal() { document.getElementById('addNodeForm').reset(); openModal('addNodeModal'); }
+    function openSettlementModal() {
+      const sel = document.getElementById('settlePeer');
+      sel.innerHTML = '<option value="">Select peer...</option>';
+      nodesCache.forEach(n => { sel.innerHTML += '<option value="'+n.node_code+'">'+n.name+' ('+n.node_code+')</option>'; });
+      const now = new Date();
+      document.getElementById('settlePeriodStart').value = now.getFullYear()+'-'+(''+(now.getMonth()+1)).padStart(2,'0')+'-01';
+      document.getElementById('settlePeriodEnd').value = now.toISOString().split('T')[0];
+      openModal('settlementModal');
+    }
+
+    // Load stats
+    async function loadStats() {
+      try {
+        const r = await apiFetch('/api/v1/network/stats');
+        const d = (await r.json()).data || {};
+        document.getElementById('statCards').innerHTML =
+          '<div class="stat-card"><div class="label">Active Nodes</div><div class="value">'+d.active_nodes+' / '+d.total_nodes+'</div><div class="sub">Peer CU instances</div></div>'+
+          '<div class="stat-card"><div class="label">Pending Transfers</div><div class="value">'+d.pending_transfers+'</div><div class="sub">Awaiting confirmation</div></div>'+
+          '<div class="stat-card"><div class="label">This Month</div><div class="value">$'+fmt(d.month_outbound+d.month_inbound)+'</div><div class="sub">'+d.month_count+' transfers</div></div>'+
+          '<div class="stat-card"><div class="label">Unsettled</div><div class="value">$'+fmt(d.unsettled_amount)+'</div><div class="sub">'+d.unsettled_count+' transfers</div></div>';
+      } catch(e) { document.getElementById('statCards').innerHTML = ''; }
+    }
+
+    // Load nodes
+    async function loadNodes() {
+      try {
+        const r = await apiFetch('/api/v1/network/nodes');
+        const data = await r.json();
+        nodesCache = data.data || [];
+        const tb = document.getElementById('nodesBody');
+        if (!nodesCache.length) { tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">No peer nodes registered yet.</td></tr>'; return; }
+        tb.innerHTML = nodesCache.map(n => '<tr>'+
+          '<td><span class="node-status '+n.status+'"></span>'+n.status+'</td>'+
+          '<td><strong>'+n.node_code+'</strong></td>'+
+          '<td>'+n.name+'</td>'+
+          '<td style="font-size:.8rem">'+n.endpoint_url+'</td>'+
+          '<td>'+(n.is_router==='1'||n.is_router===1?'Yes':'No')+'</td>'+
+          '<td>'+(n.last_heartbeat_at||'Never')+'</td>'+
+          '<td><button class="btn btn-sm btn-secondary" onclick="viewNode(\''+n.id+'\')">View</button></td>'+
+        '</tr>').join('');
+      } catch(e) { document.getElementById('nodesBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444">Failed to load nodes</td></tr>'; }
+    }
+
+    // Load transfers
+    async function loadTransfers() {
+      try {
+        const dir = document.getElementById('filterDirection').value;
+        const st = document.getElementById('filterStatus').value;
+        let url = '/api/v1/network/transfers?per_page=50';
+        if (dir) url += '&direction='+dir;
+        if (st) url += '&status='+st;
+        const r = await apiFetch(url);
+        const json = await r.json();
+        const items = json.data || [];
+        const tb = document.getElementById('transfersBody');
+        if (!items.length) { tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">No network transfers found.</td></tr>'; return; }
+        tb.innerHTML = items.map(t => '<tr>'+
+          '<td><span class="dir-badge '+t.direction+'">'+t.direction+'</span></td>'+
+          '<td>'+(t.peer_name||t.peer_node_code)+'</td>'+
+          '<td>'+t.sender_name+'<br><small style="color:var(--text-muted)">'+t.sender_institution+'</small></td>'+
+          '<td>'+t.recipient_name+'<br><small style="color:var(--text-muted)">'+t.recipient_institution+'</small></td>'+
+          '<td>$'+fmt(t.amount)+'</td>'+
+          '<td>$'+fmt(t.fee)+'</td>'+
+          '<td><span class="badge badge-'+(t.status==='confirmed'?'success':t.status==='failed'?'danger':t.status==='settled'?'info':'warning')+'">'+t.status+'</span></td>'+
+          '<td>'+new Date(t.created_at).toLocaleDateString()+'</td>'+
+        '</tr>').join('');
+      } catch(e) { document.getElementById('transfersBody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:#ef4444">Failed to load</td></tr>'; }
+    }
+    document.getElementById('filterDirection').addEventListener('change', loadTransfers);
+    document.getElementById('filterStatus').addEventListener('change', loadTransfers);
+
+    // Load settlements
+    async function loadSettlements() {
+      try {
+        const r = await apiFetch('/api/v1/network/settlements');
+        const items = (await r.json()).data || [];
+        const tb = document.getElementById('settlementsBody');
+        if (!items.length) { tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">No settlements yet.</td></tr>'; return; }
+        tb.innerHTML = items.map(s => {
+          const net = parseFloat(s.net_amount||0);
+          const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : '';
+          const label = net > 0 ? 'We owe peer' : net < 0 ? 'Peer owes us' : 'Even';
+          return '<tr>'+
+            '<td>'+(s.peer_name||s.peer_node_code)+'</td>'+
+            '<td>'+s.period_start+' to '+s.period_end+'</td>'+
+            '<td>$'+fmt(s.total_outbound)+'</td>'+
+            '<td>$'+fmt(s.total_inbound)+'</td>'+
+            '<td class="settlement-net '+cls+'">$'+fmt(Math.abs(net))+'<br><small>'+label+'</small></td>'+
+            '<td>'+s.transfer_count+'</td>'+
+            '<td><span class="badge badge-'+(s.status==='approved'||s.status==='paid'?'success':s.status==='disputed'?'danger':'warning')+'">'+s.status+'</span></td>'+
+            '<td>'+(s.status==='draft'?'<button class="btn btn-sm btn-primary" onclick="approveSettlement(\''+s.id+'\')">Approve</button>':'')+'</td>'+
+          '</tr>';
+        }).join('');
+      } catch(e) { document.getElementById('settlementsBody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:#ef4444">Failed to load</td></tr>'; }
+    }
+
+    // View node detail
+    async function viewNode(id) {
+      currentNodeId = id;
+      const n = nodesCache.find(x => x.id === id);
+      if (!n) return;
+      document.getElementById('nodeDetailBody').innerHTML =
+        '<dl style="display:grid;grid-template-columns:140px 1fr;gap:.5rem .75rem">'+
+        '<dt>Code</dt><dd><strong>'+n.node_code+'</strong></dd>'+
+        '<dt>Name</dt><dd>'+n.name+'</dd>'+
+        '<dt>Status</dt><dd><span class="node-status '+n.status+'"></span>'+n.status+'</dd>'+
+        '<dt>Endpoint</dt><dd style="word-break:break-all">'+n.endpoint_url+'</dd>'+
+        '<dt>WireGuard</dt><dd>'+(n.wireguard_endpoint||'Not configured')+'</dd>'+
+        '<dt>Router</dt><dd>'+(n.is_router==='1'||n.is_router===1?'Yes':'No')+'</dd>'+
+        '<dt>API Key Prefix</dt><dd><code>'+n.api_key_prefix+'...</code></dd>'+
+        '<dt>Last Heartbeat</dt><dd>'+(n.last_heartbeat_at||'Never')+'</dd>'+
+        '<dt>Registered</dt><dd>'+new Date(n.created_at).toLocaleString()+'</dd>'+
+        '</dl>';
+      openModal('nodeDetailModal');
+    }
+
+    // Register node
+    document.getElementById('addNodeForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const r = await apiFetch('/api/v1/network/nodes', { method:'POST', body: JSON.stringify({
+          node_code: document.getElementById('nodeCode').value.toUpperCase(),
+          name: document.getElementById('nodeName').value,
+          endpoint_url: document.getElementById('nodeEndpoint').value,
+          wireguard_endpoint: document.getElementById('nodeWgEndpoint').value||null,
+          wireguard_public_key: document.getElementById('nodeWgPubkey').value||null,
+          is_router: document.getElementById('nodeIsRouter').checked
+        })});
+        const json = await r.json();
+        if (!r.ok) { alert(json.error||'Failed'); return; }
+        closeModal('addNodeModal');
+        const key = json.data?.api_key;
+        if (key) { document.getElementById('apiKeyDisplay').textContent = key; openModal('apiKeyModal'); }
+        loadNodes(); loadStats();
+      } catch(err) { alert('Failed to register node.'); }
+    });
+
+    // Regenerate API key
+    async function regenerateKey() {
+      if (!currentNodeId || !confirm('Regenerate API key? The old key will stop working immediately.')) return;
+      try {
+        const r = await apiFetch('/api/v1/network/nodes/'+currentNodeId+'/regenerate-key',{method:'POST'});
+        const json = await r.json();
+        if (!r.ok) { alert(json.error||'Failed'); return; }
+        closeModal('nodeDetailModal');
+        document.getElementById('apiKeyDisplay').textContent = json.data?.api_key||'';
+        openModal('apiKeyModal');
+      } catch(e) { alert('Failed to regenerate key.'); }
+    }
+
+    // Delete node
+    async function deleteNode() {
+      if (!currentNodeId || !confirm('Delete this node? This cannot be undone.')) return;
+      try {
+        const r = await apiFetch('/api/v1/network/nodes/'+currentNodeId,{method:'DELETE'});
+        if (!r.ok) { const j = await r.json(); alert(j.error||'Failed'); return; }
+        closeModal('nodeDetailModal');
+        loadNodes(); loadStats();
+      } catch(e) { alert('Failed to delete node.'); }
+    }
+
+    // Copy API key
+    function copyApiKey() {
+      const key = document.getElementById('apiKeyDisplay').textContent;
+      navigator.clipboard.writeText(key).then(() => alert('Copied!')).catch(() => {
+        const ta = document.createElement('textarea'); ta.value = key; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); alert('Copied!');
+      });
+    }
+
+    // Generate settlement
+    document.getElementById('settlementForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const r = await apiFetch('/api/v1/network/settlements', { method:'POST', body: JSON.stringify({
+          peer_node_code: document.getElementById('settlePeer').value,
+          period_start: document.getElementById('settlePeriodStart').value,
+          period_end: document.getElementById('settlePeriodEnd').value
+        })});
+        const json = await r.json();
+        if (!r.ok) { alert(json.error||'Failed'); return; }
+        closeModal('settlementModal');
+        document.querySelectorAll('.tab-sub').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.sub-content').forEach(c => c.classList.remove('active'));
+        document.querySelector('[data-sub="settlements"]').classList.add('active');
+        document.getElementById('sub-settlements').classList.add('active');
+        loadSettlements();
+      } catch(err) { alert('Failed to generate settlement.'); }
+    });
+
+    // Approve settlement
+    async function approveSettlement(id) {
+      if (!confirm('Approve this settlement and mark all included transfers as settled?')) return;
+      try {
+        const r = await apiFetch('/api/v1/network/settlements/'+id+'/approve',{method:'PUT'});
+        if (!r.ok) { const j = await r.json(); alert(j.error||'Failed'); return; }
+        loadSettlements(); loadStats();
+      } catch(e) { alert('Failed to approve settlement.'); }
+    }
+
+    // Init
+    loadStats(); loadNodes(); loadTransfers(); loadSettlements();
+  </script>
+</body>
+</html>
