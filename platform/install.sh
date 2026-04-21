@@ -252,7 +252,7 @@ DB_NAME="${DB_NAME:-synccu}"
 read -rp "Application database user [synccu_user]: " DB_USER
 DB_USER="${DB_USER:-synccu_user}"
 
-DB_PASS=$(openssl rand -base64 18)
+DB_PASS=$(openssl rand -hex 18)
 info "Generated database password (saved to .env files)"
 
 read -rp "Admin email [admin@${DOMAIN}]: " ADMIN_EMAIL
@@ -344,14 +344,16 @@ EOSQL
 success "Migrations applied"
 
 # Create admin user (use PHP for bcrypt since it's guaranteed installed)
-HASHED_PASS=$(php -r "echo password_hash('${ADMIN_PASS}', PASSWORD_BCRYPT, ['cost' => 12]);")
+HASHED_PASS=$(php -r 'echo password_hash($argv[1], PASSWORD_BCRYPT, ["cost" => 12]);' -- "$ADMIN_PASS")
 ADMIN_UUID=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
 TENANT_ID="00000000-0000-0000-0000-000000000001"
 
+SAFE_EMAIL=${ADMIN_EMAIL//\'/\'\'}
+SAFE_HASH=${HASHED_PASS//\'/\'\'}
 $MYSQL_CMD "$DB_NAME" <<-EOSQL
     INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, status, email_verified_at, created_at, updated_at)
-    VALUES ('${ADMIN_UUID}', '${TENANT_ID}', '${ADMIN_EMAIL}', '${HASHED_PASS}', 'System', 'Administrator', 'super_admin', 'active', NOW(), NOW(), NOW())
-    ON DUPLICATE KEY UPDATE password_hash='${HASHED_PASS}', role='super_admin', status='active', updated_at=NOW();
+    VALUES ('${ADMIN_UUID}', '${TENANT_ID}', '${SAFE_EMAIL}', '${SAFE_HASH}', 'System', 'Administrator', 'super_admin', 'active', NOW(), NOW(), NOW())
+    ON DUPLICATE KEY UPDATE password_hash='${SAFE_HASH}', role='super_admin', status='active', updated_at=NOW();
 EOSQL
 success "Admin user created: $ADMIN_EMAIL"
 
