@@ -204,6 +204,11 @@ install_prerequisites
 step "Configuration"
 echo ""
 
+# When piped via curl, stdin is the script itself. Read from /dev/tty instead.
+if [ ! -t 0 ]; then
+    exec < /dev/tty
+fi
+
 read -rp "Install directory [/var/www/synccu]: " INSTALL_DIR
 INSTALL_DIR="${INSTALL_DIR:-/var/www/synccu}"
 
