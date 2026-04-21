@@ -6,6 +6,21 @@
   <meta name="description" content="SyncCU Admin - Monitor and manage transactions, process new transactions, and export reports.">
   <title>Transactions - SyncCU Admin</title>
   <link rel="stylesheet" href="../css/app.css">
+  <style>
+    .receipt-actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+    .receipt-summary { background:var(--bg-muted,#f8fafc); border:1px solid var(--border,#e2e8f0); border-radius:8px; padding:1rem; margin-top:.75rem; font-size:.875rem; }
+    .receipt-summary dt { color:var(--text-muted,#64748b); font-weight:500; }
+    .receipt-summary dd { font-weight:600; margin:0 0 .25rem; }
+    .fee-summary { margin-top:.75rem; padding:.75rem; background:var(--bg-muted,#f8fafc); border-radius:6px; font-size:.85rem; }
+    .fee-summary span { font-weight:600; }
+    @media print {
+      body > *:not(#receiptPrintArea) { display:none !important; }
+      #receiptPrintArea { display:block !important; font-family:monospace; font-size:12pt; padding:2cm; }
+      #receiptPrintArea h2 { font-size:16pt; border-bottom:2px solid #000; padding-bottom:.5rem; margin-bottom:1rem; }
+      .receipt-row { display:flex; justify-content:space-between; padding:.2rem 0; border-bottom:1px dotted #ccc; }
+      .receipt-row:last-child { border-bottom:none; }
+    }
+  </style>
   <script>
     if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }
   </script>
@@ -34,6 +49,10 @@
     <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
     <symbol id="icon-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
     <symbol id="icon-dollar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></symbol>
+    <symbol id="icon-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+    <symbol id="icon-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></symbol>
+    <symbol id="icon-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+    <symbol id="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
   </svg>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -99,6 +118,9 @@
           <button class="btn btn-secondary" id="recordExpenseBtn">
             <svg><use href="#icon-dollar"/></svg> Record Expense
           </button>
+          <button class="btn btn-secondary" id="externalTransferBtn">
+            <svg><use href="#icon-globe"/></svg> External Transfer
+          </button>
           <button class="btn btn-primary" id="newTransactionBtn">
             <svg><use href="#icon-plus"/></svg> New Transaction
           </button>
@@ -125,6 +147,7 @@
           <option value="loan_disbursement">Loan Disbursement</option>
           <option value="fee">Fee</option>
           <option value="expense">Expense</option>
+          <option value="external_transfer">External Transfer</option>
         </select>
         <select id="txnStatusFilter" class="form-select">
           <option value="all">All Statuses</option>
@@ -332,7 +355,21 @@
           <div id="detailDocUploading" style="display:none;font-size:var(--text-xs);color:var(--text-muted);padding:var(--space-2) 0">Uploading...</div>
         </div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+        <div class="receipt-actions">
+          <button type="button" class="btn btn-secondary btn-sm" id="printReceiptBtn" title="Print Receipt">
+            <svg style="width:14px;height:14px"><use href="#icon-printer"/></svg> Print
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="emailReceiptBtn" title="Email Receipt">
+            <svg style="width:14px;height:14px"><use href="#icon-mail"/></svg> Email
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="smsReceiptBtn" title="SMS Receipt">
+            <svg style="width:14px;height:14px"><use href="#icon-phone"/></svg> SMS
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="whatsappReceiptBtn" title="WhatsApp Receipt" style="background:#25d366;color:#fff;border-color:#25d366">
+            WhatsApp
+          </button>
+        </div>
         <button type="button" class="btn btn-secondary" id="closeTxnDetailBtn">Close</button>
       </div>
     </div>
@@ -384,6 +421,114 @@
       </form>
     </div>
   </div>
+
+  <!-- External Transfer Modal -->
+  <div class="modal-overlay" id="extTransferModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>External / Wire Transfer</h3>
+        <button class="icon-btn modal-close" id="closeExtTransferModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <form id="extTransferForm">
+        <div class="modal-body">
+          <h4 style="margin:0 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Source Account</h4>
+          <div class="form-group">
+            <label for="extFromSearch">Member Account</label>
+            <input type="text" id="extFromSearch" class="form-input" placeholder="Search account by number or member..." autocomplete="off" required>
+            <input type="hidden" id="extFromId">
+            <div class="search-results" id="extFromResults"></div>
+          </div>
+
+          <h4 style="margin:1.25rem 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Recipient Details</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="extRecipientName">Recipient Name</label>
+              <input type="text" id="extRecipientName" class="form-input" placeholder="Full name of recipient" maxlength="255" required>
+            </div>
+            <div class="form-group">
+              <label for="extRecipientAccount">Recipient Account Number</label>
+              <input type="text" id="extRecipientAccount" class="form-input" placeholder="Account number at destination" maxlength="100" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="extInstitution">Bank / Credit Union Name</label>
+              <input type="text" id="extInstitution" class="form-input" placeholder="e.g. First National Bank" maxlength="255" required>
+            </div>
+            <div class="form-group">
+              <label for="extLocation">Location (City, Country)</label>
+              <input type="text" id="extLocation" class="form-input" placeholder="e.g. Bridgetown, Barbados" maxlength="255">
+            </div>
+          </div>
+
+          <h4 style="margin:1.25rem 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Amount & Fees</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="extAmount">Transfer Amount</label>
+              <input type="number" id="extAmount" class="form-input" placeholder="0.00" min="0.01" step="0.01" required>
+            </div>
+            <div class="form-group">
+              <label for="extFee">Transfer Fee</label>
+              <input type="number" id="extFee" class="form-input" placeholder="0.00" min="0" step="0.01" value="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label style="font-weight:600;font-size:.875rem">Fee Handling</label>
+            <div style="display:flex;gap:1.5rem;margin-top:.5rem">
+              <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-weight:400">
+                <input type="radio" name="extFeeHandling" id="feeDeduct" value="deduct" checked>
+                Deduct from transfer <span style="color:var(--text-muted);font-size:.8rem">(recipient gets less)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-weight:400">
+                <input type="radio" name="extFeeHandling" id="feeAdd" value="add">
+                Charge on top <span style="color:var(--text-muted);font-size:.8rem">(sender pays more)</span>
+              </label>
+            </div>
+          </div>
+          <div class="fee-summary" id="extFeeSummary" style="display:none">
+            Transfer amount: <span id="fsSendAmount">—</span> &nbsp;|&nbsp;
+            Fee: <span id="fsFee">—</span> &nbsp;|&nbsp;
+            Recipient receives: <span id="fsReceives">—</span> &nbsp;|&nbsp;
+            <strong>Total deducted from account: <span id="fsTotal">—</span></strong>
+          </div>
+          <div class="form-group" style="margin-top:1rem">
+            <label for="extDescription">Notes (optional)</label>
+            <input type="text" id="extDescription" class="form-input" placeholder="Purpose or reference note" maxlength="500">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelExtTransferBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="extTransferSubmitBtn">
+            <svg style="width:14px;height:14px"><use href="#icon-globe"/></svg> Submit Transfer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Send Receipt Modal -->
+  <div class="modal-overlay" id="receiptModal">
+    <div class="modal" style="max-width:440px">
+      <div class="modal-header">
+        <h3 id="receiptModalTitle">Send Receipt</h3>
+        <button class="icon-btn modal-close" id="closeReceiptModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label id="receiptDestLabel" for="receiptDestInput">Email Address</label>
+          <input type="text" id="receiptDestInput" class="form-input" placeholder="Enter email or phone number">
+        </div>
+        <div id="receiptStatusMsg" style="display:none;margin-top:.75rem;padding:.75rem;border-radius:6px;font-size:.875rem"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="cancelReceiptBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="sendReceiptSubmitBtn">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden print receipt area -->
+  <div id="receiptPrintArea" style="display:none"></div>
 
   <script src="../js/admin-common.js"></script>
   <script>
@@ -714,7 +859,7 @@
         tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">No transactions found</td></tr>';
         return;
       }
-      const typeClasses = { deposit: 'badge-success', withdrawal: 'badge-danger', transfer: 'badge-info', payment: 'badge-warning', loan_payment: 'badge-warning', loan_disbursement: 'badge-info', fee: 'badge-muted', late_fee: 'badge-danger', interest: 'badge-purple', adjustment: 'badge-muted', expense: 'badge-danger' };
+      const typeClasses = { deposit: 'badge-success', withdrawal: 'badge-danger', transfer: 'badge-info', payment: 'badge-warning', loan_payment: 'badge-warning', loan_disbursement: 'badge-info', fee: 'badge-muted', late_fee: 'badge-danger', interest: 'badge-purple', adjustment: 'badge-muted', expense: 'badge-danger', external_transfer: 'badge-info' };
       const statusClasses = { completed: 'badge-success', pending: 'badge-warning', failed: 'badge-danger', reversed: 'badge-muted', cancelled: 'badge-muted' };
 
       tbody.innerHTML = txns.map(t => {
@@ -963,6 +1108,190 @@
     });
 
     if (new URLSearchParams(window.location.search).get('action') === 'new') { txnModal.classList.add('active'); }
+
+    // ================================================================
+    // External Transfer
+    // ================================================================
+    const extTransferModal = document.getElementById('extTransferModal');
+    document.getElementById('externalTransferBtn').addEventListener('click', () => extTransferModal.classList.add('active'));
+    document.getElementById('closeExtTransferModal').addEventListener('click', () => extTransferModal.classList.remove('active'));
+    document.getElementById('cancelExtTransferBtn').addEventListener('click', () => extTransferModal.classList.remove('active'));
+    extTransferModal.addEventListener('click', (e) => { if (e.target === extTransferModal) extTransferModal.classList.remove('active'); });
+
+    // Source account search (reuse same pattern)
+    setupAccountSearch('extFromSearch', 'extFromResults', 'extFromId');
+
+    // Live fee summary
+    function updateFeeSummary() {
+      const amount = parseFloat(document.getElementById('extAmount').value) || 0;
+      const fee    = parseFloat(document.getElementById('extFee').value) || 0;
+      const handling = document.querySelector('input[name="extFeeHandling"]:checked')?.value || 'deduct';
+      const summary = document.getElementById('extFeeSummary');
+      if (amount <= 0) { summary.style.display = 'none'; return; }
+      summary.style.display = '';
+      const receives = handling === 'deduct' ? amount - fee : amount;
+      const total    = handling === 'add'    ? amount + fee : amount;
+      const fmt = v => '$' + v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      document.getElementById('fsSendAmount').textContent = fmt(amount);
+      document.getElementById('fsFee').textContent        = fmt(fee);
+      document.getElementById('fsReceives').textContent   = fmt(receives);
+      document.getElementById('fsTotal').textContent      = fmt(total);
+    }
+    document.getElementById('extAmount').addEventListener('input', updateFeeSummary);
+    document.getElementById('extFee').addEventListener('input', updateFeeSummary);
+    document.querySelectorAll('input[name="extFeeHandling"]').forEach(r => r.addEventListener('change', updateFeeSummary));
+
+    document.getElementById('extTransferForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fromId = document.getElementById('extFromId').value;
+      if (!fromId) { alert('Please select a member account.'); return; }
+
+      const submitBtn = document.getElementById('extTransferSubmitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Processing...';
+
+      const payload = {
+        account_id:        fromId,
+        amount:            parseFloat(document.getElementById('extAmount').value),
+        fee:               parseFloat(document.getElementById('extFee').value) || 0,
+        fee_handling:      document.querySelector('input[name="extFeeHandling"]:checked').value,
+        recipient_name:    document.getElementById('extRecipientName').value.trim(),
+        recipient_account: document.getElementById('extRecipientAccount').value.trim(),
+        institution_name:  document.getElementById('extInstitution').value.trim(),
+        location:          document.getElementById('extLocation').value.trim(),
+        description:       document.getElementById('extDescription').value.trim(),
+      };
+
+      try {
+        const resp = await apiFetch('/api/v1/transactions/external-transfer', { method:'POST', body:JSON.stringify(payload) });
+        const json = await resp.json();
+        if (!resp.ok) {
+          let msg = json.error || json.message || 'Transfer failed';
+          if (json.errors) msg += '\n' + Object.entries(json.errors).map(([f,m]) => f + ': ' + m).join('\n');
+          alert(msg);
+          return;
+        }
+        extTransferModal.classList.remove('active');
+        document.getElementById('extTransferForm').reset();
+        document.getElementById('extFromId').value = '';
+        document.getElementById('extFeeSummary').style.display = 'none';
+        loadTransactions();
+        // Open receipt options for the new transfer
+        const txnId = json.data?.id;
+        if (txnId) {
+          setTimeout(() => viewTransaction(txnId), 300);
+        }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Transfer';
+      }
+    });
+
+    // ================================================================
+    // Receipt System
+    // ================================================================
+    let receiptTxnId = null;
+    let receiptMethod = null;
+    const receiptModal = document.getElementById('receiptModal');
+
+    function openReceiptModal(method) {
+      receiptMethod = method;
+      const labels = { email: 'Email Receipt', sms: 'SMS Receipt', whatsapp: 'WhatsApp Receipt' };
+      const placeholders = { email: 'Enter email address', sms: 'Enter phone number (e.g. +1 246 555 0100)', whatsapp: 'Enter WhatsApp number (e.g. +1 246 555 0100)' };
+      document.getElementById('receiptModalTitle').textContent = labels[method] || 'Send Receipt';
+      document.getElementById('receiptDestLabel').textContent = method === 'email' ? 'Email Address' : 'Phone Number';
+      document.getElementById('receiptDestInput').placeholder = placeholders[method] || '';
+      document.getElementById('receiptDestInput').value = '';
+      document.getElementById('receiptStatusMsg').style.display = 'none';
+      receiptModal.classList.add('active');
+    }
+
+    document.getElementById('closeReceiptModal').addEventListener('click', () => receiptModal.classList.remove('active'));
+    document.getElementById('cancelReceiptBtn').addEventListener('click', () => receiptModal.classList.remove('active'));
+    receiptModal.addEventListener('click', (e) => { if (e.target === receiptModal) receiptModal.classList.remove('active'); });
+
+    document.getElementById('printReceiptBtn').addEventListener('click', () => printReceipt());
+    document.getElementById('emailReceiptBtn').addEventListener('click', () => openReceiptModal('email'));
+    document.getElementById('smsReceiptBtn').addEventListener('click', () => openReceiptModal('sms'));
+    document.getElementById('whatsappReceiptBtn').addEventListener('click', () => openReceiptModal('whatsapp'));
+
+    document.getElementById('sendReceiptSubmitBtn').addEventListener('click', async () => {
+      const dest = document.getElementById('receiptDestInput').value.trim();
+      if (!dest) { document.getElementById('receiptDestInput').focus(); return; }
+      if (!receiptTxnId) return;
+
+      const btn = document.getElementById('sendReceiptSubmitBtn');
+      const statusEl = document.getElementById('receiptStatusMsg');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      statusEl.style.display = 'none';
+
+      try {
+        const resp = await apiFetch('/api/v1/transactions/' + receiptTxnId + '/receipt', {
+          method: 'POST',
+          body: JSON.stringify({ method: receiptMethod, destination: dest }),
+        });
+        const json = await resp.json();
+        const msg = json.data?.message || (resp.ok ? 'Sent successfully.' : (json.error || 'Failed'));
+        statusEl.textContent = msg;
+        statusEl.style.display = '';
+        statusEl.style.background = resp.ok ? '#f0fdf4' : '#fef2f2';
+        statusEl.style.color = resp.ok ? '#166534' : '#991b1b';
+        statusEl.style.border = '1px solid ' + (resp.ok ? '#bbf7d0' : '#fecaca');
+        if (resp.ok) setTimeout(() => receiptModal.classList.remove('active'), 2000);
+      } catch (err) {
+        statusEl.textContent = 'Network error: ' + err.message;
+        statusEl.style.display = '';
+        statusEl.style.background = '#fef2f2';
+        statusEl.style.color = '#991b1b';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send';
+      }
+    });
+
+    function printReceipt() {
+      const area = document.getElementById('receiptPrintArea');
+      const ref  = document.getElementById('detailRef').textContent;
+      const date = document.getElementById('detailDate').textContent;
+      const type = document.getElementById('detailType').textContent;
+      const stat = document.getElementById('detailStatus').textContent;
+      const from = document.getElementById('detailFrom').textContent;
+      const to   = document.getElementById('detailTo').textContent;
+      const amt  = document.getElementById('detailAmount').textContent;
+      const bal  = document.getElementById('detailBalanceAfter').textContent;
+      const desc = document.getElementById('detailDesc').textContent;
+      const by   = document.getElementById('detailProcessedBy').textContent;
+      const cuName = document.querySelector('.sidebar-brand h2')?.textContent || 'SyncCU';
+
+      const row = (label, val) => `<div class="receipt-row"><span>${label}</span><span><strong>${val}</strong></span></div>`;
+
+      area.innerHTML = `
+        <h2>${cuName} — Transaction Receipt</h2>
+        ${row('Reference', ref)}
+        ${row('Date', date)}
+        ${row('Type', type)}
+        ${row('Status', stat)}
+        ${row('Account', from)}
+        ${row('Related Account', to)}
+        ${row('Amount', amt)}
+        ${row('Balance After', bal)}
+        ${row('Description', desc)}
+        ${row('Processed By', by)}
+        <p style="margin-top:2rem;text-align:center;font-size:10pt;color:#666">Thank you for your transaction.</p>
+      `;
+
+      window.print();
+    }
+
+    // Track current txn id for receipts — patch viewTransaction to set it
+    const _origViewTransaction = viewTransaction;
+    window.viewTransaction = async function(id) {
+      receiptTxnId = id;
+      await _origViewTransaction(id);
+    };
 
     loadTransactions();
   </script>

@@ -300,6 +300,164 @@ final class TransactionController
     }
 
     /**
+     * POST /api/v1/transactions/external-transfer
+     *
+     * Record an external/inter-institution transfer.
+     */
+    public function externalTransfer(Request $request): Response
+    {
+        $validator = new Validator($request->all(), [
+            'account_id'        => 'required|string',
+            'amount'            => 'required|numeric|positive',
+            'fee'               => 'required|numeric',
+            'fee_handling'      => 'required|in:deduct,add',
+            'recipient_name'    => 'required|string|max:255',
+            'recipient_account' => 'required|string|max:100',
+            'institution_name'  => 'required|string|max:255',
+            'location'          => 'nullable|string|max:255',
+            'description'       => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        $userId = $request->getAttribute('user_id');
+        $role   = $request->getAttribute('role');
+
+        if (!in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true)) {
+            if (!$this->accounts->verifyOwnership($request->input('account_id'), $userId)) {
+                return Response::error('You can only transfer from your own accounts', 403);
+            }
+        }
+
+        try {
+            $result = $this->transactions->recordExternalTransfer(
+                $request->input('account_id'),
+                (float) $request->input('amount'),
+                (float) $request->input('fee'),
+                $request->input('fee_handling'),
+                $request->input('recipient_name'),
+                $request->input('recipient_account'),
+                $request->input('institution_name'),
+                $request->input('location', ''),
+                $request->input('description', ''),
+                $userId,
+            );
+
+            return Response::created($result, 'External transfer initiated');
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+        }
+    }
+
+    /**
+     * POST /api/v1/transactions/{id}/receipt
+     *
+     * Send a transaction receipt via email, SMS, or WhatsApp.
+     */
+    public function sendReceipt(Request $request): Response
+    {
+        $validator = new Validator($request->all(), [
+            'method'      => 'required|in:email,sms,whatsapp',
+            'destination' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        $txnId    = $request->param('id');
+        $db       = \App\Core\Database::getInstance();
+        $tenantId = $db->getTenantId();
+
+        $txn = $db->fetchOne(
+            "SELECT t.*, a.account_number, CONCAT(u.first_name, ' ', u.last_name) AS member_name,
+                    ten.name AS tenant_name
+             FROM transactions t
+             LEFT JOIN accounts a ON a.id = t.account_id
+             LEFT JOIN users u ON u.id = a.user_id
+             LEFT JOIN tenants ten ON ten.id = t.tenant_id
+             WHERE t.id = ? AND t.tenant_id = ?",
+            [$txnId, $tenantId],
+        );
+
+        if ($txn === null) {
+            return Response::error('Transaction not found', 404);
+        }
+
+        $method      = $request->input('method');
+        $destination = $request->input('destination');
+        $receiptText = $this->formatReceiptText($txn);
+        $subject     = 'Transaction Receipt - ' . $txn['reference_number'];
+
+        switch ($method) {
+            case 'email':
+                $headers  = "From: noreply@synccu.net\r\nContent-Type: text/plain; charset=UTF-8";
+                $sent     = @mail($destination, $subject, $receiptText, $headers);
+                $message  = $sent ? "Receipt sent to {$destination}" : 'Email delivery failed — check mail server configuration';
+                break;
+
+            case 'sms':
+            case 'whatsapp':
+                // Placeholder — requires Twilio or similar. Log and acknowledge.
+                error_log("Receipt [{$method}] requested for txn {$txnId} → {$destination}");
+                $sent    = true;
+                $message = ucfirst($method) . " receipt queued for {$destination}. Messaging integration pending configuration.";
+                break;
+
+            default:
+                return Response::error('Unknown delivery method', 422);
+        }
+
+        return Response::ok(['sent' => $sent, 'message' => $message]);
+    }
+
+    private function formatReceiptText(array $txn): string
+    {
+        $date   = $txn['created_at'] ? date('M j, Y g:i A', strtotime($txn['created_at'])) : '-';
+        $amount = '$' . number_format((float) $txn['amount'], 2);
+        $type   = ucwords(str_replace('_', ' ', $txn['type']));
+        $meta   = json_decode($txn['metadata'] ?? '{}', true);
+        $cu     = $txn['tenant_name'] ?? 'SyncCU';
+
+        $lines = [
+            $cu . ' — TRANSACTION RECEIPT',
+            str_repeat('=', 40),
+            'Reference : ' . ($txn['reference_number'] ?? '-'),
+            'Date      : ' . $date,
+            'Type      : ' . $type,
+            'Amount    : ' . $amount,
+            'Account   : ' . ($txn['account_number'] ?? 'N/A'),
+            'Member    : ' . ($txn['member_name'] ?? 'N/A'),
+            'Status    : ' . ucfirst($txn['status'] ?? '-'),
+        ];
+
+        if (!empty($meta['recipient_name'])) {
+            $lines[] = str_repeat('-', 40);
+            $lines[] = 'Recipient : ' . $meta['recipient_name'];
+            $lines[] = 'Account # : ' . ($meta['recipient_account'] ?? '-');
+            $lines[] = 'Bank/CU   : ' . ($meta['institution_name'] ?? '-');
+            if (!empty($meta['location'])) {
+                $lines[] = 'Location  : ' . $meta['location'];
+            }
+            $lines[] = 'Transfer  : $' . number_format((float) ($meta['transfer_amount'] ?? 0), 2);
+            $lines[] = 'Fee       : $' . number_format((float) ($meta['transfer_fee'] ?? 0), 2);
+            $lines[] = 'Recipient receives: $' . number_format((float) ($meta['recipient_receives'] ?? 0), 2);
+        }
+
+        if (!empty($txn['description'])) {
+            $lines[] = str_repeat('-', 40);
+            $lines[] = 'Note: ' . $txn['description'];
+        }
+
+        $lines[] = str_repeat('=', 40);
+        $lines[] = 'Thank you for your transaction.';
+
+        return implode("\n", $lines);
+    }
+
+    /**
      * GET /api/transactions/{id}
      */
     public function show(Request $request): Response

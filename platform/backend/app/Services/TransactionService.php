@@ -437,6 +437,115 @@ final class TransactionService
     }
 
     // ------------------------------------------------------------------
+    // External Transfer
+    // ------------------------------------------------------------------
+
+    /**
+     * Record an external / inter-institution transfer.
+     *
+     * Debits the source account and records all external recipient details
+     * in metadata. Status is set to 'pending' until the network confirms.
+     *
+     * fee_handling: 'deduct' = fee comes out of the transfer amount (recipient gets less)
+     *               'add'    = fee is charged on top (sender pays more)
+     */
+    public function recordExternalTransfer(
+        string $accountId,
+        float  $amount,
+        float  $fee,
+        string $feeHandling,
+        string $recipientName,
+        string $recipientAccount,
+        string $institutionName,
+        string $location = '',
+        string $description = '',
+        ?string $userId = null,
+    ): array {
+        if ($amount <= 0) {
+            throw new RuntimeException('Transfer amount must be positive.', 422);
+        }
+
+        $account = $this->accounts->findById($accountId);
+        if ($account === null) {
+            throw new RuntimeException('Account not found.', 404);
+        }
+        $this->assertAccountActive($account);
+
+        $totalDebit       = $feeHandling === 'add' ? $amount + $fee : $amount;
+        $recipientReceives = $feeHandling === 'deduct' ? $amount - $fee : $amount;
+
+        $this->assertSufficientBalance($account, $totalDebit);
+        $this->ensureExternalTransferSchema();
+
+        return $this->db->transaction(function () use (
+            $accountId, $amount, $fee, $feeHandling, $recipientName, $recipientAccount,
+            $institutionName, $location, $description, $userId, $account, $totalDebit, $recipientReceives,
+        ) {
+            $txnId = $this->generateUuid();
+            $refNo = 'EXT-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            $now   = date('Y-m-d H:i:s');
+            $balanceAfter = (float) $account['balance'] - $totalDebit;
+
+            $metadata = json_encode([
+                'recipient_name'    => $recipientName,
+                'recipient_account' => $recipientAccount,
+                'institution_name'  => $institutionName,
+                'location'          => $location,
+                'transfer_amount'   => $amount,
+                'transfer_fee'      => $fee,
+                'fee_handling'      => $feeHandling,
+                'recipient_receives'=> $recipientReceives,
+                'total_debit'       => $totalDebit,
+            ]);
+
+            $this->db->query(
+                'INSERT INTO transactions
+                    (id, tenant_id, account_id, reference_number, type, status, amount,
+                     balance_after, processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $txnId,
+                    $this->db->getTenantId(),
+                    $accountId,
+                    $refNo,
+                    'external_transfer',
+                    'pending',
+                    $totalDebit,
+                    $balanceAfter,
+                    $userId,
+                    $description ?: "External transfer to {$recipientName} at {$institutionName}",
+                    $metadata,
+                    $now,
+                ],
+            );
+
+            $this->accounts->updateBalance($accountId, -$totalDebit);
+
+            return $this->findById($txnId);
+        });
+    }
+
+    /**
+     * Ensure the transactions table supports external_transfer type.
+     */
+    private function ensureExternalTransferSchema(): void
+    {
+        static $checked = false;
+        if ($checked) {
+            return;
+        }
+        try {
+            $this->db->query(
+                "ALTER TABLE transactions
+                 MODIFY COLUMN `type` ENUM('deposit','withdrawal','transfer','payment','fee','late_fee','interest','adjustment','loan_disbursement','loan_payment','expense','external_transfer') NOT NULL"
+            );
+        } catch (\Throwable $e) {
+            error_log('External transfer schema migration note: ' . $e->getMessage());
+        }
+        $checked = true;
+    }
+
+    // ------------------------------------------------------------------
     // Read
     // ------------------------------------------------------------------
 

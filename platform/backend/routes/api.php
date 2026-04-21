@@ -108,10 +108,12 @@ $router->group([
     $router->post('/deposit',   [TransactionController::class, 'deposit']);
     $router->post('/withdraw',  [TransactionController::class, 'withdraw']);
     $router->post('/transfer',  [TransactionController::class, 'transfer']);
-    $router->post('/expense',   [TransactionController::class, 'recordExpense'], [
+    $router->post('/expense',            [TransactionController::class, 'recordExpense'], [
         RBACMiddleware::class . ':admin,manager',
     ]);
-    $router->get('/{id}',       [TransactionController::class, 'show']);
+    $router->post('/external-transfer',  [TransactionController::class, 'externalTransfer']);
+    $router->post('/{id}/receipt',       [TransactionController::class, 'sendReceipt']);
+    $router->get('/{id}',                [TransactionController::class, 'show']);
 });
 
 // ------------------------------------------------------------------
