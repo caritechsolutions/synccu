@@ -174,9 +174,10 @@ if [ "$RESET_DB" -eq 1 ]; then
     # Drop everything except users/tenants, then recreate
     $MYSQL_CMD "$DB_NAME" <<-'EOSQL'
         SET FOREIGN_KEY_CHECKS=0;
-        DROP TABLE IF EXISTS loan_schedules, ledger_entries, transactions, loans, accounts,
+        DROP TABLE IF EXISTS loan_schedules, transactions, loans, accounts,
             audit_logs, notifications, documents, journal_entry_lines, journal_entries,
-            gl_accounts, chart_of_accounts, api_keys, tenant_settings, refresh_tokens;
+            gl_accounts, api_keys, tenant_settings, refresh_tokens,
+            network_settlements, network_transfers, network_nodes;
         SET FOREIGN_KEY_CHECKS=1;
 EOSQL
     success "Data tables dropped (users/tenants preserved)"
