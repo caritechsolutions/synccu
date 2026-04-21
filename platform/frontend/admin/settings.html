@@ -333,22 +333,11 @@
                 </div>
               </div>
 
-              <h4 class="settings-section-title" style="margin-top:1.5rem">Endpoint &amp; Security</h4>
+              <h4 class="settings-section-title" style="margin-top:1.5rem">Endpoint</h4>
               <div class="form-group">
-                <label for="networkEndpointUrl">Public API Endpoint</label>
-                <input type="text" id="networkEndpointUrl" class="form-input" placeholder="https://api.mycu.example.com">
-                <span class="form-hint">URL other nodes will use to reach this instance</span>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="networkWgEndpoint">WireGuard Endpoint</label>
-                  <input type="text" id="networkWgEndpoint" class="form-input" placeholder="10.0.0.1:51820">
-                  <span class="form-hint">WireGuard tunnel IP:port (optional)</span>
-                </div>
-                <div class="form-group">
-                  <label for="networkWgPublicKey">WireGuard Public Key</label>
-                  <input type="text" id="networkWgPublicKey" class="form-input" placeholder="Base64-encoded key">
-                </div>
+                <label for="networkEndpointUrl">API Endpoint</label>
+                <input type="text" id="networkEndpointUrl" class="form-input" placeholder="e.g. 10.0.0.1 or api.mycu.example.com">
+                <span class="form-hint">IP address or hostname other nodes will use to reach this instance</span>
               </div>
 
               <h4 class="settings-section-title" style="margin-top:1.5rem">Transfer Fees</h4>
@@ -497,8 +486,6 @@
         if (settings.network_node_code) document.getElementById('networkNodeCode').value = settings.network_node_code;
         if (settings.network_node_name) document.getElementById('networkNodeName').value = settings.network_node_name;
         if (settings.network_endpoint_url) document.getElementById('networkEndpointUrl').value = settings.network_endpoint_url;
-        if (settings.network_wg_endpoint) document.getElementById('networkWgEndpoint').value = settings.network_wg_endpoint;
-        if (settings.network_wg_public_key) document.getElementById('networkWgPublicKey').value = settings.network_wg_public_key;
         if (settings.network_transfer_fee) document.getElementById('networkTransferFee').value = settings.network_transfer_fee;
         if (settings.network_fee_type) document.getElementById('networkFeeType').value = settings.network_fee_type;
       } catch (e) { /* keep defaults */ }
@@ -557,8 +544,6 @@
             network_node_code: document.getElementById('networkNodeCode').value.toUpperCase(),
             network_node_name: document.getElementById('networkNodeName').value,
             network_endpoint_url: document.getElementById('networkEndpointUrl').value,
-            network_wg_endpoint: document.getElementById('networkWgEndpoint').value,
-            network_wg_public_key: document.getElementById('networkWgPublicKey').value,
             network_transfer_fee: document.getElementById('networkTransferFee').value,
             network_fee_type: document.getElementById('networkFeeType').value,
           })

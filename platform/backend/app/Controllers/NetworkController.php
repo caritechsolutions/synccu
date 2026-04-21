@@ -66,8 +66,6 @@ final class NetworkController
             'name'                 => 'required|string|max:255',
             'endpoint_url'         => 'required|string|max:512',
             'is_router'            => 'nullable|boolean',
-            'wireguard_endpoint'   => 'nullable|string|max:255',
-            'wireguard_public_key' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -85,8 +83,6 @@ final class NetworkController
                 $data['endpoint_url'],
                 $apiKey,
                 !empty($data['is_router']),
-                $data['wireguard_endpoint'] ?? null,
-                $data['wireguard_public_key'] ?? null,
             );
 
             $result['api_key'] = $apiKey;
@@ -105,8 +101,6 @@ final class NetworkController
         $validator = new Validator($request->all(), [
             'name'                 => 'nullable|string|max:255',
             'endpoint_url'         => 'nullable|string|max:512',
-            'wireguard_endpoint'   => 'nullable|string|max:255',
-            'wireguard_public_key' => 'nullable|string|max:255',
             'is_router'            => 'nullable|boolean',
             'status'               => 'nullable|string|in:active,inactive,pending',
         ]);

@@ -92,8 +92,6 @@ final class TenantController
             'network_node_code'     => 'nullable|string|max:20',
             'network_node_name'     => 'nullable|string|max:255',
             'network_endpoint_url'  => 'nullable|string|max:512',
-            'network_wg_endpoint'   => 'nullable|string|max:255',
-            'network_wg_public_key' => 'nullable|string|max:255',
             'network_transfer_fee'  => 'nullable|numeric',
             'network_fee_type'      => 'nullable|string|max:20',
         ]);

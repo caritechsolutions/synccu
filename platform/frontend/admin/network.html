@@ -137,11 +137,7 @@
           <div class="form-group"><label>Node Code</label><input type="text" id="nodeCode" class="form-input" placeholder="e.g. CUBANK-001" required maxlength="20" style="text-transform:uppercase"></div>
           <div class="form-group"><label>Name</label><input type="text" id="nodeName" class="form-input" placeholder="Partner Credit Union" required></div>
         </div>
-        <div class="form-group"><label>API Endpoint URL</label><input type="text" id="nodeEndpoint" class="form-input" placeholder="https://api.partner-cu.example.com" required></div>
-        <div class="form-row">
-          <div class="form-group"><label>WireGuard Endpoint</label><input type="text" id="nodeWgEndpoint" class="form-input" placeholder="10.0.0.2:51820"></div>
-          <div class="form-group"><label>WireGuard Public Key</label><input type="text" id="nodeWgPubkey" class="form-input" placeholder="Base64 key"></div>
-        </div>
+        <div class="form-group"><label>Endpoint (IP or hostname)</label><input type="text" id="nodeEndpoint" class="form-input" placeholder="e.g. 10.0.0.2 or api.partner-cu.example.com" required></div>
         <div class="form-group"><label class="toggle-row" style="cursor:pointer"><span>This node acts as a router</span><label class="toggle"><input type="checkbox" id="nodeIsRouter"><span class="toggle-slider"></span></label></label></div>
         <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('addNodeModal')">Cancel</button><button type="submit" class="btn btn-primary">Register Node</button></div>
       </form>
@@ -316,7 +312,6 @@
         '<dt>Name</dt><dd>'+n.name+'</dd>'+
         '<dt>Status</dt><dd><span class="node-status '+n.status+'"></span>'+n.status+'</dd>'+
         '<dt>Endpoint</dt><dd style="word-break:break-all">'+n.endpoint_url+'</dd>'+
-        '<dt>WireGuard</dt><dd>'+(n.wireguard_endpoint||'Not configured')+'</dd>'+
         '<dt>Router</dt><dd>'+(n.is_router==='1'||n.is_router===1?'Yes':'No')+'</dd>'+
         '<dt>API Key Prefix</dt><dd><code>'+n.api_key_prefix+'...</code></dd>'+
         '<dt>Last Heartbeat</dt><dd>'+(n.last_heartbeat_at||'Never')+'</dd>'+
@@ -333,8 +328,6 @@
           node_code: document.getElementById('nodeCode').value.toUpperCase(),
           name: document.getElementById('nodeName').value,
           endpoint_url: document.getElementById('nodeEndpoint').value,
-          wireguard_endpoint: document.getElementById('nodeWgEndpoint').value||null,
-          wireguard_public_key: document.getElementById('nodeWgPubkey').value||null,
           is_router: document.getElementById('nodeIsRouter').checked
         })});
         const json = await r.json();

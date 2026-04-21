@@ -33,8 +33,6 @@ final class NetworkService
                 `endpoint_url` VARCHAR(512) NOT NULL,
                 `api_key_hash` VARCHAR(255) NOT NULL,
                 `api_key_prefix` VARCHAR(10) NOT NULL,
-                `wireguard_endpoint` VARCHAR(255) DEFAULT NULL,
-                `wireguard_public_key` VARCHAR(255) DEFAULT NULL,
                 `status` ENUM('active','inactive','pending','unreachable') DEFAULT 'pending',
                 `is_router` TINYINT(1) DEFAULT 0,
                 `last_heartbeat_at` TIMESTAMP NULL DEFAULT NULL,
@@ -128,7 +126,7 @@ final class NetworkService
         }
 
         return $this->db->fetchAll(
-            "SELECT n.id, n.node_code, n.name, n.endpoint_url, n.wireguard_endpoint,
+            "SELECT n.id, n.node_code, n.name, n.endpoint_url,
                     n.status, n.is_router, n.last_heartbeat_at, n.api_key_prefix,
                     n.created_at, n.updated_at
              FROM network_nodes n
@@ -143,8 +141,8 @@ final class NetworkService
         $this->ensureSchema();
 
         return $this->db->fetchOne(
-            "SELECT id, node_code, name, endpoint_url, wireguard_endpoint,
-                    wireguard_public_key, status, is_router, last_heartbeat_at,
+            "SELECT id, node_code, name, endpoint_url,
+                    status, is_router, last_heartbeat_at,
                     api_key_prefix, metadata, created_at, updated_at
              FROM network_nodes
              WHERE id = ? AND tenant_id = ?",
@@ -169,8 +167,6 @@ final class NetworkService
         string $endpointUrl,
         string $apiKey,
         bool $isRouter = false,
-        ?string $wireguardEndpoint = null,
-        ?string $wireguardPublicKey = null,
     ): array {
         $this->ensureSchema();
 
@@ -186,11 +182,11 @@ final class NetworkService
         $this->db->query(
             "INSERT INTO network_nodes
                 (id, tenant_id, node_code, name, endpoint_url, api_key_hash, api_key_prefix,
-                 wireguard_endpoint, wireguard_public_key, is_router, status, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())",
+                 is_router, status, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())",
             [
                 $id, $tenantId, strtoupper($nodeCode), $name, $endpointUrl,
-                $apiKeyHash, $apiKeyPrefix, $wireguardEndpoint, $wireguardPublicKey,
+                $apiKeyHash, $apiKeyPrefix,
                 $isRouter ? 1 : 0,
             ],
         );
@@ -214,7 +210,7 @@ final class NetworkService
         $fields = [];
         $params = [];
 
-        foreach (['name', 'endpoint_url', 'wireguard_endpoint', 'wireguard_public_key', 'status'] as $field) {
+        foreach (['name', 'endpoint_url', 'status'] as $field) {
             if (array_key_exists($field, $data)) {
                 $fields[] = "{$field} = ?";
                 $params[] = $data[$field];
