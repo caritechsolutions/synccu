@@ -200,14 +200,16 @@ install_prerequisites
 
 ################################################################################
 # Gather configuration (with sane defaults)
+# Temporarily talk directly to the terminal so prompts display and reads work
+# even when piped via curl | bash (stdin=pipe, stdout=tee buffer).
 ################################################################################
+
+# Save tee-wrapped descriptors, switch to raw terminal for interactive prompts
+exec 3>&1 4>&2
+exec 0</dev/tty 1>/dev/tty 2>/dev/tty
+
 step "Configuration"
 echo ""
-
-# When piped via curl, stdin is the script itself. Read from /dev/tty instead.
-if [ ! -t 0 ]; then
-    exec < /dev/tty
-fi
 
 read -rp "Install directory [/var/www/synccu]: " INSTALL_DIR
 INSTALL_DIR="${INSTALL_DIR:-/var/www/synccu}"
@@ -219,7 +221,6 @@ read -rp "MySQL host [localhost]: " DB_HOST
 DB_HOST="${DB_HOST:-localhost}"
 
 # Check if MySQL needs root password setup
-# Try socket auth first (default on Ubuntu), then TCP, then ask for password
 MYSQL_CMD=""
 if mysql -u root -e "SELECT 1" &>/dev/null 2>&1; then
     info "MySQL root access OK (socket auth, no password needed)"
@@ -278,6 +279,9 @@ if [[ "${CONFIRM,,}" == "n" ]]; then
     info "Cancelled."
     exit 0
 fi
+
+# Restore tee-logged output for the rest of the install
+exec 1>&3 2>&4 3>&- 4>&-
 
 ################################################################################
 # 1. Clone repository
@@ -603,8 +607,10 @@ chmod 600 /etc/synccu/config
 ################################################################################
 # 9. Optional SSL
 ################################################################################
+exec 3>&1 4>&2; exec 0</dev/tty 1>/dev/tty 2>/dev/tty
 echo ""
 read -rp "Setup free SSL certificate with Let's Encrypt? [y/N]: " SETUP_SSL
+exec 1>&3 2>&4 3>&- 4>&-
 if [[ "${SETUP_SSL,,}" == "y" ]]; then
     if command -v certbot &>/dev/null; then
         certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$ADMIN_EMAIL" 2>/dev/null && \
