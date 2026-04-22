@@ -118,11 +118,8 @@
           <button class="btn btn-secondary" id="recordExpenseBtn">
             <svg><use href="#icon-dollar"/></svg> Record Expense
           </button>
-          <button class="btn btn-secondary" id="networkTransferBtn">
-            <svg><use href="#icon-globe"/></svg> Network Transfer
-          </button>
-          <button class="btn btn-secondary" id="externalTransferBtn">
-            <svg><use href="#icon-send"/></svg> External Transfer
+          <button class="btn btn-secondary" id="unifiedTransferBtn">
+            <svg><use href="#icon-send"/></svg> Transfer
           </button>
           <button class="btn btn-primary" id="newTransactionBtn">
             <svg><use href="#icon-plus"/></svg> New Transaction
@@ -162,6 +159,38 @@
         <div class="search-box filter-search">
           <svg class="search-icon"><use href="#icon-search"/></svg>
           <input type="text" id="txnSearch" placeholder="Search reference or account..." aria-label="Search transactions">
+        </div>
+      </div>
+
+      <!-- Outstanding External Transfers Queue -->
+      <div class="card" id="outstandingQueueCard" style="display:none;margin-bottom:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;cursor:pointer;user-select:none" id="outstandingQueueToggle">
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <h3 style="margin:0;font-size:1rem">Outstanding External Transfers</h3>
+            <span class="badge badge-warning" id="outstandingQueueCount">0</span>
+          </div>
+          <svg style="width:18px;height:18px;transition:transform .2s" id="outstandingQueueChevron"><use href="#icon-chevron-down"/></svg>
+        </div>
+        <div id="outstandingQueueBody" style="display:none">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>From Account</th>
+                  <th>Recipient</th>
+                  <th>Institution</th>
+                  <th>Amount</th>
+                  <th>Priority</th>
+                  <th>Age</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="outstandingQueueTbody">
+                <tr><td colspan="8" style="text-align:center;padding:1.5rem;color:var(--text-muted)">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

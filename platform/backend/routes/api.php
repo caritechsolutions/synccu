@@ -114,6 +114,7 @@ $router->group([
         RBACMiddleware::class . ':admin,manager',
     ]);
     $router->post('/external-transfer',  [TransactionController::class, 'externalTransfer']);
+    $router->put('/{id}/status',         [TransactionController::class, 'updateStatus']);
     $router->post('/{id}/receipt',       [TransactionController::class, 'sendReceipt']);
     $router->get('/{id}',                [TransactionController::class, 'show']);
 });

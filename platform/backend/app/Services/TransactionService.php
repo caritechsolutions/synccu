@@ -460,6 +460,7 @@ final class TransactionService
         string $location = '',
         string $description = '',
         ?string $userId = null,
+        string $priority = 'normal',
     ): array {
         if ($amount <= 0) {
             throw new RuntimeException('Transfer amount must be positive.', 422);
@@ -496,6 +497,7 @@ final class TransactionService
                 'fee_handling'      => $feeHandling,
                 'recipient_receives'=> $recipientReceives,
                 'total_debit'       => $totalDebit,
+                'priority'          => $priority,
             ]);
 
             $this->db->query(

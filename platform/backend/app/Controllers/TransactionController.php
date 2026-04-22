@@ -315,6 +315,7 @@ final class TransactionController
             'recipient_account' => 'required|string|max:100',
             'institution_name'  => 'required|string|max:255',
             'location'          => 'nullable|string|max:255',
+            'priority'          => 'nullable|string|in:normal,urgent',
             'description'       => 'nullable|string|max:500',
         ]);
 
@@ -343,6 +344,7 @@ final class TransactionController
                 $request->input('location', ''),
                 $request->input('description', ''),
                 $userId,
+                $request->input('priority', 'normal'),
             );
 
             return Response::created($result, 'External transfer initiated');
@@ -565,5 +567,46 @@ final class TransactionController
             'Content-Type' => 'text/csv; charset=utf-8',
             'Content-Disposition' => 'attachment; filename="transactions-' . date('Y-m-d') . '.csv"',
         ]);
+    }
+
+    /**
+     * PUT /api/v1/transactions/{id}/status
+     */
+    public function updateStatus(Request $request): Response
+    {
+        $transactionId = $request->param('id');
+        $role = $request->getAttribute('role');
+
+        if (!in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true)) {
+            return Response::error('Forbidden', 403);
+        }
+
+        $validator = new Validator($request->all(), [
+            'status' => 'required|string|in:completed,failed,cancelled',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        $db = \App\Core\Database::getInstance();
+        $tenantId = $db->getTenantId();
+
+        $txn = $db->fetchOne(
+            'SELECT id, status, type FROM transactions WHERE id = ? AND tenant_id = ?',
+            [$transactionId, $tenantId],
+        );
+
+        if (!$txn) {
+            return Response::error('Transaction not found', 404);
+        }
+
+        $newStatus = $request->input('status');
+        $db->execute(
+            'UPDATE transactions SET status = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?',
+            [$newStatus, $transactionId, $tenantId],
+        );
+
+        return Response::ok(['id' => $transactionId, 'status' => $newStatus], 'Transaction status updated');
     }
 }
