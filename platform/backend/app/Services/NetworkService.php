@@ -446,7 +446,7 @@ final class NetworkService
 
         $endpoint = rtrim($node['endpoint_url'], '/');
         if (!str_starts_with($endpoint, 'http')) {
-            $endpoint = 'https://' . $endpoint;
+            $endpoint = 'http://' . $endpoint;
         }
         $url = $endpoint . '/api/v1/node/transfer';
 
