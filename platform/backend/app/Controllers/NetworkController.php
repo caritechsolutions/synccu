@@ -66,6 +66,7 @@ final class NetworkController
             'name'                 => 'required|string|max:255',
             'endpoint_url'         => 'required|string|max:512',
             'is_router'            => 'nullable|boolean',
+            'outbound_api_key'     => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -83,6 +84,7 @@ final class NetworkController
                 $data['endpoint_url'],
                 $apiKey,
                 !empty($data['is_router']),
+                $data['outbound_api_key'] ?? null,
             );
 
             $result['api_key'] = $apiKey;
@@ -103,6 +105,7 @@ final class NetworkController
             'endpoint_url'         => 'nullable|string|max:512',
             'is_router'            => 'nullable|boolean',
             'status'               => 'nullable|string|in:active,inactive,pending',
+            'outbound_api_key'     => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {

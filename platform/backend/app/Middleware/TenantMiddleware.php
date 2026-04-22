@@ -79,6 +79,13 @@ final class TenantMiddleware
             return $jwtTenant;
         }
 
+        // 4. Default tenant (single-instance deployments)
+        $db = Database::getInstance();
+        $default = $db->fetchOne("SELECT id FROM tenants WHERE status = 'active' LIMIT 1", []);
+        if ($default !== null) {
+            return $default['id'];
+        }
+
         return null;
     }
 

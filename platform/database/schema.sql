@@ -276,6 +276,7 @@ CREATE TABLE IF NOT EXISTS `network_nodes` (
   `endpoint_url` VARCHAR(512) NOT NULL COMMENT 'Base URL of peer instance API',
   `api_key_hash` VARCHAR(255) NOT NULL COMMENT 'Hashed shared secret for auth',
   `api_key_prefix` VARCHAR(10) NOT NULL COMMENT 'First 8 chars for identification',
+  `outbound_api_key` VARCHAR(255) DEFAULT NULL COMMENT 'API key for calling peer (plain text)',
   `status` ENUM('active','inactive','pending','unreachable') DEFAULT 'pending',
   `is_router` TINYINT(1) DEFAULT 0 COMMENT 'Whether this peer acts as a router',
   `last_heartbeat_at` TIMESTAMP NULL DEFAULT NULL,

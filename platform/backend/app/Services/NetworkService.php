@@ -33,6 +33,7 @@ final class NetworkService
                 `endpoint_url` VARCHAR(512) NOT NULL,
                 `api_key_hash` VARCHAR(255) NOT NULL,
                 `api_key_prefix` VARCHAR(10) NOT NULL,
+                `outbound_api_key` VARCHAR(255) DEFAULT NULL,
                 `status` ENUM('active','inactive','pending','unreachable') DEFAULT 'pending',
                 `is_router` TINYINT(1) DEFAULT 0,
                 `last_heartbeat_at` TIMESTAMP NULL DEFAULT NULL,
@@ -101,6 +102,14 @@ final class NetworkService
         foreach ($tables as $sql) {
             $pdo->exec($sql);
         }
+
+        try {
+            $pdo->exec("ALTER TABLE `network_nodes` ADD COLUMN `outbound_api_key` VARCHAR(255) DEFAULT NULL AFTER `api_key_prefix`");
+        } catch (\PDOException $e) {
+            if (strpos($e->getMessage(), 'Duplicate column') === false) {
+                throw $e;
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -128,6 +137,7 @@ final class NetworkService
         return $this->db->fetchAll(
             "SELECT n.id, n.node_code, n.name, n.endpoint_url,
                     n.status, n.is_router, n.last_heartbeat_at, n.api_key_prefix,
+                    CASE WHEN n.outbound_api_key IS NOT NULL THEN 1 ELSE 0 END as has_outbound_key,
                     n.created_at, n.updated_at
              FROM network_nodes n
              {$where}
@@ -143,7 +153,9 @@ final class NetworkService
         return $this->db->fetchOne(
             "SELECT id, node_code, name, endpoint_url,
                     status, is_router, last_heartbeat_at,
-                    api_key_prefix, metadata, created_at, updated_at
+                    api_key_prefix, outbound_api_key,
+                    CASE WHEN outbound_api_key IS NOT NULL THEN 1 ELSE 0 END as has_outbound_key,
+                    metadata, created_at, updated_at
              FROM network_nodes
              WHERE id = ? AND tenant_id = ?",
             [$nodeId, $tenantId],
@@ -167,6 +179,7 @@ final class NetworkService
         string $endpointUrl,
         string $apiKey,
         bool $isRouter = false,
+        ?string $outboundApiKey = null,
     ): array {
         $this->ensureSchema();
 
@@ -182,11 +195,12 @@ final class NetworkService
         $this->db->query(
             "INSERT INTO network_nodes
                 (id, tenant_id, node_code, name, endpoint_url, api_key_hash, api_key_prefix,
-                 is_router, status, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())",
+                 outbound_api_key, is_router, status, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())",
             [
                 $id, $tenantId, strtoupper($nodeCode), $name, $endpointUrl,
                 $apiKeyHash, $apiKeyPrefix,
+                $outboundApiKey,
                 $isRouter ? 1 : 0,
             ],
         );
@@ -210,7 +224,7 @@ final class NetworkService
         $fields = [];
         $params = [];
 
-        foreach (['name', 'endpoint_url', 'status'] as $field) {
+        foreach (['name', 'endpoint_url', 'status', 'outbound_api_key'] as $field) {
             if (array_key_exists($field, $data)) {
                 $fields[] = "{$field} = ?";
                 $params[] = $data[$field];
@@ -342,7 +356,7 @@ final class NetworkService
         $transferId = $this->generateUuid();
         $txnRef = 'NET-' . date('Ymd') . '-' . strtoupper(substr(md5($transferId), 0, 8));
 
-        return $this->db->transaction(function () use (
+        $result = $this->db->transaction(function () use (
             $transferId, $tenantId, $node, $peerNodeCode,
             $localAccountId, $senderName, $senderAccount, $senderInstitution,
             $recipientName, $recipientAccount, $recipientInstitution,
@@ -403,6 +417,81 @@ final class NetworkService
                 'status'         => 'pending',
             ];
         });
+
+        $this->deliverToPeer($tenantId, $result['transfer_id'], $node, $result['reference'],
+            $senderName, $senderAccount, $senderInstitution,
+            $recipientName, $recipientAccount, $recipientInstitution,
+            $amount, $currency);
+
+        return $result;
+    }
+
+    private function deliverToPeer(
+        string $tenantId, string $transferId, array $node, string $reference,
+        string $senderName, string $senderAccount, string $senderInstitution,
+        string $recipientName, string $recipientAccount, string $recipientInstitution,
+        float $amount, string $currency,
+    ): void {
+        $outboundKey = $node['outbound_api_key'] ?? null;
+        if (!$outboundKey) {
+            $this->updateTransferStatus($tenantId, $transferId, 'pending', 'No outbound API key configured for peer.');
+            return;
+        }
+
+        $endpoint = rtrim($node['endpoint_url'], '/');
+        if (!str_starts_with($endpoint, 'http')) {
+            $endpoint = 'https://' . $endpoint;
+        }
+        $url = $endpoint . '/api/v1/node/transfer';
+
+        $payload = json_encode([
+            'peer_node_code'        => $this->getOwnNodeCode($tenantId),
+            'remote_reference'      => $reference,
+            'sender_name'           => $senderName,
+            'sender_account'        => $senderAccount,
+            'sender_institution'    => $senderInstitution,
+            'recipient_name'        => $recipientName,
+            'recipient_account'     => $recipientAccount,
+            'recipient_institution' => $recipientInstitution,
+            'amount'                => $amount,
+            'currency'              => $currency,
+        ]);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_HTTPHEADER     => [
+                'Content-Type: application/json',
+                'X-Node-Api-Key: ' . $outboundKey,
+            ],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($error || $httpCode < 200 || $httpCode >= 300) {
+            $reason = $error ?: "Peer returned HTTP {$httpCode}";
+            $this->updateTransferStatus($tenantId, $transferId, 'failed', $reason);
+            return;
+        }
+
+        $this->updateTransferStatus($tenantId, $transferId, 'sent');
+    }
+
+    private function getOwnNodeCode(string $tenantId): string
+    {
+        $row = $this->db->fetchOne(
+            "SELECT setting_value FROM tenant_settings WHERE tenant_id = ? AND setting_key = 'network_node_code'",
+            [$tenantId],
+        );
+        return $row ? (json_decode($row['setting_value'], true) ?? $row['setting_value']) : 'UNKNOWN';
     }
 
     public function receiveInboundTransfer(
