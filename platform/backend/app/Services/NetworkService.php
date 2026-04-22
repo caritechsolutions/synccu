@@ -356,6 +356,8 @@ final class NetworkService
         $transferId = $this->generateUuid();
         $txnRef = 'NET-' . date('Ymd') . '-' . strtoupper(substr(md5($transferId), 0, 8));
 
+        $this->ensureNetworkTransferType();
+
         $result = $this->db->transaction(function () use (
             $transferId, $tenantId, $node, $peerNodeCode,
             $localAccountId, $senderName, $senderAccount, $senderInstitution,
@@ -369,7 +371,6 @@ final class NetworkService
             );
 
             $txnId = $this->generateUuid();
-            $this->ensureNetworkTransferType();
             $this->db->query(
                 "INSERT INTO transactions
                     (id, tenant_id, account_id, type, amount, balance_after, description,
@@ -534,6 +535,8 @@ final class NetworkService
         $transferId = $this->generateUuid();
         $txnRef = 'NET-IN-' . date('Ymd') . '-' . strtoupper(substr(md5($transferId), 0, 8));
 
+        $this->ensureNetworkTransferType();
+
         return $this->db->transaction(function () use (
             $transferId, $tenantId, $node, $peerNodeCode, $remoteReference,
             $account, $senderName, $senderAccount, $senderInstitution,
@@ -547,7 +550,6 @@ final class NetworkService
             );
 
             $txnId = $this->generateUuid();
-            $this->ensureNetworkTransferType();
             $this->db->query(
                 "INSERT INTO transactions
                     (id, tenant_id, account_id, type, amount, balance_after, description,
