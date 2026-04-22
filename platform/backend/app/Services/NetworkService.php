@@ -419,10 +419,15 @@ final class NetworkService
             ];
         });
 
-        $this->deliverToPeer($tenantId, $result['transfer_id'], $node, $result['reference'],
-            $senderName, $senderAccount, $senderInstitution,
-            $recipientName, $recipientAccount, $recipientInstitution,
-            $amount, $currency);
+        try {
+            $this->deliverToPeer($tenantId, $result['transfer_id'], $node, $result['reference'],
+                $senderName, $senderAccount, $senderInstitution,
+                $recipientName, $recipientAccount, $recipientInstitution,
+                $amount, $currency);
+        } catch (\Throwable $e) {
+            $this->updateTransferStatus($tenantId, $result['transfer_id'], 'failed',
+                'Delivery error: ' . $e->getMessage());
+        }
 
         return $result;
     }
@@ -480,9 +485,11 @@ final class NetworkService
 
         if ($error || $httpCode < 200 || $httpCode >= 300) {
             $reason = $error ?: "Peer returned HTTP {$httpCode}";
-            $body = @json_decode($response, true);
-            if (!empty($body['error'])) {
-                $reason .= ': ' . $body['error'];
+            if (is_string($response) && $response !== '') {
+                $body = json_decode($response, true);
+                if (!empty($body['error'])) {
+                    $reason .= ': ' . $body['error'];
+                }
             }
             $this->updateTransferStatus($tenantId, $transferId, 'failed', $reason);
             return;
