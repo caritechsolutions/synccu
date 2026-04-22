@@ -455,163 +455,164 @@
     </div>
   </div>
 
-  <!-- Network Transfer Modal -->
-  <div class="modal-overlay" id="netTransferModal">
+  <!-- Unified Transfer Modal -->
+  <div class="modal-overlay" id="unifiedTransferModal">
     <div class="modal modal-lg">
       <div class="modal-header">
-        <h3>Network Transfer (Inter-CU)</h3>
-        <button class="icon-btn modal-close" id="closeNetTransferModal"><svg><use href="#icon-x"/></svg></button>
+        <h3>Transfer</h3>
+        <button class="icon-btn modal-close" id="closeUnifiedTransferModal"><svg><use href="#icon-x"/></svg></button>
       </div>
-      <form id="netTransferForm">
+      <form id="unifiedTransferForm">
         <div class="modal-body">
-          <p style="color:var(--text-muted);font-size:.875rem;margin-bottom:1.25rem">Fill in the details provided by your member. The receiving credit union will verify the account and name — you will not see their account records.</p>
-
-          <h4 style="margin:0 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Source Account</h4>
+          <!-- Transfer Type Selector -->
           <div class="form-group">
-            <label for="netFromSearch">Member Account</label>
-            <input type="text" id="netFromSearch" class="form-input" placeholder="Search account by number or member..." autocomplete="off">
-            <input type="hidden" id="netFromId">
-            <input type="hidden" id="netFromNumber">
-            <div class="search-results" id="netFromResults"></div>
-            <small id="netFromInfo" style="color:var(--text-muted)"></small>
+            <label for="uniTransferType">Transfer Type</label>
+            <div style="display:flex;gap:.5rem;margin-top:.25rem">
+              <button type="button" class="btn btn-secondary" id="uniTypeInternal" style="flex:1;font-weight:600" data-type="internal">Internal</button>
+              <button type="button" class="btn btn-secondary" id="uniTypeNetwork" style="flex:1;font-weight:600" data-type="network">Network</button>
+              <button type="button" class="btn btn-secondary" id="uniTypeExternal" style="flex:1;font-weight:600" data-type="external">External</button>
+            </div>
+            <div style="font-size:.8rem;color:var(--text-muted);margin-top:.35rem" id="uniTypeDesc">Select a transfer type above.</div>
           </div>
 
-          <h4 style="margin:1.25rem 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Sending Details</h4>
+          <!-- Source Account (all types) -->
+          <h4 style="margin:1rem 0 .75rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Source Account</h4>
+          <div class="form-group">
+            <label for="uniFromSearch">Member Account</label>
+            <input type="text" id="uniFromSearch" class="form-input" placeholder="Search account by number or member..." autocomplete="off" required>
+            <input type="hidden" id="uniFromId">
+            <input type="hidden" id="uniFromNumber">
+            <input type="hidden" id="uniFromName">
+            <div class="search-results" id="uniFromResults"></div>
+          </div>
+
+          <!-- Internal: Destination Account -->
+          <div id="uniInternalFields" style="display:none">
+            <div class="form-group">
+              <label for="uniToSearch">Destination Account</label>
+              <input type="text" id="uniToSearch" class="form-input" placeholder="Search destination account..." autocomplete="off">
+              <input type="hidden" id="uniToId">
+              <div class="search-results" id="uniToResults"></div>
+            </div>
+          </div>
+
+          <!-- Network: Sender & Recipient Details -->
+          <div id="uniNetworkFields" style="display:none">
+            <h4 style="margin:1.25rem 0 .75rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Sending Details</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="uniNetSenderName">Sender Name</label>
+                <input type="text" id="uniNetSenderName" class="form-input" placeholder="Auto-filled from account">
+              </div>
+              <div class="form-group">
+                <label for="uniNetSenderInst">Sending Institution</label>
+                <input type="text" id="uniNetSenderInst" class="form-input" placeholder="Your credit union name">
+              </div>
+            </div>
+            <h4 style="margin:1.25rem 0 .75rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Recipient Details <small style="text-transform:none;letter-spacing:0">(as provided by member)</small></h4>
+            <div class="form-group">
+              <label for="uniNetPeerNode">Destination CU</label>
+              <select id="uniNetPeerNode" class="form-select">
+                <option value="">Select peer CU...</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="uniNetRecipName">Recipient Full Name</label>
+                <input type="text" id="uniNetRecipName" class="form-input" placeholder="As it appears on their account">
+              </div>
+              <div class="form-group">
+                <label for="uniNetRecipAcct">Recipient Account Number</label>
+                <input type="text" id="uniNetRecipAcct" class="form-input" placeholder="Account number at recipient CU">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="uniNetRecipInst">Recipient Institution Name</label>
+              <input type="text" id="uniNetRecipInst" class="form-input" placeholder="Name of the recipient's credit union">
+            </div>
+          </div>
+
+          <!-- External: Recipient Details -->
+          <div id="uniExternalFields" style="display:none">
+            <h4 style="margin:1.25rem 0 .75rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Recipient Details</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="uniExtRecipName">Recipient Name</label>
+                <input type="text" id="uniExtRecipName" class="form-input" placeholder="Full name of recipient" maxlength="255">
+              </div>
+              <div class="form-group">
+                <label for="uniExtRecipAcct">Recipient Account Number</label>
+                <input type="text" id="uniExtRecipAcct" class="form-input" placeholder="Account number at destination" maxlength="100">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="uniExtInstitution">Bank / Credit Union Name</label>
+                <input type="text" id="uniExtInstitution" class="form-input" placeholder="e.g. First National Bank" maxlength="255">
+              </div>
+              <div class="form-group">
+                <label for="uniExtLocation">Location (City, Country)</label>
+                <input type="text" id="uniExtLocation" class="form-input" placeholder="e.g. Bridgetown, Barbados" maxlength="255">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="uniExtPriority">Priority</label>
+              <select id="uniExtPriority" class="form-select">
+                <option value="normal">Normal</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Amount & Fee (all types) -->
+          <h4 style="margin:1.25rem 0 .75rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Amount</h4>
           <div class="form-row">
             <div class="form-group">
-              <label for="netSenderName">Sender Name</label>
-              <input type="text" id="netSenderName" class="form-input" placeholder="Auto-filled from account" required>
+              <label for="uniAmount">Transfer Amount ($)</label>
+              <input type="number" id="uniAmount" class="form-input" placeholder="0.00" min="0.01" step="0.01" required>
             </div>
             <div class="form-group">
-              <label for="netSenderInst">Sending Institution</label>
-              <input type="text" id="netSenderInst" class="form-input" placeholder="Your credit union name" required>
+              <label for="uniFee">Fee ($)</label>
+              <input type="number" id="uniFee" class="form-input" placeholder="0.00" min="0" step="0.01" value="0">
             </div>
           </div>
 
-          <h4 style="margin:1.25rem 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Recipient Details <small style="text-transform:none;letter-spacing:0">(as provided by member)</small></h4>
-          <div class="form-group">
-            <label for="netPeerNode">Destination CU</label>
-            <select id="netPeerNode" class="form-select" required>
-              <option value="">Select peer CU...</option>
-            </select>
-          </div>
-          <div class="form-row">
+          <!-- External: Fee Handling -->
+          <div id="uniExtFeeHandlingGroup" style="display:none">
             <div class="form-group">
-              <label for="netRecipName">Recipient Full Name</label>
-              <input type="text" id="netRecipName" class="form-input" placeholder="As it appears on their account" required>
+              <label style="font-weight:600;font-size:.875rem">Fee Handling</label>
+              <div style="display:flex;gap:1.5rem;margin-top:.5rem">
+                <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-weight:400">
+                  <input type="radio" name="uniExtFeeHandling" value="deduct" checked>
+                  Deduct from transfer <span style="color:var(--text-muted);font-size:.8rem">(recipient gets less)</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-weight:400">
+                  <input type="radio" name="uniExtFeeHandling" value="add">
+                  Charge on top <span style="color:var(--text-muted);font-size:.8rem">(sender pays more)</span>
+                </label>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="netRecipAcct">Recipient Account Number</label>
-              <input type="text" id="netRecipAcct" class="form-input" placeholder="Account number at recipient CU" required>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="netRecipInst">Recipient Institution Name</label>
-            <input type="text" id="netRecipInst" class="form-input" placeholder="Name of the recipient's credit union" required>
-          </div>
-
-          <h4 style="margin:1.25rem 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Amount</h4>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="netAmount">Transfer Amount ($)</label>
-              <input type="number" id="netAmount" class="form-input" placeholder="0.00" min="0.01" step="0.01" required>
-            </div>
-            <div class="form-group">
-              <label for="netFee">Transfer Fee ($)</label>
-              <input type="number" id="netFee" class="form-input" placeholder="0.00" min="0" step="0.01" value="0">
+            <div class="fee-summary" id="uniExtFeeSummary" style="display:none">
+              Transfer amount: <span id="uniFsSendAmount">---</span> &nbsp;|&nbsp;
+              Fee: <span id="uniFsFee">---</span> &nbsp;|&nbsp;
+              Recipient receives: <span id="uniFsReceives">---</span> &nbsp;|&nbsp;
+              <strong>Total deducted from account: <span id="uniFsTotal">---</span></strong>
             </div>
           </div>
 
-          <div id="netTransferResult" style="display:none;margin-top:1rem;padding:.75rem 1rem;border-radius:8px"></div>
+          <!-- Notes (all types) -->
+          <div class="form-group" style="margin-top:.75rem">
+            <label for="uniNotes">Notes (optional)</label>
+            <input type="text" id="uniNotes" class="form-input" placeholder="Purpose or reference note" maxlength="500">
+          </div>
+
+          <!-- Result area (network inline result) -->
+          <div id="uniTransferResult" style="display:none;margin-top:1rem;padding:.75rem 1rem;border-radius:8px"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="cancelNetTransferBtn">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="netTransferSubmitBtn">
-            <svg style="width:14px;height:14px"><use href="#icon-globe"/></svg> Send Network Transfer
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- External Transfer Modal -->
-  <div class="modal-overlay" id="extTransferModal">
-    <div class="modal modal-lg">
-      <div class="modal-header">
-        <h3>External / Wire Transfer</h3>
-        <button class="icon-btn modal-close" id="closeExtTransferModal"><svg><use href="#icon-x"/></svg></button>
-      </div>
-      <form id="extTransferForm">
-        <div class="modal-body">
-          <h4 style="margin:0 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Source Account</h4>
-          <div class="form-group">
-            <label for="extFromSearch">Member Account</label>
-            <input type="text" id="extFromSearch" class="form-input" placeholder="Search account by number or member..." autocomplete="off" required>
-            <input type="hidden" id="extFromId">
-            <div class="search-results" id="extFromResults"></div>
-          </div>
-
-          <h4 style="margin:1.25rem 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Recipient Details</h4>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="extRecipientName">Recipient Name</label>
-              <input type="text" id="extRecipientName" class="form-input" placeholder="Full name of recipient" maxlength="255" required>
-            </div>
-            <div class="form-group">
-              <label for="extRecipientAccount">Recipient Account Number</label>
-              <input type="text" id="extRecipientAccount" class="form-input" placeholder="Account number at destination" maxlength="100" required>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="extInstitution">Bank / Credit Union Name</label>
-              <input type="text" id="extInstitution" class="form-input" placeholder="e.g. First National Bank" maxlength="255" required>
-            </div>
-            <div class="form-group">
-              <label for="extLocation">Location (City, Country)</label>
-              <input type="text" id="extLocation" class="form-input" placeholder="e.g. Bridgetown, Barbados" maxlength="255">
-            </div>
-          </div>
-
-          <h4 style="margin:1.25rem 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Amount & Fees</h4>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="extAmount">Transfer Amount</label>
-              <input type="number" id="extAmount" class="form-input" placeholder="0.00" min="0.01" step="0.01" required>
-            </div>
-            <div class="form-group">
-              <label for="extFee">Transfer Fee</label>
-              <input type="number" id="extFee" class="form-input" placeholder="0.00" min="0" step="0.01" value="0">
-            </div>
-          </div>
-          <div class="form-group">
-            <label style="font-weight:600;font-size:.875rem">Fee Handling</label>
-            <div style="display:flex;gap:1.5rem;margin-top:.5rem">
-              <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-weight:400">
-                <input type="radio" name="extFeeHandling" id="feeDeduct" value="deduct" checked>
-                Deduct from transfer <span style="color:var(--text-muted);font-size:.8rem">(recipient gets less)</span>
-              </label>
-              <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-weight:400">
-                <input type="radio" name="extFeeHandling" id="feeAdd" value="add">
-                Charge on top <span style="color:var(--text-muted);font-size:.8rem">(sender pays more)</span>
-              </label>
-            </div>
-          </div>
-          <div class="fee-summary" id="extFeeSummary" style="display:none">
-            Transfer amount: <span id="fsSendAmount">—</span> &nbsp;|&nbsp;
-            Fee: <span id="fsFee">—</span> &nbsp;|&nbsp;
-            Recipient receives: <span id="fsReceives">—</span> &nbsp;|&nbsp;
-            <strong>Total deducted from account: <span id="fsTotal">—</span></strong>
-          </div>
-          <div class="form-group" style="margin-top:1rem">
-            <label for="extDescription">Notes (optional)</label>
-            <input type="text" id="extDescription" class="form-input" placeholder="Purpose or reference note" maxlength="500">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="cancelExtTransferBtn">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="extTransferSubmitBtn">
-            <svg style="width:14px;height:14px"><use href="#icon-globe"/></svg> Submit Transfer
+          <button type="button" class="btn btn-secondary" id="cancelUnifiedTransferBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="uniTransferSubmitBtn" disabled>
+            <svg style="width:14px;height:14px"><use href="#icon-send"/></svg> Submit Transfer
           </button>
         </div>
       </form>
@@ -971,7 +972,7 @@
         tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">No transactions found</td></tr>';
         return;
       }
-      const typeClasses = { deposit: 'badge-success', withdrawal: 'badge-danger', transfer: 'badge-info', payment: 'badge-warning', loan_payment: 'badge-warning', loan_disbursement: 'badge-info', fee: 'badge-muted', late_fee: 'badge-danger', interest: 'badge-purple', adjustment: 'badge-muted', expense: 'badge-danger', external_transfer: 'badge-info' };
+      const typeClasses = { deposit: 'badge-success', withdrawal: 'badge-danger', transfer: 'badge-info', network_transfer: 'badge-info', payment: 'badge-warning', loan_payment: 'badge-warning', loan_disbursement: 'badge-info', fee: 'badge-muted', late_fee: 'badge-danger', interest: 'badge-purple', adjustment: 'badge-muted', expense: 'badge-danger', external_transfer: 'badge-warning' };
       const statusClasses = { completed: 'badge-success', pending: 'badge-warning', failed: 'badge-danger', reversed: 'badge-muted', cancelled: 'badge-muted' };
 
       tbody.innerHTML = txns.map(t => {
@@ -1222,196 +1223,355 @@
     if (new URLSearchParams(window.location.search).get('action') === 'new') { txnModal.classList.add('active'); }
 
     // ================================================================
-    // Network Transfer (Inter-CU)
+    // Unified Transfer Modal
     // ================================================================
-    const netTransferModal = document.getElementById('netTransferModal');
-    document.getElementById('networkTransferBtn').addEventListener('click', async () => {
-      // Load active peer nodes
+    const uniTransferModal = document.getElementById('unifiedTransferModal');
+    let uniTransferType = ''; // 'internal' | 'network' | 'external'
+
+    // Open modal
+    document.getElementById('unifiedTransferBtn').addEventListener('click', () => {
+      document.getElementById('unifiedTransferForm').reset();
+      document.getElementById('uniFromId').value = '';
+      document.getElementById('uniFromNumber').value = '';
+      document.getElementById('uniFromName').value = '';
+      document.getElementById('uniToId').value = '';
+      document.getElementById('uniTransferResult').style.display = 'none';
+      document.getElementById('uniExtFeeSummary').style.display = 'none';
+      setUniTransferType('');
+      uniTransferModal.classList.add('active');
+    });
+    document.getElementById('closeUnifiedTransferModal').addEventListener('click', () => uniTransferModal.classList.remove('active'));
+    document.getElementById('cancelUnifiedTransferBtn').addEventListener('click', () => uniTransferModal.classList.remove('active'));
+    uniTransferModal.addEventListener('click', e => { if (e.target === uniTransferModal) uniTransferModal.classList.remove('active'); });
+
+    // Type selector buttons
+    const uniTypeDescs = {
+      internal: 'Between accounts at this credit union. Instant.',
+      network: 'To a peer SyncCU instance. Automated, real-time delivery.',
+      external: 'To any outside institution. Manual processing required - creates a queue item.',
+    };
+    document.querySelectorAll('#uniTypeInternal, #uniTypeNetwork, #uniTypeExternal').forEach(btn => {
+      btn.addEventListener('click', () => setUniTransferType(btn.dataset.type));
+    });
+
+    function setUniTransferType(type) {
+      uniTransferType = type;
+      // Highlight active button
+      document.querySelectorAll('#uniTypeInternal, #uniTypeNetwork, #uniTypeExternal').forEach(b => {
+        b.classList.toggle('btn-primary', b.dataset.type === type);
+        b.classList.toggle('btn-secondary', b.dataset.type !== type);
+      });
+      // Show/hide field groups
+      document.getElementById('uniInternalFields').style.display = type === 'internal' ? '' : 'none';
+      document.getElementById('uniNetworkFields').style.display = type === 'network' ? '' : 'none';
+      document.getElementById('uniExternalFields').style.display = type === 'external' ? '' : 'none';
+      document.getElementById('uniExtFeeHandlingGroup').style.display = type === 'external' ? '' : 'none';
+      // Update description
+      document.getElementById('uniTypeDesc').textContent = uniTypeDescs[type] || 'Select a transfer type above.';
+      // Enable/disable submit
+      document.getElementById('uniTransferSubmitBtn').disabled = !type;
+      // Update submit button text
+      const labels = { internal: 'Transfer', network: 'Send Network Transfer', external: 'Submit External Transfer' };
+      document.getElementById('uniTransferSubmitBtn').innerHTML = '<svg style="width:14px;height:14px"><use href="#icon-send"/></svg> ' + (labels[type] || 'Submit Transfer');
+      // Load network nodes if switching to network
+      if (type === 'network') loadNetworkNodesForUnified();
+      // Hide result
+      document.getElementById('uniTransferResult').style.display = 'none';
+    }
+
+    async function loadNetworkNodesForUnified() {
       try {
         const r = await apiFetch('/api/v1/network/nodes?status=active');
         const nodes = (await r.json()).data || [];
-        const sel = document.getElementById('netPeerNode');
+        const sel = document.getElementById('uniNetPeerNode');
         sel.innerHTML = '<option value="">Select peer CU...</option>';
         nodes.forEach(n => { sel.innerHTML += '<option value="'+n.node_code+'">'+n.name+' ('+n.node_code+')</option>'; });
-        if (!nodes.length) {
-          alert('No active peer nodes. Go to Network to register and activate a peer CU first.');
-          return;
-        }
-      } catch(e) { alert('Failed to load peer nodes.'); return; }
-      // Load own institution name from tenant settings
+      } catch(e) { console.warn('Failed to load peer nodes', e); }
+      // Load institution name
       try {
         const r = await apiFetch('/api/v1/tenant/settings');
         const d = (await r.json()).data || {};
-        document.getElementById('netSenderInst').value = d.tenant?.name || '';
+        document.getElementById('uniNetSenderInst').value = d.tenant?.name || '';
       } catch(e) {}
-      document.getElementById('netTransferForm').reset();
-      document.getElementById('netFromId').value = '';
-      document.getElementById('netFromNumber').value = '';
-      document.getElementById('netFromInfo').textContent = '';
-      document.getElementById('netTransferResult').style.display = 'none';
-      netTransferModal.classList.add('active');
-    });
-    document.getElementById('closeNetTransferModal').addEventListener('click', () => netTransferModal.classList.remove('active'));
-    document.getElementById('cancelNetTransferBtn').addEventListener('click', () => netTransferModal.classList.remove('active'));
-    netTransferModal.addEventListener('click', e => { if (e.target === netTransferModal) netTransferModal.classList.remove('active'); });
+    }
 
-    // Account search with callback for network transfer
-    let netSearchTimeout;
-    document.getElementById('netFromSearch').addEventListener('input', () => {
-      clearTimeout(netSearchTimeout);
-      document.getElementById('netFromId').value = '';
-      const q = document.getElementById('netFromSearch').value.trim();
-      const res = document.getElementById('netFromResults');
-      if (q.length < 2) { res.innerHTML = ''; return; }
-      netSearchTimeout = setTimeout(async () => {
-        try {
-          const resp = await apiFetch('/api/v1/accounts?search='+encodeURIComponent(q)+'&per_page=8');
-          if (!resp.ok) return;
-          const accts = (await resp.json()).data || [];
-          res.innerHTML = accts.map(a =>
-            '<div class="search-result-item" data-id="'+a.id+'" data-number="'+a.account_number+'" data-name="'+(a.member_name||'')+'">'+
-            a.account_number+' - '+(a.member_name||a.name||'Unknown')+
-            ' <span style="color:var(--text-muted);font-size:var(--text-xs)">('+a.account_type+' $'+Number(a.balance||0).toLocaleString('en-US',{minimumFractionDigits:2})+')</span></div>'
-          ).join('');
-          res.querySelectorAll('.search-result-item').forEach(item => {
-            item.addEventListener('click', () => {
-              document.getElementById('netFromId').value = item.dataset.id;
-              document.getElementById('netFromNumber').value = item.dataset.number;
-              document.getElementById('netFromSearch').value = item.textContent.trim();
-              document.getElementById('netSenderName').value = item.dataset.name;
-              document.getElementById('netFromInfo').textContent = '';
-              res.innerHTML = '';
+    // Account search for source (with extra data capture for network sender name)
+    (function() {
+      const input = document.getElementById('uniFromSearch');
+      const results = document.getElementById('uniFromResults');
+      const hiddenId = document.getElementById('uniFromId');
+      const hiddenNum = document.getElementById('uniFromNumber');
+      const hiddenName = document.getElementById('uniFromName');
+      let timeout;
+      input.addEventListener('input', () => {
+        clearTimeout(timeout);
+        hiddenId.value = '';
+        hiddenNum.value = '';
+        hiddenName.value = '';
+        const q = input.value.trim();
+        if (q.length < 2) { results.innerHTML = ''; return; }
+        timeout = setTimeout(async () => {
+          try {
+            const resp = await apiFetch('/api/v1/accounts?search=' + encodeURIComponent(q) + '&per_page=8');
+            if (!resp.ok) return;
+            const accts = (await resp.json()).data || [];
+            results.innerHTML = accts.map(a =>
+              '<div class="search-result-item" data-id="'+a.id+'" data-number="'+a.account_number+'" data-name="'+(a.member_name||a.name||'')+'">'+
+              a.account_number+' - '+(a.member_name||a.name||'Unknown')+
+              ' <span style="color:var(--text-muted);font-size:var(--text-xs)">('+a.account_type+' $'+Number(a.balance||0).toLocaleString('en-US',{minimumFractionDigits:2})+')</span></div>'
+            ).join('');
+            results.querySelectorAll('.search-result-item').forEach(item => {
+              item.addEventListener('click', () => {
+                hiddenId.value = item.dataset.id;
+                hiddenNum.value = item.dataset.number;
+                hiddenName.value = item.dataset.name;
+                input.value = item.textContent.trim();
+                results.innerHTML = '';
+                // Auto-fill network sender name
+                document.getElementById('uniNetSenderName').value = item.dataset.name;
+              });
             });
-          });
-        } catch(e) {}
-      }, 300);
-    });
-    document.addEventListener('click', e => {
-      const inp = document.getElementById('netFromSearch'), res = document.getElementById('netFromResults');
-      if (!inp.contains(e.target) && !res.contains(e.target)) res.innerHTML = '';
-    });
+          } catch(e) {}
+        }, 300);
+      });
+      document.addEventListener('click', e => { if (!input.contains(e.target) && !results.contains(e.target)) results.innerHTML = ''; });
+    })();
+    // Destination account search (internal)
+    setupAccountSearch('uniToSearch', 'uniToResults', 'uniToId');
 
-    document.getElementById('netTransferForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const accountId = document.getElementById('netFromId').value;
-      if (!accountId) { alert('Please select a member account.'); return; }
-      const btn = document.getElementById('netTransferSubmitBtn');
-      btn.disabled = true; btn.textContent = 'Sending...';
-      const resultEl = document.getElementById('netTransferResult');
-      resultEl.style.display = 'none';
-      try {
-        const body = {
-          peer_node_code:        document.getElementById('netPeerNode').value,
-          account_id:            accountId,
-          sender_name:           document.getElementById('netSenderName').value.trim(),
-          sender_account:        document.getElementById('netFromNumber').value,
-          sender_institution:    document.getElementById('netSenderInst').value.trim(),
-          recipient_name:        document.getElementById('netRecipName').value.trim(),
-          recipient_account:     document.getElementById('netRecipAcct').value.trim(),
-          recipient_institution: document.getElementById('netRecipInst').value.trim(),
-          amount:                parseFloat(document.getElementById('netAmount').value),
-          fee:                   parseFloat(document.getElementById('netFee').value) || 0,
-        };
-        const r = await apiFetch('/api/v1/network/transfers', {method:'POST', body:JSON.stringify(body)});
-        const json = await r.json();
-        if (!r.ok) {
-          resultEl.style.cssText = 'display:block;padding:.75rem 1rem;border-radius:8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5';
-          resultEl.textContent = '✗ ' + (json.error || 'Transfer failed');
-          return;
-        }
-        const d = json.data || {};
-        resultEl.style.cssText = 'display:block;padding:.75rem 1rem;border-radius:8px;background:#dcfce7;color:#15803d;border:1px solid #86efac';
-        resultEl.innerHTML = '✓ Transfer sent successfully.<br><small>Reference: <strong>'+d.reference+'</strong> | Status: '+d.status+'</small>';
-        document.getElementById('netTransferForm').reset();
-        document.getElementById('netFromId').value = '';
-        document.getElementById('netFromNumber').value = '';
-        document.getElementById('netFromInfo').textContent = '';
-        loadTransactions();
-      } catch(err) {
-        resultEl.style.cssText = 'display:block;padding:.75rem 1rem;border-radius:8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5';
-        resultEl.textContent = '✗ Network error: ' + err.message;
-      } finally { btn.disabled = false; btn.textContent = 'Send Network Transfer'; }
-    });
-
-    // ================================================================
-    // External Transfer
-    // ================================================================
-    const extTransferModal = document.getElementById('extTransferModal');
-    document.getElementById('externalTransferBtn').addEventListener('click', () => extTransferModal.classList.add('active'));
-    document.getElementById('closeExtTransferModal').addEventListener('click', () => extTransferModal.classList.remove('active'));
-    document.getElementById('cancelExtTransferBtn').addEventListener('click', () => extTransferModal.classList.remove('active'));
-    extTransferModal.addEventListener('click', (e) => { if (e.target === extTransferModal) extTransferModal.classList.remove('active'); });
-
-    // Source account search (reuse same pattern)
-    setupAccountSearch('extFromSearch', 'extFromResults', 'extFromId');
-
-    // Live fee summary
-    function updateFeeSummary() {
-      const amount = parseFloat(document.getElementById('extAmount').value) || 0;
-      const fee    = parseFloat(document.getElementById('extFee').value) || 0;
-      const handling = document.querySelector('input[name="extFeeHandling"]:checked')?.value || 'deduct';
-      const summary = document.getElementById('extFeeSummary');
+    // External fee summary
+    function updateUniFeeSummary() {
+      if (uniTransferType !== 'external') return;
+      const amount = parseFloat(document.getElementById('uniAmount').value) || 0;
+      const fee    = parseFloat(document.getElementById('uniFee').value) || 0;
+      const handling = document.querySelector('input[name="uniExtFeeHandling"]:checked')?.value || 'deduct';
+      const summary = document.getElementById('uniExtFeeSummary');
       if (amount <= 0) { summary.style.display = 'none'; return; }
       summary.style.display = '';
       const receives = handling === 'deduct' ? amount - fee : amount;
       const total    = handling === 'add'    ? amount + fee : amount;
       const fmt = v => '$' + v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-      document.getElementById('fsSendAmount').textContent = fmt(amount);
-      document.getElementById('fsFee').textContent        = fmt(fee);
-      document.getElementById('fsReceives').textContent   = fmt(receives);
-      document.getElementById('fsTotal').textContent      = fmt(total);
+      document.getElementById('uniFsSendAmount').textContent = fmt(amount);
+      document.getElementById('uniFsFee').textContent        = fmt(fee);
+      document.getElementById('uniFsReceives').textContent   = fmt(receives);
+      document.getElementById('uniFsTotal').textContent      = fmt(total);
     }
-    document.getElementById('extAmount').addEventListener('input', updateFeeSummary);
-    document.getElementById('extFee').addEventListener('input', updateFeeSummary);
-    document.querySelectorAll('input[name="extFeeHandling"]').forEach(r => r.addEventListener('change', updateFeeSummary));
+    document.getElementById('uniAmount').addEventListener('input', updateUniFeeSummary);
+    document.getElementById('uniFee').addEventListener('input', updateUniFeeSummary);
+    document.querySelectorAll('input[name="uniExtFeeHandling"]').forEach(r => r.addEventListener('change', updateUniFeeSummary));
 
-    document.getElementById('extTransferForm').addEventListener('submit', async (e) => {
+    // Form submit
+    document.getElementById('unifiedTransferForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const fromId = document.getElementById('extFromId').value;
-      if (!fromId) { alert('Please select a member account.'); return; }
+      if (!uniTransferType) { alert('Please select a transfer type.'); return; }
+      const fromId = document.getElementById('uniFromId').value;
+      if (!fromId) { alert('Please select a source account from the search results.'); return; }
 
-      const submitBtn = document.getElementById('extTransferSubmitBtn');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Processing...';
-
-      const payload = {
-        account_id:        fromId,
-        amount:            parseFloat(document.getElementById('extAmount').value),
-        fee:               parseFloat(document.getElementById('extFee').value) || 0,
-        fee_handling:      document.querySelector('input[name="extFeeHandling"]:checked').value,
-        recipient_name:    document.getElementById('extRecipientName').value.trim(),
-        recipient_account: document.getElementById('extRecipientAccount').value.trim(),
-        institution_name:  document.getElementById('extInstitution').value.trim(),
-        location:          document.getElementById('extLocation').value.trim(),
-        description:       document.getElementById('extDescription').value.trim(),
-      };
+      const btn = document.getElementById('uniTransferSubmitBtn');
+      const resultEl = document.getElementById('uniTransferResult');
+      btn.disabled = true;
+      const origBtnHTML = btn.innerHTML;
+      btn.textContent = 'Processing...';
+      resultEl.style.display = 'none';
 
       try {
-        const resp = await apiFetch('/api/v1/transactions/external-transfer', { method:'POST', body:JSON.stringify(payload) });
-        const json = await resp.json();
-        if (!resp.ok) {
-          let msg = json.error || json.message || 'Transfer failed';
-          if (json.errors) msg += '\n' + Object.entries(json.errors).map(([f,m]) => f + ': ' + m).join('\n');
-          alert(msg);
-          return;
-        }
-        extTransferModal.classList.remove('active');
-        document.getElementById('extTransferForm').reset();
-        document.getElementById('extFromId').value = '';
-        document.getElementById('extFeeSummary').style.display = 'none';
-        loadTransactions();
-        // Open receipt options for the new transfer
-        const txnId = json.data?.id;
-        if (txnId) {
-          setTimeout(() => viewTransaction(txnId), 300);
+        if (uniTransferType === 'internal') {
+          const toId = document.getElementById('uniToId').value;
+          if (!toId) { alert('Please select a destination account.'); btn.disabled = false; btn.innerHTML = origBtnHTML; return; }
+          const payload = {
+            type: 'transfer',
+            from_account_id: fromId,
+            to_account_id: toId,
+            amount: document.getElementById('uniAmount').value,
+            description: document.getElementById('uniNotes').value.trim(),
+          };
+          const resp = await apiFetch('/api/v1/transactions/transfer', { method: 'POST', body: JSON.stringify(payload) });
+          const json = await resp.json();
+          if (!resp.ok) {
+            let msg = json.error || json.message || 'Transfer failed';
+            if (json.errors) msg += '\n' + Object.entries(json.errors).map(([f,m]) => f + ': ' + (Array.isArray(m) ? m.join(', ') : m)).join('\n');
+            alert(msg); return;
+          }
+          uniTransferModal.classList.remove('active');
+          loadTransactions();
+
+        } else if (uniTransferType === 'network') {
+          const peerNode = document.getElementById('uniNetPeerNode').value;
+          if (!peerNode) { alert('Please select a destination CU.'); btn.disabled = false; btn.innerHTML = origBtnHTML; return; }
+          const recipName = document.getElementById('uniNetRecipName').value.trim();
+          const recipAcct = document.getElementById('uniNetRecipAcct').value.trim();
+          const recipInst = document.getElementById('uniNetRecipInst').value.trim();
+          if (!recipName || !recipAcct || !recipInst) { alert('Please fill in all recipient fields.'); btn.disabled = false; btn.innerHTML = origBtnHTML; return; }
+          const body = {
+            peer_node_code:        peerNode,
+            account_id:            fromId,
+            sender_name:           document.getElementById('uniNetSenderName').value.trim(),
+            sender_account:        document.getElementById('uniFromNumber').value,
+            sender_institution:    document.getElementById('uniNetSenderInst').value.trim(),
+            recipient_name:        recipName,
+            recipient_account:     recipAcct,
+            recipient_institution: recipInst,
+            amount:                parseFloat(document.getElementById('uniAmount').value),
+            fee:                   parseFloat(document.getElementById('uniFee').value) || 0,
+          };
+          const r = await apiFetch('/api/v1/network/transfers', { method:'POST', body:JSON.stringify(body) });
+          const json = await r.json();
+          if (!r.ok) {
+            resultEl.style.cssText = 'display:block;padding:.75rem 1rem;border-radius:8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5';
+            resultEl.textContent = 'Error: ' + (json.error || 'Transfer failed');
+            return;
+          }
+          const d = json.data || {};
+          resultEl.style.cssText = 'display:block;padding:.75rem 1rem;border-radius:8px;background:#dcfce7;color:#15803d;border:1px solid #86efac';
+          resultEl.innerHTML = 'Transfer sent successfully.<br><small>Reference: <strong>'+d.reference+'</strong> | Status: '+d.status+'</small>';
+          document.getElementById('unifiedTransferForm').reset();
+          document.getElementById('uniFromId').value = '';
+          document.getElementById('uniFromNumber').value = '';
+          document.getElementById('uniFromName').value = '';
+          setUniTransferType('network');
+          loadTransactions();
+
+        } else if (uniTransferType === 'external') {
+          const recipName = document.getElementById('uniExtRecipName').value.trim();
+          const recipAcct = document.getElementById('uniExtRecipAcct').value.trim();
+          const instName  = document.getElementById('uniExtInstitution').value.trim();
+          if (!recipName || !recipAcct || !instName) { alert('Please fill in recipient name, account number, and institution.'); btn.disabled = false; btn.innerHTML = origBtnHTML; return; }
+          const payload = {
+            account_id:        fromId,
+            amount:            parseFloat(document.getElementById('uniAmount').value),
+            fee:               parseFloat(document.getElementById('uniFee').value) || 0,
+            fee_handling:      document.querySelector('input[name="uniExtFeeHandling"]:checked')?.value || 'deduct',
+            recipient_name:    recipName,
+            recipient_account: recipAcct,
+            institution_name:  instName,
+            location:          document.getElementById('uniExtLocation').value.trim(),
+            description:       document.getElementById('uniNotes').value.trim(),
+            priority:          document.getElementById('uniExtPriority').value,
+          };
+          const resp = await apiFetch('/api/v1/transactions/external-transfer', { method:'POST', body:JSON.stringify(payload) });
+          const json = await resp.json();
+          if (!resp.ok) {
+            let msg = json.error || json.message || 'Transfer failed';
+            if (json.errors) msg += '\n' + Object.entries(json.errors).map(([f,m]) => f + ': ' + (Array.isArray(m) ? m.join(', ') : m)).join('\n');
+            alert(msg); return;
+          }
+          uniTransferModal.classList.remove('active');
+          loadTransactions();
+          loadOutstandingQueue();
+          // Open receipt for the new transfer
+          const txnId = json.data?.id;
+          if (txnId) setTimeout(() => viewTransaction(txnId), 300);
         }
       } catch (err) {
         alert('Network error: ' + err.message);
       } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Submit Transfer';
+        btn.disabled = !uniTransferType;
+        btn.innerHTML = origBtnHTML;
       }
     });
+
+    // ================================================================
+    // Outstanding External Transfers Queue
+    // ================================================================
+    let outstandingQueueExpanded = false;
+    const queueCard = document.getElementById('outstandingQueueCard');
+    const queueToggle = document.getElementById('outstandingQueueToggle');
+    const queueBody = document.getElementById('outstandingQueueBody');
+    const queueChevron = document.getElementById('outstandingQueueChevron');
+
+    queueToggle.addEventListener('click', () => {
+      outstandingQueueExpanded = !outstandingQueueExpanded;
+      queueBody.style.display = outstandingQueueExpanded ? '' : 'none';
+      queueChevron.style.transform = outstandingQueueExpanded ? 'rotate(180deg)' : '';
+    });
+
+    async function loadOutstandingQueue() {
+      try {
+        const resp = await apiFetch('/api/v1/transactions?type=external_transfer&status=pending&per_page=100');
+        if (!resp.ok) return;
+        const json = await resp.json();
+        const txns = json.data || [];
+
+        if (!txns.length) {
+          queueCard.style.display = 'none';
+          return;
+        }
+        queueCard.style.display = '';
+        document.getElementById('outstandingQueueCount').textContent = txns.length;
+
+        // Sort: urgent first, then oldest first
+        txns.sort((a, b) => {
+          const metaA = typeof a.metadata === 'string' ? JSON.parse(a.metadata || '{}') : (a.metadata || {});
+          const metaB = typeof b.metadata === 'string' ? JSON.parse(b.metadata || '{}') : (b.metadata || {});
+          const priA = metaA.priority === 'urgent' ? 0 : 1;
+          const priB = metaB.priority === 'urgent' ? 0 : 1;
+          if (priA !== priB) return priA - priB;
+          return new Date(a.created_at) - new Date(b.created_at);
+        });
+
+        const tbody = document.getElementById('outstandingQueueTbody');
+        tbody.innerHTML = txns.map(t => {
+          const meta = typeof t.metadata === 'string' ? JSON.parse(t.metadata || '{}') : (t.metadata || {});
+          const dt = t.created_at ? new Date(t.created_at) : new Date();
+          const dateStr = dt.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ' ' + dt.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+          const ageMs = Date.now() - dt.getTime();
+          const ageHours = ageMs / (1000 * 60 * 60);
+          let ageText, ageColor;
+          if (ageHours < 1) {
+            const mins = Math.floor(ageMs / 60000);
+            ageText = mins + 'm';
+            ageColor = '#16a34a'; // green
+          } else if (ageHours < 4) {
+            ageText = Math.floor(ageHours) + 'h ' + Math.floor((ageMs % 3600000) / 60000) + 'm';
+            ageColor = '#ca8a04'; // amber
+          } else if (ageHours < 24) {
+            ageText = Math.floor(ageHours) + 'h';
+            ageColor = '#ea580c'; // orange
+          } else {
+            const days = Math.floor(ageHours / 24);
+            ageText = days + 'd ' + Math.floor(ageHours % 24) + 'h';
+            ageColor = '#dc2626'; // red
+          }
+          const priority = meta.priority || 'normal';
+          const priBadge = priority === 'urgent'
+            ? '<span class="badge badge-danger">Urgent</span>'
+            : '<span class="badge badge-muted">Normal</span>';
+          return '<tr>' +
+            '<td>' + dateStr + '</td>' +
+            '<td>' + (t.account_number || '-') + '</td>' +
+            '<td>' + (meta.recipient_name || '-') + '</td>' +
+            '<td>' + (meta.institution_name || '-') + '</td>' +
+            '<td style="font-weight:600">$' + Number(t.amount || 0).toLocaleString('en-US',{minimumFractionDigits:2}) + '</td>' +
+            '<td>' + priBadge + '</td>' +
+            '<td><span style="color:' + ageColor + ';font-weight:600">' + ageText + '</span></td>' +
+            '<td style="display:flex;gap:.25rem">' +
+              '<button class="btn btn-primary btn-sm" onclick="markQueueComplete(\'' + t.id + '\')" title="Mark Complete" style="font-size:.75rem;padding:.25rem .5rem">Complete</button>' +
+              '<button class="icon-btn" onclick="viewTransaction(\'' + t.id + '\')" title="View"><svg><use href="#icon-eye"/></svg></button>' +
+            '</td>' +
+            '</tr>';
+        }).join('');
+      } catch(e) { console.warn('Failed to load outstanding queue', e); }
+    }
+
+    async function markQueueComplete(txnId) {
+      if (!confirm('Mark this external transfer as completed?')) return;
+      try {
+        const resp = await apiFetch('/api/v1/transactions/' + txnId + '/status', {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'completed' }),
+        });
+        if (!resp.ok) {
+          const json = await resp.json().catch(() => ({}));
+          alert('Failed: ' + (json.error || json.message || 'Unknown error'));
+          return;
+        }
+        loadOutstandingQueue();
+        loadTransactions();
+      } catch(e) { alert('Network error: ' + e.message); }
+    }
+
+    // Load queue on page load
+    loadOutstandingQueue();
 
     // ================================================================
     // Receipt System
