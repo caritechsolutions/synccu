@@ -510,12 +510,23 @@ final class NetworkService
         $this->ensureSchema();
 
         $account = $this->db->fetchOne(
-            "SELECT * FROM accounts WHERE tenant_id = ? AND account_number = ? AND status = 'active'",
+            "SELECT a.*, CONCAT(u.first_name, ' ', u.last_name) AS member_name
+             FROM accounts a
+             JOIN users u ON u.id = a.user_id
+             WHERE a.tenant_id = ? AND a.account_number = ? AND a.status = 'active'",
             [$tenantId, $recipientAccount],
         );
 
         if (!$account) {
             throw new RuntimeException('Recipient account not found or inactive.', 404);
+        }
+
+        // Name validation: reject if names differ significantly (protects wrong-account credits)
+        if (!$this->nameMatches($recipientName, $account['member_name'])) {
+            throw new RuntimeException(
+                'Recipient name does not match account holder. Please verify the details.',
+                422,
+            );
         }
 
         $node = $this->findNodeByCode($tenantId, $peerNodeCode);
@@ -892,6 +903,19 @@ final class NetworkService
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
+
+    private function nameMatches(string $submitted, string $actual): bool
+    {
+        $normalize = fn(string $s): string => strtolower(preg_replace('/[^a-z0-9]/i', '', $s));
+        $a = $normalize($submitted);
+        $b = $normalize($actual);
+        if ($a === $b) return true;
+        // Allow if one contains the other (handles middle name omissions)
+        if (str_contains($b, $a) || str_contains($a, $b)) return true;
+        // Allow if similarity is >= 80%
+        similar_text($a, $b, $pct);
+        return $pct >= 80.0;
+    }
 
     private function ensureNetworkTransferType(): void
     {

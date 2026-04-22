@@ -118,8 +118,11 @@
           <button class="btn btn-secondary" id="recordExpenseBtn">
             <svg><use href="#icon-dollar"/></svg> Record Expense
           </button>
+          <button class="btn btn-secondary" id="networkTransferBtn">
+            <svg><use href="#icon-globe"/></svg> Network Transfer
+          </button>
           <button class="btn btn-secondary" id="externalTransferBtn">
-            <svg><use href="#icon-globe"/></svg> External Transfer
+            <svg><use href="#icon-send"/></svg> External Transfer
           </button>
           <button class="btn btn-primary" id="newTransactionBtn">
             <svg><use href="#icon-plus"/></svg> New Transaction
@@ -148,6 +151,7 @@
           <option value="fee">Fee</option>
           <option value="expense">Expense</option>
           <option value="external_transfer">External Transfer</option>
+          <option value="network_transfer">Network Transfer</option>
         </select>
         <select id="txnStatusFilter" class="form-select">
           <option value="all">All Statuses</option>
@@ -417,6 +421,85 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="cancelExpenseBtn">Cancel</button>
           <button type="submit" class="btn btn-primary" id="expenseSubmitBtn">Record Expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Network Transfer Modal -->
+  <div class="modal-overlay" id="netTransferModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>Network Transfer (Inter-CU)</h3>
+        <button class="icon-btn modal-close" id="closeNetTransferModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <form id="netTransferForm">
+        <div class="modal-body">
+          <p style="color:var(--text-muted);font-size:.875rem;margin-bottom:1.25rem">Fill in the details provided by your member. The receiving credit union will verify the account and name — you will not see their account records.</p>
+
+          <h4 style="margin:0 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Source Account</h4>
+          <div class="form-group">
+            <label for="netFromSearch">Member Account</label>
+            <input type="text" id="netFromSearch" class="form-input" placeholder="Search account by number or member..." autocomplete="off">
+            <input type="hidden" id="netFromId">
+            <input type="hidden" id="netFromNumber">
+            <div class="search-results" id="netFromResults"></div>
+            <small id="netFromInfo" style="color:var(--text-muted)"></small>
+          </div>
+
+          <h4 style="margin:1.25rem 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Sending Details</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="netSenderName">Sender Name</label>
+              <input type="text" id="netSenderName" class="form-input" placeholder="Auto-filled from account" required>
+            </div>
+            <div class="form-group">
+              <label for="netSenderInst">Sending Institution</label>
+              <input type="text" id="netSenderInst" class="form-input" placeholder="Your credit union name" required>
+            </div>
+          </div>
+
+          <h4 style="margin:1.25rem 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Recipient Details <small style="text-transform:none;letter-spacing:0">(as provided by member)</small></h4>
+          <div class="form-group">
+            <label for="netPeerNode">Destination CU</label>
+            <select id="netPeerNode" class="form-select" required>
+              <option value="">Select peer CU...</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="netRecipName">Recipient Full Name</label>
+              <input type="text" id="netRecipName" class="form-input" placeholder="As it appears on their account" required>
+            </div>
+            <div class="form-group">
+              <label for="netRecipAcct">Recipient Account Number</label>
+              <input type="text" id="netRecipAcct" class="form-input" placeholder="Account number at recipient CU" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="netRecipInst">Recipient Institution Name</label>
+            <input type="text" id="netRecipInst" class="form-input" placeholder="Name of the recipient's credit union" required>
+          </div>
+
+          <h4 style="margin:1.25rem 0 1rem;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Amount</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="netAmount">Transfer Amount ($)</label>
+              <input type="number" id="netAmount" class="form-input" placeholder="0.00" min="0.01" step="0.01" required>
+            </div>
+            <div class="form-group">
+              <label for="netFee">Transfer Fee ($)</label>
+              <input type="number" id="netFee" class="form-input" placeholder="0.00" min="0" step="0.01" value="0">
+            </div>
+          </div>
+
+          <div id="netTransferResult" style="display:none;margin-top:1rem;padding:.75rem 1rem;border-radius:8px"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelNetTransferBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="netTransferSubmitBtn">
+            <svg style="width:14px;height:14px"><use href="#icon-globe"/></svg> Send Network Transfer
+          </button>
         </div>
       </form>
     </div>
@@ -1108,6 +1191,118 @@
     });
 
     if (new URLSearchParams(window.location.search).get('action') === 'new') { txnModal.classList.add('active'); }
+
+    // ================================================================
+    // Network Transfer (Inter-CU)
+    // ================================================================
+    const netTransferModal = document.getElementById('netTransferModal');
+    document.getElementById('networkTransferBtn').addEventListener('click', async () => {
+      // Load active peer nodes
+      try {
+        const r = await apiFetch('/api/v1/network/nodes?status=active');
+        const nodes = (await r.json()).data || [];
+        const sel = document.getElementById('netPeerNode');
+        sel.innerHTML = '<option value="">Select peer CU...</option>';
+        nodes.forEach(n => { sel.innerHTML += '<option value="'+n.node_code+'">'+n.name+' ('+n.node_code+')</option>'; });
+        if (!nodes.length) {
+          alert('No active peer nodes. Go to Network to register and activate a peer CU first.');
+          return;
+        }
+      } catch(e) { alert('Failed to load peer nodes.'); return; }
+      // Load own institution name from tenant settings
+      try {
+        const r = await apiFetch('/api/v1/tenant/settings');
+        const d = (await r.json()).data || {};
+        document.getElementById('netSenderInst').value = d.tenant?.name || '';
+      } catch(e) {}
+      document.getElementById('netTransferForm').reset();
+      document.getElementById('netFromId').value = '';
+      document.getElementById('netFromNumber').value = '';
+      document.getElementById('netFromInfo').textContent = '';
+      document.getElementById('netTransferResult').style.display = 'none';
+      netTransferModal.classList.add('active');
+    });
+    document.getElementById('closeNetTransferModal').addEventListener('click', () => netTransferModal.classList.remove('active'));
+    document.getElementById('cancelNetTransferBtn').addEventListener('click', () => netTransferModal.classList.remove('active'));
+    netTransferModal.addEventListener('click', e => { if (e.target === netTransferModal) netTransferModal.classList.remove('active'); });
+
+    // Account search with callback for network transfer
+    let netSearchTimeout;
+    document.getElementById('netFromSearch').addEventListener('input', () => {
+      clearTimeout(netSearchTimeout);
+      document.getElementById('netFromId').value = '';
+      const q = document.getElementById('netFromSearch').value.trim();
+      const res = document.getElementById('netFromResults');
+      if (q.length < 2) { res.innerHTML = ''; return; }
+      netSearchTimeout = setTimeout(async () => {
+        try {
+          const resp = await apiFetch('/api/v1/accounts?search='+encodeURIComponent(q)+'&per_page=8');
+          if (!resp.ok) return;
+          const accts = (await resp.json()).data || [];
+          res.innerHTML = accts.map(a =>
+            '<div class="search-result-item" data-id="'+a.id+'" data-number="'+a.account_number+'" data-name="'+(a.member_name||'')+'">'+
+            a.account_number+' - '+(a.member_name||a.name||'Unknown')+
+            ' <span style="color:var(--text-muted);font-size:var(--text-xs)">('+a.account_type+' $'+Number(a.balance||0).toLocaleString('en-US',{minimumFractionDigits:2})+')</span></div>'
+          ).join('');
+          res.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('click', () => {
+              document.getElementById('netFromId').value = item.dataset.id;
+              document.getElementById('netFromNumber').value = item.dataset.number;
+              document.getElementById('netFromSearch').value = item.textContent.trim();
+              document.getElementById('netSenderName').value = item.dataset.name;
+              document.getElementById('netFromInfo').textContent = '';
+              res.innerHTML = '';
+            });
+          });
+        } catch(e) {}
+      }, 300);
+    });
+    document.addEventListener('click', e => {
+      const inp = document.getElementById('netFromSearch'), res = document.getElementById('netFromResults');
+      if (!inp.contains(e.target) && !res.contains(e.target)) res.innerHTML = '';
+    });
+
+    document.getElementById('netTransferForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const accountId = document.getElementById('netFromId').value;
+      if (!accountId) { alert('Please select a member account.'); return; }
+      const btn = document.getElementById('netTransferSubmitBtn');
+      btn.disabled = true; btn.textContent = 'Sending...';
+      const resultEl = document.getElementById('netTransferResult');
+      resultEl.style.display = 'none';
+      try {
+        const body = {
+          peer_node_code:        document.getElementById('netPeerNode').value,
+          account_id:            accountId,
+          sender_name:           document.getElementById('netSenderName').value.trim(),
+          sender_account:        document.getElementById('netFromNumber').value,
+          sender_institution:    document.getElementById('netSenderInst').value.trim(),
+          recipient_name:        document.getElementById('netRecipName').value.trim(),
+          recipient_account:     document.getElementById('netRecipAcct').value.trim(),
+          recipient_institution: document.getElementById('netRecipInst').value.trim(),
+          amount:                parseFloat(document.getElementById('netAmount').value),
+          fee:                   parseFloat(document.getElementById('netFee').value) || 0,
+        };
+        const r = await apiFetch('/api/v1/network/transfers', {method:'POST', body:JSON.stringify(body)});
+        const json = await r.json();
+        if (!r.ok) {
+          resultEl.style.cssText = 'display:block;padding:.75rem 1rem;border-radius:8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5';
+          resultEl.textContent = '✗ ' + (json.error || 'Transfer failed');
+          return;
+        }
+        const d = json.data || {};
+        resultEl.style.cssText = 'display:block;padding:.75rem 1rem;border-radius:8px;background:#dcfce7;color:#15803d;border:1px solid #86efac';
+        resultEl.innerHTML = '✓ Transfer sent successfully.<br><small>Reference: <strong>'+d.reference+'</strong> | Status: '+d.status+'</small>';
+        document.getElementById('netTransferForm').reset();
+        document.getElementById('netFromId').value = '';
+        document.getElementById('netFromNumber').value = '';
+        document.getElementById('netFromInfo').textContent = '';
+        loadTransactions();
+      } catch(err) {
+        resultEl.style.cssText = 'display:block;padding:.75rem 1rem;border-radius:8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5';
+        resultEl.textContent = '✗ Network error: ' + err.message;
+      } finally { btn.disabled = false; btn.textContent = 'Send Network Transfer'; }
+    });
 
     // ================================================================
     // External Transfer
