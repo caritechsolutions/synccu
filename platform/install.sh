@@ -602,7 +602,7 @@ DB_HOST=${DB_HOST}
 DB_NAME=${DB_NAME}
 DB_USER=${DB_USER}
 ADMIN_EMAIL=${ADMIN_EMAIL}
-INSTALLED_AT=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+INSTALLED_AT="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
 EOF
 chmod 600 /etc/synccu/config
 
