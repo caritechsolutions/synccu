@@ -48,7 +48,7 @@ final class NetworkController
     public function showNode(Request $request): Response
     {
         $tenantId = $request->getAttribute('tenant_id');
-        $nodeId = $request->getAttribute('id');
+        $nodeId = $request->param('id');
         $node = $this->network->getNode($tenantId, $nodeId);
 
         if (!$node) {
@@ -98,7 +98,7 @@ final class NetworkController
     public function updateNode(Request $request): Response
     {
         $tenantId = $request->getAttribute('tenant_id');
-        $nodeId = $request->getAttribute('id');
+        $nodeId = $request->param('id');
 
         $validator = new Validator($request->all(), [
             'name'                 => 'nullable|string|max:255',
@@ -123,7 +123,7 @@ final class NetworkController
     public function deleteNode(Request $request): Response
     {
         $tenantId = $request->getAttribute('tenant_id');
-        $nodeId = $request->getAttribute('id');
+        $nodeId = $request->param('id');
 
         try {
             $this->network->deleteNode($tenantId, $nodeId);
@@ -136,7 +136,7 @@ final class NetworkController
     public function activateNode(Request $request): Response
     {
         $tenantId = $request->getAttribute('tenant_id');
-        $nodeId = $request->getAttribute('id');
+        $nodeId = $request->param('id');
 
         try {
             $node = $this->network->activateNode($tenantId, $nodeId);
@@ -149,7 +149,7 @@ final class NetworkController
     public function regenerateApiKey(Request $request): Response
     {
         $tenantId = $request->getAttribute('tenant_id');
-        $nodeId = $request->getAttribute('id');
+        $nodeId = $request->param('id');
 
         $apiKey = $this->network->generateApiKey();
 
@@ -184,7 +184,7 @@ final class NetworkController
     public function showTransfer(Request $request): Response
     {
         $tenantId = $request->getAttribute('tenant_id');
-        $transferId = $request->getAttribute('id');
+        $transferId = $request->param('id');
         $transfer = $this->network->getTransfer($tenantId, $transferId);
 
         if (!$transfer) {
@@ -258,7 +258,7 @@ final class NetworkController
     public function showSettlement(Request $request): Response
     {
         $tenantId = $request->getAttribute('tenant_id');
-        $settlementId = $request->getAttribute('id');
+        $settlementId = $request->param('id');
         $settlement = $this->network->getSettlement($tenantId, $settlementId);
 
         if (!$settlement) {
@@ -300,7 +300,7 @@ final class NetworkController
     {
         $tenantId = $request->getAttribute('tenant_id');
         $userId = $request->getAttribute('user_id');
-        $settlementId = $request->getAttribute('id');
+        $settlementId = $request->param('id');
 
         try {
             $result = $this->network->approveSettlement($tenantId, $settlementId, $userId);
@@ -313,7 +313,7 @@ final class NetworkController
     public function updateSettlementStatus(Request $request): Response
     {
         $tenantId = $request->getAttribute('tenant_id');
-        $settlementId = $request->getAttribute('id');
+        $settlementId = $request->param('id');
 
         $validator = new Validator($request->all(), [
             'status' => 'required|string|in:draft,pending_approval,approved,invoiced,paid,disputed',
@@ -400,7 +400,7 @@ final class NetworkController
     public function nodeConfirmTransfer(Request $request): Response
     {
         $tenantId = $request->getAttribute('tenant_id');
-        $transferId = $request->getAttribute('id');
+        $transferId = $request->param('id');
 
         $validator = new Validator($request->all(), [
             'remote_reference' => 'required|string|max:50',
