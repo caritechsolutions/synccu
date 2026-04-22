@@ -115,7 +115,7 @@
       <!-- Transfers -->
       <div class="sub-content" id="sub-transfers">
         <div class="card"><div class="card-header"><h3>Network Transfers</h3><div style="display:flex;gap:.5rem"><select id="filterDirection" class="form-select" style="width:auto"><option value="">All Directions</option><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select><select id="filterStatus" class="form-select" style="width:auto"><option value="">All Statuses</option><option value="pending">Pending</option><option value="sent">Sent</option><option value="confirmed">Confirmed</option><option value="failed">Failed</option><option value="settled">Settled</option></select></div></div>
-          <div class="table-responsive"><table class="table"><thead><tr><th>Direction</th><th>Peer</th><th>Sender</th><th>Recipient</th><th>Amount</th><th>Fee</th><th>Status</th><th>Date</th></tr></thead><tbody id="transfersBody"><tr><td colspan="8" style="text-align:center;padding:2rem">Loading...</td></tr></tbody></table></div>
+          <div class="table-responsive"><table class="table"><thead><tr><th>Direction</th><th>Peer</th><th>Sender</th><th>Recipient</th><th>Amount</th><th>Fee</th><th>Status</th><th>Reason</th><th>Date</th></tr></thead><tbody id="transfersBody"><tr><td colspan="9" style="text-align:center;padding:2rem">Loading...</td></tr></tbody></table></div>
         </div>
       </div>
 
@@ -262,7 +262,7 @@
         const json = await r.json();
         const items = json.data || [];
         const tb = document.getElementById('transfersBody');
-        if (!items.length) { tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">No network transfers found.</td></tr>'; return; }
+        if (!items.length) { tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-muted)">No network transfers found.</td></tr>'; return; }
         tb.innerHTML = items.map(t => '<tr>'+
           '<td><span class="dir-badge '+t.direction+'">'+t.direction+'</span></td>'+
           '<td>'+(t.peer_name||t.peer_node_code)+'</td>'+
@@ -271,6 +271,7 @@
           '<td>$'+fmt(t.amount)+'</td>'+
           '<td>$'+fmt(t.fee)+'</td>'+
           '<td><span class="badge badge-'+(t.status==='confirmed'?'success':t.status==='failed'?'danger':t.status==='settled'?'info':'warning')+'">'+t.status+'</span></td>'+
+          '<td style="max-width:200px;font-size:.78rem;color:var(--text-muted);word-break:break-word">'+(t.failure_reason||'—')+'</td>'+
           '<td>'+new Date(t.created_at).toLocaleDateString()+'</td>'+
         '</tr>').join('');
       } catch(e) { document.getElementById('transfersBody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:#ef4444">Failed to load</td></tr>'; }

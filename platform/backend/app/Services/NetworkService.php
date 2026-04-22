@@ -469,7 +469,8 @@ final class NetworkService
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 30,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_FOLLOWLOCATION => true,
         ]);
 
         $response = curl_exec($ch);
@@ -479,6 +480,10 @@ final class NetworkService
 
         if ($error || $httpCode < 200 || $httpCode >= 300) {
             $reason = $error ?: "Peer returned HTTP {$httpCode}";
+            $body = @json_decode($response, true);
+            if (!empty($body['error'])) {
+                $reason .= ': ' . $body['error'];
+            }
             $this->updateTransferStatus($tenantId, $transferId, 'failed', $reason);
             return;
         }
