@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cash Management - SyncCU Admin</title>
+  <link rel="stylesheet" href="../css/app.css">
+  <style>
+    .stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
+    .stat-card{background:var(--card-bg,#fff);border:1px solid var(--border,#e2e8f0);border-radius:12px;padding:1.25rem}
+    .stat-card .label{font-size:.75rem;color:var(--text-muted,#64748b);text-transform:uppercase;letter-spacing:.05em}
+    .stat-card .value{font-size:1.5rem;font-weight:700;margin:.25rem 0}
+    .stat-card .sub{font-size:.8rem;color:var(--text-muted)}
+    .tabs-sub{display:flex;gap:0;border-bottom:2px solid var(--border,#e2e8f0);margin-bottom:1.5rem}
+    .tab-sub{padding:.75rem 1.25rem;cursor:pointer;border:none;background:none;font-size:.875rem;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px}
+    .tab-sub.active{color:var(--color-primary,#2563eb);border-bottom-color:var(--color-primary,#2563eb)}
+    .sub-content{display:none}.sub-content.active{display:block}
+    .type-badge{font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:600;text-transform:uppercase}
+    .type-badge.vault{background:#f3e8ff;color:#7c3aed}
+    .type-badge.drawer{background:#dbeafe;color:#2563eb}
+    .type-badge.bank_account{background:#dcfce7;color:#16a34a}
+    .denom-grid{width:100%;border-collapse:collapse;font-size:.85rem}
+    .denom-grid th,.denom-grid td{padding:.35rem .5rem;border-bottom:1px solid var(--border,#e2e8f0)}
+    .denom-grid input{width:70px;text-align:center;padding:.25rem;border:1px solid var(--border,#e2e8f0);border-radius:4px}
+    .denom-grid .total-row{font-weight:700;background:var(--bg-muted,#f8fafc)}
+    .op-cards{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+    @media(max-width:768px){.op-cards{grid-template-columns:1fr}}
+    .discrep-pos{color:#dc2626;font-weight:700}.discrep-neg{color:#dc2626;font-weight:700}.discrep-ok{color:#22c55e;font-weight:700}
+  </style>
+  <script>if(!localStorage.getItem('synccu-token')){window.location.href='../index.html';}</script>
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+    <symbol id="icon-credit-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+    <symbol id="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="icon-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></symbol>
+  </svg>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><h2>SyncCU</h2></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item"><svg class="nav-icon"><use href="#icon-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="members.html" class="nav-item"><svg class="nav-icon"><use href="#icon-users"/></svg><span>Members</span></a>
+      <a href="accounts.html" class="nav-item"><svg class="nav-icon"><use href="#icon-wallet"/></svg><span>Accounts</span></a>
+      <a href="transactions.html" class="nav-item"><svg class="nav-icon"><use href="#icon-send"/></svg><span>Transactions</span></a>
+      <a href="loans.html" class="nav-item"><svg class="nav-icon"><use href="#icon-credit-card"/></svg><span>Loans</span></a>
+      <a href="reports.html" class="nav-item"><svg class="nav-icon"><use href="#icon-chart"/></svg><span>Reports</span></a>
+      <a href="cash-management.html" class="nav-item active"><svg class="nav-icon"><use href="#icon-key"/></svg><span>Cash</span></a>
+      <a href="network.html" class="nav-item"><svg class="nav-icon"><use href="#icon-globe"/></svg><span>Network</span></a>
+      <a href="settings.html" class="nav-item"><svg class="nav-icon"><use href="#icon-settings"/></svg><span>Settings</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" class="nav-item" id="logoutBtn"><svg class="nav-icon"><use href="#icon-logout"/></svg><span>Logout</span></a>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu"><svg><use href="#icon-menu"/></svg></button>
+        <div class="search-box"><svg class="search-icon"><use href="#icon-search"/></svg><input type="text" placeholder="Search..." aria-label="Search"></div>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn theme-toggle" id="themeToggle" aria-label="Toggle theme"><svg class="icon-sun"><use href="#icon-sun"/></svg><svg class="icon-moon" style="display:none"><use href="#icon-moon"/></svg></button>
+        <button class="topbar-btn notification-btn" aria-label="Notifications"><svg><use href="#icon-bell"/></svg><span class="badge">3</span></button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-avatar-btn" id="userAvatarBtn"><div class="avatar">AD</div><svg class="chevron"><use href="#icon-chevron-down"/></svg></button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><strong>Admin User</strong><span>admin@synccu.com</span></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><svg><use href="#icon-settings"/></svg> Settings</a>
+            <a href="#" class="dropdown-item" id="logoutBtn2"><svg><use href="#icon-logout"/></svg> Logout</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div><h1 class="page-title">Cash Management</h1><p class="page-subtitle">Track fund locations, cash movements, and teller drawer sessions.</p></div>
+        <div class="page-actions"><button class="btn btn-primary" onclick="openModal('addLocationModal')"><svg style="width:16px;height:16px;margin-right:4px"><use href="#icon-plus"/></svg> Add Location</button></div>
+      </div>
+
+      <div class="stat-cards" id="statCards"></div>
+
+      <div class="tabs-sub">
+        <button class="tab-sub active" data-sub="locations">Fund Locations</button>
+        <button class="tab-sub" data-sub="operations">Dispense / Return</button>
+        <button class="tab-sub" data-sub="movements">Cash Movements</button>
+        <button class="tab-sub" data-sub="sessions">Drawer Sessions</button>
+      </div>
+
+      <!-- Locations Tab -->
+      <div class="sub-content active" id="sub-locations">
+        <div class="card"><div class="card-header"><h3>Fund Locations</h3></div>
+          <div class="table-responsive"><table class="table"><thead><tr><th>Type</th><th>Name</th><th>Assigned To</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="locationsBody"><tr><td colspan="6" style="text-align:center;padding:2rem">Loading...</td></tr></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- Operations Tab -->
+      <div class="sub-content" id="sub-operations">
+        <div class="op-cards">
+          <div class="card">
+            <div class="card-header"><h3>Dispense to Drawer</h3></div>
+            <div class="card-body" style="padding:1.25rem">
+              <div class="form-group"><label>From Vault</label><select id="dispVault" class="form-select"></select></div>
+              <div class="form-group"><label>To Drawer</label><select id="dispDrawer" class="form-select"></select></div>
+              <div class="form-group"><label>Denominations</label><div id="dispDenomGrid"></div></div>
+              <button class="btn btn-primary" style="width:100%" onclick="doDispense()">Dispense Cash</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Return to Vault</h3></div>
+            <div class="card-body" style="padding:1.25rem">
+              <div class="form-group"><label>From Drawer</label><select id="retDrawer" class="form-select"></select></div>
+              <div class="form-group"><label>To Vault</label><select id="retVault" class="form-select"></select></div>
+              <div class="form-group"><label>Denominations</label><div id="retDenomGrid"></div></div>
+              <button class="btn btn-warning" style="width:100%" onclick="doReturn()">Return Cash</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Movements Tab -->
+      <div class="sub-content" id="sub-movements">
+        <div class="card"><div class="card-header"><h3>Cash Movements</h3>
+          <div style="display:flex;gap:.5rem">
+            <select id="filterMoveType" class="form-select" style="width:auto"><option value="">All Types</option><option value="vault_to_drawer">Vault to Drawer</option><option value="drawer_to_vault">Drawer to Vault</option><option value="deposit_to_drawer">Deposit</option><option value="withdrawal_from_drawer">Withdrawal</option><option value="bank_transfer_in">Bank In</option><option value="bank_transfer_out">Bank Out</option><option value="adjustment">Adjustment</option></select>
+          </div></div>
+          <div class="table-responsive"><table class="table"><thead><tr><th>Type</th><th>From</th><th>To</th><th>Amount</th><th>By</th><th>Reference</th><th>Date</th></tr></thead>
+          <tbody id="movementsBody"><tr><td colspan="7" style="text-align:center;padding:2rem">Loading...</td></tr></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- Sessions Tab -->
+      <div class="sub-content" id="sub-sessions">
+        <div class="card"><div class="card-header"><h3>Drawer Sessions</h3></div>
+          <div class="table-responsive"><table class="table"><thead><tr><th>Teller</th><th>Drawer</th><th>Opened</th><th>Opening Bal</th><th>Status</th><th>Discrepancy</th><th>Actions</th></tr></thead>
+          <tbody id="sessionsBody"><tr><td colspan="7" style="text-align:center;padding:2rem">Loading...</td></tr></tbody></table></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Location Modal -->
+  <div class="modal-overlay" id="addLocationModal">
+    <div class="modal" style="max-width:500px">
+      <div class="modal-header"><h3>Add Fund Location</h3><button class="modal-close" onclick="closeModal('addLocationModal')">&times;</button></div>
+      <form id="addLocationForm" class="modal-body">
+        <div class="form-group"><label>Type</label><select id="locType" class="form-select" required onchange="toggleLocFields()"><option value="vault">Vault / Safe</option><option value="drawer">Teller Drawer</option><option value="bank_account">Bank Account</option></select></div>
+        <div class="form-group"><label>Name</label><input type="text" id="locName" class="form-input" placeholder="e.g. Main Vault, Teller 1 Drawer" required></div>
+        <div class="form-group" id="locUserGroup" style="display:none"><label>Assign to Teller</label><select id="locUserId" class="form-select"><option value="">Select teller...</option></select></div>
+        <div id="locBankFields" style="display:none">
+          <div class="form-group"><label>Bank Name</label><input type="text" id="locBankName" class="form-input"></div>
+          <div class="form-group"><label>Account Number</label><input type="text" id="locBankAcct" class="form-input"></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('addLocationModal')">Cancel</button><button type="submit" class="btn btn-primary">Create</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Location Detail Modal -->
+  <div class="modal-overlay" id="locationDetailModal">
+    <div class="modal" style="max-width:500px">
+      <div class="modal-header"><h3>Location Details</h3><button class="modal-close" onclick="closeModal('locationDetailModal')">&times;</button></div>
+      <div class="modal-body" id="locationDetailBody"></div>
+      <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('locationDetailModal')">Close</button></div>
+    </div>
+  </div>
+
+  <!-- Close Session Modal -->
+  <div class="modal-overlay" id="closeSessionModal">
+    <div class="modal" style="max-width:560px">
+      <div class="modal-header"><h3>Close Drawer Session</h3><button class="modal-close" onclick="closeModal('closeSessionModal')">&times;</button></div>
+      <form id="closeSessionForm" class="modal-body">
+        <div id="closeSessionInfo" style="margin-bottom:1rem"></div>
+        <div class="form-group"><label>Count the cash in the drawer</label><div id="closeDenomGrid"></div></div>
+        <div class="form-group"><label>Notes</label><textarea id="closeNotes" class="form-input" rows="2" placeholder="Any notes about this session..."></textarea></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('closeSessionModal')">Cancel</button><button type="submit" class="btn btn-primary">Close Session</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Bank Transfer Modal -->
+  <div class="modal-overlay" id="bankTransferModal">
+    <div class="modal" style="max-width:460px">
+      <div class="modal-header"><h3>Bank Transfer</h3><button class="modal-close" onclick="closeModal('bankTransferModal')">&times;</button></div>
+      <form id="bankTransferForm" class="modal-body">
+        <div class="form-group"><label>Bank Account</label><select id="btAccount" class="form-select" required></select></div>
+        <div class="form-group"><label>Direction</label><select id="btDirection" class="form-select" required><option value="in">Transfer In (to CU)</option><option value="out">Transfer Out (from CU)</option></select></div>
+        <div class="form-group"><label>Amount ($)</label><input type="number" id="btAmount" class="form-input" min="0.01" step="0.01" required></div>
+        <div class="form-group"><label>Description</label><input type="text" id="btDesc" class="form-input" placeholder="e.g. Monthly deposit"></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('bankTransferModal')">Cancel</button><button type="submit" class="btn btn-primary">Record Transfer</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Adjustment Modal -->
+  <div class="modal-overlay" id="adjustModal">
+    <div class="modal" style="max-width:520px">
+      <div class="modal-header"><h3>Adjust Balance</h3><button class="modal-close" onclick="closeModal('adjustModal')">&times;</button></div>
+      <form id="adjustForm" class="modal-body">
+        <div class="form-group"><label>Location</label><select id="adjLocation" class="form-select" required></select></div>
+        <div class="form-group"><label>Amount (negative to subtract)</label><input type="number" id="adjAmount" class="form-input" step="0.01" required></div>
+        <div class="form-group"><label>Reason (required)</label><input type="text" id="adjDesc" class="form-input" required placeholder="e.g. Cash count correction"></div>
+        <div class="form-group"><label>Denominations</label><div id="adjDenomGrid"></div></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('adjustModal')">Cancel</button><button type="submit" class="btn btn-primary">Adjust</button></div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/admin-common.js"></script>
+  <script src="../js/cash-management.js"></script>
+</body>
+</html>
