@@ -53,6 +53,7 @@
     <symbol id="icon-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></symbol>
     <symbol id="icon-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
     <symbol id="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+    <symbol id="icon-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></symbol>
   </svg>
 
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -277,6 +278,17 @@
           <div class="form-group" id="txnWdCheckGroup" style="display:none">
             <label for="txnWdCheckNumber">Check Number</label>
             <input type="text" id="txnWdCheckNumber" class="form-input" placeholder="Check #" maxlength="50">
+          </div>
+          <!-- Cash Drawer & Denomination Tracking -->
+          <div id="txnCashDrawerGroup" style="display:none">
+            <div class="form-group">
+              <label for="txnDrawerId">Cash Drawer</label>
+              <select id="txnDrawerId" class="form-select"><option value="">Select drawer...</option></select>
+            </div>
+            <div class="form-group">
+              <label>Denominations</label>
+              <div id="txnDenomGrid"></div>
+            </div>
           </div>
           <div id="txnChecksGroup" style="display:none">
             <label style="font-weight:600;font-size:var(--text-sm);margin-bottom:var(--space-2);display:block">Checks</label>
@@ -681,9 +693,11 @@
       const val = txnType.value;
       const isDepositCheck = val === 'deposit' && document.getElementById('txnFundingSource').value === 'check';
       const isWithdrawCheck = val === 'withdrawal' && document.getElementById('txnDisbursement').value === 'check';
+      const isDepositCash = val === 'deposit' && document.getElementById('txnFundingSource').value === 'cash';
+      const isWithdrawCash = val === 'withdrawal' && document.getElementById('txnDisbursement').value === 'cash';
       document.getElementById('txnChecksGroup').style.display = isDepositCheck ? '' : 'none';
       document.getElementById('txnWdCheckGroup').style.display = isWithdrawCheck ? '' : 'none';
-      // When deposit checks are shown, lock the amount field (auto-calculated)
+      document.getElementById('txnCashDrawerGroup').style.display = (isDepositCash || isWithdrawCash) ? '' : 'none';
       const amtInput = document.getElementById('txnAmount');
       if (isDepositCheck) {
         amtInput.readOnly = true;
@@ -836,7 +850,15 @@
           if (!checks.length) { alert('Please add at least one check.'); return; }
           payload.checks = checks;
         }
-        // SOF declaration - required if over threshold, optional otherwise
+        if (payload.funding_source === 'cash') {
+          const drawerId = document.getElementById('txnDrawerId').value;
+          if (drawerId) {
+            payload.drawer_id = drawerId;
+            if (typeof txnDenomGridObj !== 'undefined' && txnDenomGridObj) {
+              payload.denominations = txnDenomGridObj.getValues();
+            }
+          }
+        }
         const sofSource = document.getElementById('sofSource').value;
         if (sofRequired && !sofSource) {
           alert('Source of Funds is required for deposits of $10,000 or more.\nPlease select a source of funds.');
@@ -852,6 +874,15 @@
         payload.disbursement_method = document.getElementById('txnDisbursement').value;
         const checkNum = document.getElementById('txnWdCheckNumber').value.trim();
         if (checkNum) payload.check_number = checkNum;
+        if (payload.disbursement_method === 'cash') {
+          const drawerId = document.getElementById('txnDrawerId').value;
+          if (drawerId) {
+            payload.drawer_id = drawerId;
+            if (typeof txnDenomGridObj !== 'undefined' && txnDenomGridObj) {
+              payload.denominations = txnDenomGridObj.getValues();
+            }
+          }
+        }
       }
 
       try {
@@ -901,6 +932,9 @@
         document.getElementById('txnDisbursementGroup').style.display = 'none';
         document.getElementById('txnChecksGroup').style.display = 'none';
         document.getElementById('txnWdCheckGroup').style.display = 'none';
+        document.getElementById('txnCashDrawerGroup').style.display = 'none';
+        document.getElementById('txnDrawerId').value = '';
+        if (txnDenomGridObj) txnDenomGridObj.reset();
         document.getElementById('txnAmount').readOnly = false;
         document.getElementById('txnAmount').style.background = '';
         document.getElementById('sofSection').style.display = 'none';
@@ -1574,6 +1608,83 @@
 
     // Load queue on page load
     loadOutstandingQueue();
+
+    // ================================================================
+    // Cash Drawer & Denomination Grid for Transactions
+    // ================================================================
+    const TXN_DEFAULT_DENOMS = [
+      {key:'100',label:'$100',face:100},{key:'50',label:'$50',face:50},{key:'20',label:'$20',face:20},
+      {key:'10',label:'$10',face:10},{key:'5',label:'$5',face:5},{key:'2',label:'$2',face:2},
+      {key:'1',label:'$1',face:1},{key:'0.50',label:'$0.50',face:0.50},{key:'0.25',label:'$0.25',face:0.25},
+      {key:'0.10',label:'$0.10',face:0.10},{key:'0.05',label:'$0.05',face:0.05},{key:'0.01',label:'$0.01',face:0.01}
+    ];
+    let txnDenoms = TXN_DEFAULT_DENOMS;
+    let txnDenomGridObj = null;
+
+    function buildTxnDenomGrid() {
+      const el = document.getElementById('txnDenomGrid');
+      const cid = 'txnDenomGrid';
+      const tid = cid + '_total';
+      let html = '<table style="width:100%;border-collapse:collapse;font-size:.85rem"><thead><tr><th style="text-align:left;padding:.3rem .5rem">Denom</th><th style="padding:.3rem .5rem">Count</th><th style="text-align:right;padding:.3rem .5rem">Value</th></tr></thead><tbody>';
+      txnDenoms.forEach(d => {
+        html += '<tr><td style="padding:.3rem .5rem">' + d.label + '</td><td style="padding:.3rem .5rem;text-align:center"><input type="number" min="0" value="0" data-denom="' + d.key + '" data-face="' + d.face + '" class="txn-dg-input" style="width:65px;text-align:center;padding:.2rem;border:1px solid var(--border-color,#e2e8f0);border-radius:4px"></td><td class="txn-dg-val" data-denom="' + d.key + '" style="text-align:right;padding:.3rem .5rem">$0.00</td></tr>';
+      });
+      html += '</tbody><tfoot><tr style="font-weight:700;background:var(--bg-secondary,#f8fafc)"><td colspan="2" style="padding:.4rem .5rem">TOTAL</td><td id="' + tid + '" style="text-align:right;padding:.4rem .5rem">$0.00</td></tr></tfoot></table>';
+      el.innerHTML = html;
+      el.querySelectorAll('.txn-dg-input').forEach(inp => inp.addEventListener('input', updateTxnDenomTotal));
+      txnDenomGridObj = {
+        getValues() {
+          const vals = [];
+          el.querySelectorAll('.txn-dg-input').forEach(inp => {
+            const c = parseInt(inp.value) || 0;
+            if (c > 0) vals.push({denomination: inp.dataset.denom, count: c});
+          });
+          return vals;
+        },
+        getTotal() {
+          let t = 0;
+          el.querySelectorAll('.txn-dg-input').forEach(inp => { t += (parseInt(inp.value)||0) * parseFloat(inp.dataset.face); });
+          return Math.round(t * 100) / 100;
+        },
+        reset() { el.querySelectorAll('.txn-dg-input').forEach(inp => { inp.value = 0; }); updateTxnDenomTotal(); }
+      };
+    }
+
+    function updateTxnDenomTotal() {
+      const el = document.getElementById('txnDenomGrid');
+      const fmtM = n => parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+      let total = 0;
+      el.querySelectorAll('.txn-dg-input').forEach(inp => {
+        const c = parseInt(inp.value) || 0;
+        const v = c * parseFloat(inp.dataset.face);
+        total += v;
+        el.querySelector('.txn-dg-val[data-denom="' + inp.dataset.denom + '"]').textContent = '$' + fmtM(v);
+      });
+      const te = document.getElementById('txnDenomGrid_total');
+      if (te) te.textContent = '$' + fmtM(total);
+    }
+
+    async function loadTxnCashSetup() {
+      try {
+        const r = await apiFetch('/api/v1/tenant/settings');
+        const data = (await r.json()).data || {};
+        if (data.cash_denominations && Array.isArray(data.cash_denominations)) {
+          txnDenoms = data.cash_denominations.map(d => ({
+            key: String(d.value), label: d.label, face: parseFloat(d.value)
+          }));
+        }
+      } catch(e) {}
+      buildTxnDenomGrid();
+      try {
+        const r2 = await apiFetch('/api/v1/cash/locations?type=drawer&status=active');
+        const json = await r2.json();
+        const drawers = json.data || [];
+        const sel = document.getElementById('txnDrawerId');
+        sel.innerHTML = '<option value="">No drawer (skip tracking)</option>' +
+          drawers.map(d => '<option value="' + d.id + '">' + d.name + (d.assigned_user_name ? ' - ' + d.assigned_user_name : '') + '</option>').join('');
+      } catch(e) {}
+    }
+    loadTxnCashSetup();
 
     // ================================================================
     // Receipt System
