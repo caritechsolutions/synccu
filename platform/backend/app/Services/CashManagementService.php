@@ -206,8 +206,10 @@ final class CashManagementService
         foreach ($denominations as $d) {
             $denom = (string)($d['denomination'] ?? '');
             $count = (int)($d['count'] ?? 0);
-            if ($count <= 0 || !isset(self::$faceValues[$denom])) continue;
-            $value = $count * self::$faceValues[$denom];
+            if ($count <= 0 || $denom === '') continue;
+            $faceValue = self::$faceValues[$denom] ?? (float)$denom;
+            if ($faceValue <= 0) continue;
+            $value = $count * $faceValue;
             $this->db->query(
                 "INSERT INTO cash_denominations (id, tenant_id, cash_movement_id, denomination, `count`, value)
                  VALUES (?, ?, ?, ?, ?, ?)",

@@ -113,6 +113,9 @@
         <button class="tab" data-tab="api-keys">
           <svg style="width:16px;height:16px"><use href="#icon-key"/></svg> API Keys
         </button>
+        <button class="tab" data-tab="cash">
+          <svg style="width:16px;height:16px"><use href="#icon-credit-card"/></svg> Cash
+        </button>
       </div>
 
       <!-- General Tab -->
@@ -384,6 +387,26 @@
           </div>
         </div>
       </div>
+
+      <!-- Cash Tab -->
+      <div class="tab-content" id="tab-cash">
+        <div class="card">
+          <div class="card-header"><h3>Cash Denominations</h3></div>
+          <form id="denomSettingsForm" class="settings-form">
+            <p style="color:var(--text-muted);margin-bottom:1rem">Configure which denominations appear in cash counting grids. Add bills and coins used by your credit union. Currency symbol is set in General settings.</p>
+            <div id="denomList" style="margin-bottom:1rem"></div>
+            <div style="display:flex;gap:.5rem;align-items:end;margin-bottom:1.5rem">
+              <div class="form-group" style="margin:0;flex:1"><label>Label</label><input type="text" id="newDenomLabel" class="form-input" placeholder="e.g. $100 or 50c"></div>
+              <div class="form-group" style="margin:0;flex:1"><label>Face Value</label><input type="number" id="newDenomValue" class="form-input" step="0.01" min="0.01" placeholder="e.g. 100"></div>
+              <button type="button" class="btn btn-secondary" onclick="addDenomRow()" style="height:40px">Add</button>
+            </div>
+            <div class="form-actions" style="display:flex;gap:.75rem">
+              <button type="submit" class="btn btn-primary">Save Denominations</button>
+              <button type="button" class="btn btn-secondary" onclick="resetDenomsToDefault()">Reset to Default</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -573,6 +596,71 @@
         alert('Security settings saved.');
       } catch (err) { alert('Failed to save security settings.'); }
     });
+
+    // ================================================================
+    // Cash Denominations
+    // ================================================================
+    const DEFAULT_DENOMS = [
+      {label:'$100', value:100}, {label:'$50', value:50}, {label:'$20', value:20},
+      {label:'$10', value:10}, {label:'$5', value:5}, {label:'$2', value:2},
+      {label:'$1', value:1}, {label:'50c', value:0.50}, {label:'25c', value:0.25},
+      {label:'10c', value:0.10}, {label:'5c', value:0.05}, {label:'1c', value:0.01}
+    ];
+
+    let denomConfig = [];
+
+    function renderDenomList() {
+      const el = document.getElementById('denomList');
+      if (!denomConfig.length) { el.innerHTML = '<p style="color:var(--text-muted)">No denominations configured.</p>'; return; }
+      el.innerHTML = '<table class="table" style="font-size:.9rem"><thead><tr><th>Label</th><th>Face Value</th><th style="width:60px"></th></tr></thead><tbody>' +
+        denomConfig.map((d, i) => '<tr><td>' + d.label + '</td><td>' + d.value + '</td><td><button type="button" class="btn btn-sm btn-danger" onclick="removeDenom(' + i + ')" style="padding:2px 8px">X</button></td></tr>').join('') +
+        '</tbody></table>';
+    }
+
+    function addDenomRow() {
+      const label = document.getElementById('newDenomLabel').value.trim();
+      const value = parseFloat(document.getElementById('newDenomValue').value);
+      if (!label || isNaN(value) || value <= 0) { alert('Enter a label and positive face value.'); return; }
+      if (denomConfig.some(d => d.value === value)) { alert('That face value already exists.'); return; }
+      denomConfig.push({label, value});
+      denomConfig.sort((a, b) => b.value - a.value);
+      renderDenomList();
+      document.getElementById('newDenomLabel').value = '';
+      document.getElementById('newDenomValue').value = '';
+    }
+
+    function removeDenom(idx) { denomConfig.splice(idx, 1); renderDenomList(); }
+
+    function resetDenomsToDefault() {
+      if (!confirm('Reset denominations to default USD values?')) return;
+      denomConfig = JSON.parse(JSON.stringify(DEFAULT_DENOMS));
+      renderDenomList();
+    }
+
+    async function loadDenomSettings() {
+      try {
+        const r = await apiFetch('/api/v1/tenant/settings');
+        const data = (await r.json()).data || {};
+        const saved = data.cash_denominations;
+        if (saved && Array.isArray(saved)) { denomConfig = saved; }
+        else { denomConfig = JSON.parse(JSON.stringify(DEFAULT_DENOMS)); }
+      } catch(e) { denomConfig = JSON.parse(JSON.stringify(DEFAULT_DENOMS)); }
+      renderDenomList();
+    }
+
+    document.getElementById('denomSettingsForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!denomConfig.length) { alert('Add at least one denomination.'); return; }
+      try {
+        await apiFetch('/api/v1/tenant/settings', {
+          method: 'PUT',
+          body: JSON.stringify({ cash_denominations: denomConfig })
+        });
+        alert('Denominations saved.');
+      } catch (err) { alert('Failed to save denominations.'); }
+    });
+
+    loadDenomSettings();
   </script>
 </body>
 </html>

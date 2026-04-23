@@ -1,12 +1,13 @@
 const fmt = n => parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 let locationsCache = [];
 
-const DENOMS = [
+const DEFAULT_DENOMS = [
   {key:'100',label:'$100',face:100},{key:'50',label:'$50',face:50},{key:'20',label:'$20',face:20},
   {key:'10',label:'$10',face:10},{key:'5',label:'$5',face:5},{key:'2',label:'$2',face:2},
   {key:'1',label:'$1',face:1},{key:'0.50',label:'$0.50',face:0.50},{key:'0.25',label:'$0.25',face:0.25},
   {key:'0.10',label:'$0.10',face:0.10},{key:'0.05',label:'$0.05',face:0.05},{key:'0.01',label:'$0.01',face:0.01}
 ];
+let DENOMS = DEFAULT_DENOMS;
 
 const TYPE_LABELS = {
   vault_to_drawer:'Vault → Drawer', drawer_to_vault:'Drawer → Vault',
@@ -68,11 +69,28 @@ function updateDenomGrid(containerId) {
   if (totalEl) totalEl.textContent = '$' + fmt(total);
 }
 
-// Init denomination grids
-const dispGrid = createDenomGrid('dispDenomGrid');
-const retGrid = createDenomGrid('retDenomGrid');
-const closeGrid = createDenomGrid('closeDenomGrid');
-const adjGrid = createDenomGrid('adjDenomGrid');
+// Grids initialized after loading settings
+let dispGrid, retGrid, closeGrid, adjGrid;
+
+function initDenomGrids() {
+  dispGrid = createDenomGrid('dispDenomGrid');
+  retGrid = createDenomGrid('retDenomGrid');
+  closeGrid = createDenomGrid('closeDenomGrid');
+  adjGrid = createDenomGrid('adjDenomGrid');
+}
+
+async function loadDenomSettings() {
+  try {
+    const r = await apiFetch('/api/v1/tenant/settings');
+    const data = (await r.json()).data || {};
+    if (data.cash_denominations && Array.isArray(data.cash_denominations)) {
+      DENOMS = data.cash_denominations.map(d => ({
+        key: String(d.value), label: d.label, face: parseFloat(d.value)
+      }));
+    }
+  } catch(e) {}
+  initDenomGrids();
+}
 
 // Load summary
 async function loadSummary() {
@@ -357,5 +375,7 @@ document.getElementById('adjustForm').addEventListener('submit', async (e) => {
   } catch(err) { alert('Failed: ' + err.message); }
 });
 
-// Init
-loadSummary(); loadLocations(); loadMovements(); loadSessions(); loadMembers();
+// Init — load denomination settings first, then everything else
+loadDenomSettings().then(() => {
+  loadSummary(); loadLocations(); loadMovements(); loadSessions(); loadMembers();
+});
