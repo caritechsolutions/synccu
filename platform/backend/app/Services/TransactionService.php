@@ -88,6 +88,16 @@ final class TransactionService
 
             $this->accounts->updateBalance($accountId, $amount);
 
+            if (!empty($metadata['drawer_id']) && ($metadata['funding_source'] ?? '') === 'cash') {
+                try {
+                    $cash = new CashManagementService();
+                    $cash->recordDepositCash(
+                        $this->db->getTenantId(), $metadata['drawer_id'], $amount,
+                        $metadata['denominations'] ?? [], $txnId, $userId ?? '',
+                    );
+                } catch (\Throwable $e) {}
+            }
+
             return $this->findById($txnId);
         });
     }
@@ -141,6 +151,16 @@ final class TransactionService
             );
 
             $this->accounts->updateBalance($accountId, -$amount);
+
+            if (!empty($metadata['drawer_id']) && ($metadata['disbursement_method'] ?? '') === 'cash') {
+                try {
+                    $cash = new CashManagementService();
+                    $cash->recordWithdrawalCash(
+                        $this->db->getTenantId(), $metadata['drawer_id'], $amount,
+                        $metadata['denominations'] ?? [], $txnId, $userId ?? '',
+                    );
+                } catch (\Throwable $e) {}
+            }
 
             return $this->findById($txnId);
         });

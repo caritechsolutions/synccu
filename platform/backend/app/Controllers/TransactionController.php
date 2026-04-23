@@ -126,6 +126,8 @@ final class TransactionController
             'sof_source'       => 'nullable|string|max:100',
             'sof_details'      => 'nullable|string|max:1000',
             'sof_declared'     => 'nullable|string',
+            'drawer_id'        => 'nullable|string',
+            'denominations'    => 'nullable',
         ]);
 
         if ($validator->fails()) {
@@ -144,7 +146,9 @@ final class TransactionController
 
         try {
             $metadata = array_filter([
-                'funding_source' => $request->input('funding_source', 'cash'),
+                'funding_source'  => $request->input('funding_source', 'cash'),
+                'drawer_id'       => $request->input('drawer_id'),
+                'denominations'   => $request->input('denominations'),
             ]);
 
             $checksInput = $request->input('checks');
@@ -192,6 +196,8 @@ final class TransactionController
             'description'         => 'nullable|string|max:255',
             'disbursement_method' => 'required|in:cash,check,wire,ach',
             'check_number'        => 'nullable|string|max:50',
+            'drawer_id'           => 'nullable|string',
+            'denominations'       => 'nullable',
         ]);
 
         if ($validator->fails()) {
@@ -211,6 +217,8 @@ final class TransactionController
             $metadata = array_filter([
                 'disbursement_method' => $request->input('disbursement_method'),
                 'check_number'        => $request->input('check_number'),
+                'drawer_id'           => $request->input('drawer_id'),
+                'denominations'       => $request->input('denominations'),
             ]);
 
             $result = $this->transactions->withdraw(

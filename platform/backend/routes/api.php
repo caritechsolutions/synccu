@@ -19,6 +19,7 @@ declare(strict_types=1);
 use App\Controllers\AccountController;
 use App\Controllers\AdminController;
 use App\Controllers\AuthController;
+use App\Controllers\CashManagementController;
 use App\Controllers\LoanController;
 use App\Controllers\TransactionController;
 use App\Controllers\TenantController;
@@ -245,6 +246,49 @@ $router->group([
     $router->get('/settings',    [TenantController::class, 'getSettings']);
     $router->put('/settings',    [TenantController::class, 'updateSettings']);
     $router->put('/branding',    [TenantController::class, 'updateBranding']);
+});
+
+// ------------------------------------------------------------------
+// Cash Management routes (admin/manager, tenant-scoped, audited)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/cash',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+        RBACMiddleware::class . ':admin,manager',
+        AuditMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/summary',             [CashManagementController::class, 'summary']);
+    $router->get('/locations',           [CashManagementController::class, 'listLocations']);
+    $router->post('/locations',          [CashManagementController::class, 'createLocation']);
+    $router->get('/locations/{id}',      [CashManagementController::class, 'showLocation']);
+    $router->put('/locations/{id}',      [CashManagementController::class, 'updateLocation']);
+    $router->post('/dispense',           [CashManagementController::class, 'dispense']);
+    $router->post('/return',             [CashManagementController::class, 'returnCash']);
+    $router->post('/bank-transfer',      [CashManagementController::class, 'bankTransfer']);
+    $router->post('/adjust',             [CashManagementController::class, 'adjust']);
+    $router->get('/movements',           [CashManagementController::class, 'listMovements']);
+    $router->get('/movements/{id}',      [CashManagementController::class, 'showMovement']);
+    $router->get('/sessions',            [CashManagementController::class, 'listSessions']);
+    $router->post('/sessions/open',      [CashManagementController::class, 'openSession']);
+    $router->post('/sessions/{id}/close', [CashManagementController::class, 'closeSession']);
+});
+
+// Teller-accessible cash routes
+$router->group([
+    'prefix'     => '/api/v1/cash',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+        RBACMiddleware::class . ':admin,manager,teller',
+        AuditMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/my-drawer',           [CashManagementController::class, 'getMyDrawer']);
 });
 
 // ------------------------------------------------------------------
