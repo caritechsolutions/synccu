@@ -1901,6 +1901,26 @@
       } catch(e) {}
     };
 
+    // Role-based UI: hide expense for tellers
+    (function() {
+      try {
+        var u = JSON.parse(localStorage.getItem('synccu-user'));
+        if (u && u.role === 'teller') {
+          var expBtn = document.getElementById('recordExpenseBtn');
+          if (expBtn) expBtn.style.display = 'none';
+          var expModal = document.getElementById('expenseModal');
+          if (expModal) expModal.remove();
+          // Hide expense from type filter
+          var typeFilter = document.getElementById('txnTypeFilter');
+          if (typeFilter) {
+            Array.from(typeFilter.options).forEach(function(opt) {
+              if (opt.value === 'expense') opt.style.display = 'none';
+            });
+          }
+        }
+      } catch(e) {}
+    })();
+
     loadTransactions();
   </script>
 </body>

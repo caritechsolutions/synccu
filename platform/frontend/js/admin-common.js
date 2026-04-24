@@ -104,6 +104,58 @@ async function apiFetch(url, options = {}) {
   document.getElementById('logoutBtn')?.addEventListener('click', (e) => { e.preventDefault(); doLogout(); });
   document.getElementById('logoutBtn2')?.addEventListener('click', (e) => { e.preventDefault(); doLogout(); });
 
+  // ── Role-based access control ──
+  (function enforceRoleAccess() {
+    try {
+      var user = JSON.parse(localStorage.getItem('synccu-user'));
+      if (!user) return;
+      var role = user.role || 'member';
+      var page = location.pathname.split('/').pop();
+
+      // Pages each role can access
+      var allowed = {
+        admin:   null, // null = all pages
+        manager: null,
+        teller:  ['dashboard.html', 'members.html', 'transactions.html', 'cash-management.html'],
+        member:  ['dashboard.html'],
+      };
+
+      var roleAllowed = allowed[role];
+      if (roleAllowed && !roleAllowed.includes(page)) {
+        window.location.href = 'dashboard.html';
+        return;
+      }
+
+      // Hide sidebar nav items the role shouldn't see
+      var sidebarHide = {
+        teller: ['accounts.html', 'loans.html', 'reports.html', 'network.html', 'settings.html'],
+        member: ['members.html', 'accounts.html', 'transactions.html', 'loans.html', 'reports.html', 'cash-management.html', 'network.html', 'settings.html'],
+      };
+
+      var hidePages = sidebarHide[role];
+      if (hidePages) {
+        document.querySelectorAll('.sidebar-nav .nav-item').forEach(function(link) {
+          var href = link.getAttribute('href') || '';
+          if (hidePages.some(function(p) { return href.indexOf(p) !== -1; })) {
+            link.style.display = 'none';
+          }
+        });
+      }
+
+      // Hide settings link in user dropdown for non-admin/manager
+      if (role !== 'admin' && role !== 'manager') {
+        document.querySelectorAll('.dropdown-item').forEach(function(item) {
+          if ((item.getAttribute('href') || '').indexOf('settings.html') !== -1) {
+            item.style.display = 'none';
+          }
+        });
+      }
+
+      // Expose role for page-specific JS
+      window.__synccu_role = role;
+    } catch(e) {}
+  })();
+
   // ── Apply branding from tenant settings ──
   async function applyBranding() {
     try {

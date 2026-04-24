@@ -318,6 +318,122 @@ async function loadDashboardData() {
   }
 }
 
+// ── Teller Dashboard ──
+function showTellerDashboard() {
+  var content = document.querySelector('.main-content');
+  if (!content) return;
+  var subtitle = document.querySelector('.page-subtitle');
+  try {
+    var user = JSON.parse(localStorage.getItem('synccu-user'));
+    if (subtitle && user) subtitle.textContent = 'Welcome back, ' + (user.first_name || 'Teller') + '. Here is your session overview.';
+  } catch(e) {}
+
+  content.innerHTML =
+    '<div class="page-header"><div>' +
+      '<h1 class="page-title">Teller Dashboard</h1>' +
+      '<p class="page-subtitle">' + (subtitle ? subtitle.textContent : '') + '</p>' +
+    '</div></div>' +
+    '<div class="dash-grid" id="tellerStats">' +
+      '<div class="dash-card stat-card-modern grad-blue"><div class="stat-icon-wrap bg-blue"><svg><use href="#icon-send"/></svg></div><span class="stat-value-lg" id="tSessionTxns">0</span><span class="stat-label-sm">Transactions Today</span></div>' +
+      '<div class="dash-card stat-card-modern grad-green"><div class="stat-icon-wrap bg-green"><svg><use href="#icon-dollar"/></svg></div><span class="stat-value-lg" id="tSessionDeps">$0</span><span class="stat-label-sm">Deposits Today</span></div>' +
+      '<div class="dash-card stat-card-modern grad-orange"><div class="stat-icon-wrap bg-orange"><svg><use href="#icon-dollar"/></svg></div><span class="stat-value-lg" id="tSessionWith">$0</span><span class="stat-label-sm">Withdrawals Today</span></div>' +
+      '<div class="dash-card stat-card-modern grad-purple"><div class="stat-icon-wrap bg-purple"><svg><use href="#icon-wallet"/></svg></div><span class="stat-value-lg" id="tDrawerBal">$0</span><span class="stat-label-sm">Drawer Balance</span></div>' +
+    '</div>' +
+    '<div class="dash-card" style="margin-bottom:24px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+        '<div class="chart-title" style="margin-bottom:0">My Recent Transactions</div>' +
+        '<a href="transactions.html" style="font-size:13px;color:#3b82f6;text-decoration:none;font-weight:500">View All</a>' +
+      '</div>' +
+      '<div class="table-responsive"><table class="data-table"><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Amount</th><th>Status</th></tr></thead><tbody id="tellerRecentTxns"><tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px">Loading...</td></tr></tbody></table></div>' +
+    '</div>' +
+    '<div class="dash-grid" style="grid-template-columns:1fr 1fr">' +
+      '<a href="transactions.html?action=new" class="dash-card" style="text-decoration:none;text-align:center;cursor:pointer">' +
+        '<div class="stat-icon-wrap bg-blue" style="margin:0 auto 12px"><svg><use href="#icon-send"/></svg></div>' +
+        '<strong style="color:var(--text-primary)">New Transaction</strong>' +
+      '</a>' +
+      '<a href="members.html" class="dash-card" style="text-decoration:none;text-align:center;cursor:pointer">' +
+        '<div class="stat-icon-wrap bg-green" style="margin:0 auto 12px"><svg><use href="#icon-users"/></svg></div>' +
+        '<strong style="color:var(--text-primary)">Lookup Member</strong>' +
+      '</a>' +
+    '</div>';
+
+  loadTellerData();
+}
+
+async function loadTellerData() {
+  try {
+    var user = JSON.parse(localStorage.getItem('synccu-user'));
+    var userId = user ? user.id : '';
+
+    // Load teller's transactions for today
+    var today = new Date().toISOString().split('T')[0];
+    var resp = await apiFetch('/api/v1/transactions?created_by=' + userId + '&date_from=' + today + '&per_page=50');
+    var txns = [];
+    var totalDep = 0, totalWith = 0, txnCount = 0;
+
+    if (resp.ok) {
+      var json = await resp.json();
+      txns = json.data || [];
+      txns.forEach(function(t) {
+        txnCount++;
+        if (t.type === 'deposit') totalDep += Number(t.amount || 0);
+        if (t.type === 'withdrawal') totalWith += Number(t.amount || 0);
+      });
+    }
+
+    var el = function(id) { return document.getElementById(id); };
+    var tTxns = el('tSessionTxns');
+    var tDeps = el('tSessionDeps');
+    var tWith = el('tSessionWith');
+    if (tTxns) animateValue(tTxns, txnCount, '', 800);
+    if (tDeps) animateDollar(tDeps, totalDep, 1000);
+    if (tWith) animateDollar(tWith, totalWith, 1000);
+
+    // Recent transactions table
+    var tbody = el('tellerRecentTxns');
+    if (tbody) {
+      var recent = txns.slice(0, 15);
+      if (!recent.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px">No transactions yet today</td></tr>';
+      } else {
+        populateRecentTxns(recent);
+        // Redirect to the teller's tbody
+        var mainTbody = document.getElementById('recentTransactions');
+        if (mainTbody) {
+          tbody.innerHTML = mainTbody.innerHTML;
+        } else {
+          tbody.innerHTML = recent.map(function(t) {
+            var date = new Date(t.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            var isCredit = ['deposit', 'interest', 'loan_payment'].includes(t.type);
+            var amtClass = isCredit ? 'text-green' : 'text-red';
+            var sign = isCredit ? '+' : '-';
+            var statusCls = t.status === 'completed' ? 'badge-success' : t.status === 'pending' ? 'badge-warning' : 'badge-neutral';
+            return '<tr><td>' + date + '</td><td><span class="txn-type-badge">' + (t.type || '').replace(/_/g, ' ') + '</span></td><td>' + (t.reference_number || '-') + '</td><td class="' + amtClass + ' font-semibold">' + sign + '$' + Number(t.amount).toLocaleString(undefined, {minimumFractionDigits:2}) + '</td><td><span class="badge ' + statusCls + '">' + t.status + '</span></td></tr>';
+          }).join('');
+        }
+      }
+    }
+
+    // Drawer balance
+    try {
+      var drawerResp = await apiFetch('/api/v1/cash/my-drawer');
+      if (drawerResp.ok) {
+        var dJson = await drawerResp.json();
+        var drawer = dJson.data || {};
+        var drawerBal = el('tDrawerBal');
+        if (drawerBal) animateDollar(drawerBal, Number(drawer.balance || 0), 1000);
+      }
+    } catch(e) {}
+
+    document.querySelectorAll('.dash-card').forEach(function(card, i) {
+      card.style.animationDelay = (i * 0.05) + 's';
+      card.classList.add('dash-animate-in');
+    });
+  } catch(e) {
+    console.error('Teller dashboard error:', e);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   try {
     const user = JSON.parse(localStorage.getItem('synccu-user'));
@@ -327,6 +443,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const avatarEl = document.querySelector('.avatar');
       if (avatarEl && user.first_name && user.last_name) {
         avatarEl.textContent = user.first_name[0] + user.last_name[0];
+      }
+
+      if (user.role === 'teller') {
+        showTellerDashboard();
+        return;
       }
     }
   } catch (e) {}

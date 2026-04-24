@@ -348,22 +348,25 @@
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--color-text-muted)">No members found</td></tr>';
         return;
       }
+      var isTeller = false;
+      try { var _u = JSON.parse(localStorage.getItem('synccu-user')); isTeller = _u && _u.role === 'teller'; } catch(e) {}
       tbody.innerHTML = members.map(m => {
         const initials = ((m.first_name || '')[0] || '') + ((m.last_name || '')[0] || '');
         const statusClass = m.status === 'active' ? 'badge-success' : 'badge-muted';
         const statusLabel = m.status ? m.status.charAt(0).toUpperCase() + m.status.slice(1) : 'Active';
         const mJson = JSON.stringify(m).replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+        var actions = '<button class="icon-btn" title="View" onclick="viewMember(\'' + m.id + '\')"><svg><use href="#icon-eye"/></svg></button>';
+        if (!isTeller) {
+          actions += '<button class="icon-btn" title="Edit" onclick="editMember(' + mJson + ')"><svg><use href="#icon-edit"/></svg></button>';
+          if (m.status === 'active') actions += '<button class="icon-btn icon-btn-danger" title="Deactivate" onclick="deleteMember(\'' + m.id + '\', \'' + ((m.first_name || '') + ' ' + (m.last_name || '')).replace(/'/g, "\\'") + '\')"><svg><use href="#icon-trash"/></svg></button>';
+        }
         return '<tr>' +
           '<td><div class="member-cell"><div class="avatar avatar-sm">' + initials.toUpperCase() + '</div><span>' + (m.first_name || '') + ' ' + (m.last_name || '') + '</span></div></td>' +
           '<td>' + (m.email || '-') + '</td>' +
           '<td>' + (m.phone || '-') + '</td>' +
           '<td>' + (m.accounts_count || 0) + '</td>' +
           '<td><span class="badge ' + statusClass + '">' + statusLabel + '</span></td>' +
-          '<td><div class="action-btns">' +
-            '<button class="icon-btn" title="View" onclick="viewMember(\'' + m.id + '\')"><svg><use href="#icon-eye"/></svg></button>' +
-            '<button class="icon-btn" title="Edit" onclick="editMember(' + mJson + ')"><svg><use href="#icon-edit"/></svg></button>' +
-            (m.status === 'active' ? '<button class="icon-btn icon-btn-danger" title="Deactivate" onclick="deleteMember(\'' + m.id + '\', \'' + ((m.first_name || '') + ' ' + (m.last_name || '')).replace(/'/g, "\\'") + '\')"><svg><use href="#icon-trash"/></svg></button>' : '') +
-          '</div></td></tr>';
+          '<td><div class="action-btns">' + actions + '</div></td></tr>';
       }).join('');
     }
 
@@ -518,11 +521,37 @@
       if (e.target === this) this.classList.remove('active');
     });
 
+    // Role-based UI: tellers can view members but not create/edit/delete
+    (function() {
+      try {
+        var u = JSON.parse(localStorage.getItem('synccu-user'));
+        if (!u || u.role !== 'teller') return;
+
+        // Hide Add Member button
+        var addBtn = document.getElementById('addMemberBtn');
+        if (addBtn) addBtn.style.display = 'none';
+
+        // Override row actions: remove edit/delete, keep view only
+        var _orig = window.renderMemberRow;
+        if (typeof _orig === 'function') {
+          window.renderMemberRow = function(m) {
+            var row = _orig(m);
+            return row;
+          };
+        }
+      } catch(e) {}
+    })();
+
     // Load members on page load
     loadMembers();
 
-    // Check if opened with ?action=new
-    if (new URLSearchParams(window.location.search).get('action') === 'new') { openModal(false); }
+    // Check if opened with ?action=new (skip for tellers)
+    try {
+      var u2 = JSON.parse(localStorage.getItem('synccu-user'));
+      if ((!u2 || u2.role !== 'teller') && new URLSearchParams(window.location.search).get('action') === 'new') { openModal(false); }
+    } catch(e) {
+      if (new URLSearchParams(window.location.search).get('action') === 'new') { openModal(false); }
+    }
   </script>
 </body>
 </html>

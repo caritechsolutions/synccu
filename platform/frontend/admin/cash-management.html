@@ -220,6 +220,48 @@
   </div>
 
   <script src="../js/admin-common.js"></script>
+  <script>
+  // Role-based UI: tellers only see return-to-vault and their drawer
+  (function() {
+    try {
+      var u = JSON.parse(localStorage.getItem('synccu-user'));
+      if (!u || u.role !== 'teller') return;
+
+      // Hide "Add Location" button
+      var addBtn = document.querySelector('.page-actions');
+      if (addBtn) addBtn.style.display = 'none';
+
+      // Hide tabs tellers shouldn't use: locations, movements (keep operations, sessions)
+      document.querySelectorAll('.tab-sub').forEach(function(tab) {
+        var sub = tab.getAttribute('data-sub');
+        if (sub === 'locations' || sub === 'movements') {
+          tab.style.display = 'none';
+        }
+      });
+
+      // Default to operations tab
+      document.querySelectorAll('.tab-sub').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.sub-content').forEach(function(c) { c.classList.remove('active'); });
+      var opsTab = document.querySelector('[data-sub="operations"]');
+      var opsContent = document.getElementById('sub-operations');
+      if (opsTab) opsTab.classList.add('active');
+      if (opsContent) opsContent.classList.add('active');
+
+      // In operations, hide Dispense, Bank Transfer, Adjustment — keep only Return to Vault
+      var opCards = document.querySelectorAll('#sub-operations .op-cards .card');
+      opCards.forEach(function(card) {
+        var h3 = card.querySelector('h3');
+        if (!h3) return;
+        var title = h3.textContent.trim();
+        if (title !== 'Return to Vault') card.style.display = 'none';
+      });
+
+      // Update page subtitle
+      var sub = document.querySelector('.page-subtitle');
+      if (sub) sub.textContent = 'Return cash to vault and manage your drawer session.';
+    } catch(e) {}
+  })();
+  </script>
   <script src="../js/cash-management.js"></script>
 </body>
 </html>
