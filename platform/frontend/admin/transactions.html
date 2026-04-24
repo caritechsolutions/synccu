@@ -1676,13 +1676,18 @@
       } catch(e) {}
       buildTxnDenomGrid();
       try {
-        const r2 = await apiFetch('/api/v1/cash/locations?type=drawer&status=active');
+        const r2 = await apiFetch('/api/v1/cash/my-drawer');
         const json = await r2.json();
-        const drawers = json.data || [];
         const sel = document.getElementById('txnDrawerId');
-        sel.innerHTML = '<option value="">No drawer (skip tracking)</option>' +
-          drawers.map(d => '<option value="' + d.id + '">' + d.name + (d.assigned_user_name ? ' - ' + d.assigned_user_name : '') + '</option>').join('');
-      } catch(e) {}
+        if (json.data && json.data.id) {
+          const d = json.data;
+          sel.innerHTML = '<option value="' + d.id + '">' + d.name + '</option>';
+        } else {
+          sel.innerHTML = '<option value="">No drawer assigned</option>';
+        }
+      } catch(e) {
+        document.getElementById('txnDrawerId').innerHTML = '<option value="">No drawer assigned</option>';
+      }
     }
     loadTxnCashSetup();
 
