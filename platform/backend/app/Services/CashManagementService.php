@@ -10,6 +10,7 @@ use RuntimeException;
 final class CashManagementService
 {
     private Database $db;
+    private static bool $schemaReady = false;
 
     public function __construct()
     {
@@ -36,6 +37,9 @@ final class CashManagementService
 
     public function ensureSchema(): void
     {
+        if (self::$schemaReady) {
+            return;
+        }
         $pdo = $this->db->getPdo();
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS `fund_locations` (
@@ -114,6 +118,8 @@ final class CashManagementService
             INDEX `idx_ds_teller` (`teller_user_id`),
             INDEX `idx_ds_status` (`tenant_id`, `status`)
         ) ENGINE=InnoDB");
+
+        self::$schemaReady = true;
     }
 
     // ------------------------------------------------------------------

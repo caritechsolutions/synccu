@@ -58,7 +58,13 @@ final class TransactionService
             return $this->findById($result['payment_id']) ?? $result;
         }
 
-        return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account, $metadata) {
+        $cashService = null;
+        if (!empty($metadata['drawer_id']) && ($metadata['funding_source'] ?? '') === 'cash') {
+            $cashService = new CashManagementService();
+            $cashService->ensureSchema();
+        }
+
+        return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account, $metadata, $cashService) {
             $txnId   = $this->generateUuid();
             $refNo   = $this->generateReferenceNumber();
             $now     = date('Y-m-d H:i:s');
@@ -88,10 +94,9 @@ final class TransactionService
 
             $this->accounts->updateBalance($accountId, $amount);
 
-            if (!empty($metadata['drawer_id']) && ($metadata['funding_source'] ?? '') === 'cash') {
+            if ($cashService) {
                 try {
-                    $cash = new CashManagementService();
-                    $cash->recordDepositCash(
+                    $cashService->recordDepositCash(
                         $this->db->getTenantId(), $metadata['drawer_id'], $amount,
                         $metadata['denominations'] ?? [], $txnId, $userId ?? '',
                     );
@@ -122,7 +127,13 @@ final class TransactionService
         $this->assertAccountActive($account);
         $this->assertSufficientBalance($account, $amount);
 
-        return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account, $metadata) {
+        $cashService = null;
+        if (!empty($metadata['drawer_id']) && ($metadata['disbursement_method'] ?? '') === 'cash') {
+            $cashService = new CashManagementService();
+            $cashService->ensureSchema();
+        }
+
+        return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account, $metadata, $cashService) {
             $txnId = $this->generateUuid();
             $refNo = $this->generateReferenceNumber();
             $now   = date('Y-m-d H:i:s');
@@ -152,10 +163,9 @@ final class TransactionService
 
             $this->accounts->updateBalance($accountId, -$amount);
 
-            if (!empty($metadata['drawer_id']) && ($metadata['disbursement_method'] ?? '') === 'cash') {
+            if ($cashService) {
                 try {
-                    $cash = new CashManagementService();
-                    $cash->recordWithdrawalCash(
+                    $cashService->recordWithdrawalCash(
                         $this->db->getTenantId(), $metadata['drawer_id'], $amount,
                         $metadata['denominations'] ?? [], $txnId, $userId ?? '',
                     );
