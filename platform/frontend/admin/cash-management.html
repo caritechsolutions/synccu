@@ -135,6 +135,27 @@
               <button class="btn btn-warning" style="width:100%" onclick="doReturn()">Return Cash</button>
             </div>
           </div>
+          <div class="card">
+            <div class="card-header"><h3>Bank Transfer</h3></div>
+            <div class="card-body" style="padding:1.25rem">
+              <div class="form-group"><label>Bank Account</label><select id="btAccount" class="form-select" required></select></div>
+              <div class="form-group"><label>Direction</label><select id="btDirection" class="form-select" required><option value="in">Transfer In (Bank → CU Vault)</option><option value="out">Transfer Out (CU Vault → Bank)</option></select></div>
+              <div class="form-group"><label>Source / Destination Vault</label><select id="btVault" class="form-select" required></select></div>
+              <div class="form-group"><label>Amount ($)</label><input type="number" id="btAmount" class="form-input" step="0.01" min="0.01" required></div>
+              <div class="form-group"><label>Description</label><input type="text" id="btDesc" class="form-input" placeholder="e.g. Daily deposit"></div>
+              <button class="btn btn-primary" style="width:100%" onclick="doBankTransfer()">Record Bank Transfer</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Balance Adjustment</h3></div>
+            <div class="card-body" style="padding:1.25rem">
+              <div class="form-group"><label>Location</label><select id="adjLocation" class="form-select" required></select></div>
+              <div class="form-group"><label>Amount ($)</label><input type="number" id="adjAmount" class="form-input" step="0.01" required><small style="color:var(--text-muted)">Positive to add, negative to subtract</small></div>
+              <div class="form-group"><label>Reason</label><input type="text" id="adjDesc" class="form-input" placeholder="Reason for adjustment" required></div>
+              <div class="form-group"><label>Denominations</label><div id="adjDenomGrid"></div></div>
+              <button class="btn btn-warning" style="width:100%" onclick="doAdjustment()">Record Adjustment</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -194,34 +215,6 @@
         <div class="form-group"><label>Count the cash in the drawer</label><div id="closeDenomGrid"></div></div>
         <div class="form-group"><label>Notes</label><textarea id="closeNotes" class="form-input" rows="2" placeholder="Any notes about this session..."></textarea></div>
         <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('closeSessionModal')">Cancel</button><button type="submit" class="btn btn-primary">Close Session</button></div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Bank Transfer Modal -->
-  <div class="modal-overlay" id="bankTransferModal">
-    <div class="modal" style="max-width:460px">
-      <div class="modal-header"><h3>Bank Transfer</h3><button class="modal-close" onclick="closeModal('bankTransferModal')">&times;</button></div>
-      <form id="bankTransferForm" class="modal-body">
-        <div class="form-group"><label>Bank Account</label><select id="btAccount" class="form-select" required></select></div>
-        <div class="form-group"><label>Direction</label><select id="btDirection" class="form-select" required><option value="in">Transfer In (to CU)</option><option value="out">Transfer Out (from CU)</option></select></div>
-        <div class="form-group"><label>Amount ($)</label><input type="number" id="btAmount" class="form-input" min="0.01" step="0.01" required></div>
-        <div class="form-group"><label>Description</label><input type="text" id="btDesc" class="form-input" placeholder="e.g. Monthly deposit"></div>
-        <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('bankTransferModal')">Cancel</button><button type="submit" class="btn btn-primary">Record Transfer</button></div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Adjustment Modal -->
-  <div class="modal-overlay" id="adjustModal">
-    <div class="modal" style="max-width:520px">
-      <div class="modal-header"><h3>Adjust Balance</h3><button class="modal-close" onclick="closeModal('adjustModal')">&times;</button></div>
-      <form id="adjustForm" class="modal-body">
-        <div class="form-group"><label>Location</label><select id="adjLocation" class="form-select" required></select></div>
-        <div class="form-group"><label>Amount (negative to subtract)</label><input type="number" id="adjAmount" class="form-input" step="0.01" required></div>
-        <div class="form-group"><label>Reason (required)</label><input type="text" id="adjDesc" class="form-input" required placeholder="e.g. Cash count correction"></div>
-        <div class="form-group"><label>Denominations</label><div id="adjDenomGrid"></div></div>
-        <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('adjustModal')">Cancel</button><button type="submit" class="btn btn-primary">Adjust</button></div>
       </form>
     </div>
   </div>

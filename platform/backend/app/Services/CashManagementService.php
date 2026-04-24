@@ -346,31 +346,48 @@ final class CashManagementService
         });
     }
 
-    public function recordBankTransfer(string $tenantId, string $locationId, string $direction, float $amount, string $performedBy, string $description = ''): array
+    public function recordBankTransfer(string $tenantId, string $locationId, string $direction, float $amount, string $performedBy, string $description = '', ?string $vaultId = null): array
     {
         $this->ensureSchema();
         $loc = $this->getLocation($tenantId, $locationId);
         if (!$loc || $loc['type'] !== 'bank_account') throw new RuntimeException('Bank account not found.', 404);
-        if ($direction === 'out' && (float)$loc['balance'] < $amount) throw new RuntimeException('Insufficient funds in bank account.', 422);
+
+        $vault = null;
+        if ($vaultId) {
+            $vault = $this->getLocation($tenantId, $vaultId);
+            if (!$vault || $vault['type'] !== 'vault') throw new RuntimeException('Vault not found.', 404);
+        }
+
+        if ($direction === 'out') {
+            if ($vault && (float)$vault['balance'] < $amount) throw new RuntimeException('Insufficient funds in vault.', 422);
+        } else {
+            if ((float)$loc['balance'] < $amount) throw new RuntimeException('Insufficient funds in bank account.', 422);
+        }
 
         $id = $this->generateUuid();
         $ref = $this->makeRef($id);
         $type = $direction === 'in' ? 'bank_transfer_in' : 'bank_transfer_out';
 
-        return $this->db->transaction(function () use ($id, $tenantId, $locationId, $direction, $amount, $performedBy, $description, $ref, $type) {
-            if ($direction === 'in') {
+        return $this->db->transaction(function () use ($id, $tenantId, $locationId, $direction, $amount, $performedBy, $description, $ref, $type, $vaultId) {
+            if ($direction === 'out') {
                 $this->db->execute("UPDATE fund_locations SET balance = balance + ? WHERE id = ?", [$amount, $locationId]);
+                if ($vaultId) {
+                    $this->db->execute("UPDATE fund_locations SET balance = balance - ? WHERE id = ?", [$amount, $vaultId]);
+                }
                 $this->db->query(
-                    "INSERT INTO cash_movements (id, tenant_id, type, to_location_id, amount, performed_by, reference_number, description)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    [$id, $tenantId, $type, $locationId, $amount, $performedBy, $ref, $description ?: 'Bank transfer in'],
+                    "INSERT INTO cash_movements (id, tenant_id, type, from_location_id, to_location_id, amount, performed_by, reference_number, description)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [$id, $tenantId, $type, $vaultId, $locationId, $amount, $performedBy, $ref, $description ?: 'Bank transfer out (vault to bank)'],
                 );
             } else {
                 $this->db->execute("UPDATE fund_locations SET balance = balance - ? WHERE id = ?", [$amount, $locationId]);
+                if ($vaultId) {
+                    $this->db->execute("UPDATE fund_locations SET balance = balance + ? WHERE id = ?", [$amount, $vaultId]);
+                }
                 $this->db->query(
-                    "INSERT INTO cash_movements (id, tenant_id, type, from_location_id, amount, performed_by, reference_number, description)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    [$id, $tenantId, $type, $locationId, $amount, $performedBy, $ref, $description ?: 'Bank transfer out'],
+                    "INSERT INTO cash_movements (id, tenant_id, type, from_location_id, to_location_id, amount, performed_by, reference_number, description)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [$id, $tenantId, $type, $locationId, $vaultId, $amount, $performedBy, $ref, $description ?: 'Bank transfer in (bank to vault)'],
                 );
             }
             return ['id' => $id, 'reference' => $ref, 'amount' => $amount, 'type' => $type];

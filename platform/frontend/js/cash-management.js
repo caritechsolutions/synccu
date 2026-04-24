@@ -149,8 +149,9 @@ function populateSelectors() {
   const drawers = locationsCache.filter(l => l.type === 'drawer' && l.status === 'active');
   const banks = locationsCache.filter(l => l.type === 'bank_account' && l.status === 'active');
 
-  ['dispVault','retVault'].forEach(id => {
+  ['dispVault','retVault','btVault'].forEach(id => {
     const s = document.getElementById(id);
+    if (!s) return;
     s.innerHTML = '<option value="">Select vault...</option>' + vaults.map(v => '<option value="' + v.id + '">' + v.name + ' ($' + fmt(v.balance) + ')</option>').join('');
   });
   ['dispDrawer','retDrawer'].forEach(id => {
@@ -355,29 +356,32 @@ document.getElementById('closeSessionForm').addEventListener('submit', async (e)
 });
 
 // Bank transfer
-document.getElementById('bankTransferForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
+async function doBankTransfer() {
   const body = {
     location_id: document.getElementById('btAccount').value,
+    vault_id: document.getElementById('btVault').value,
     direction: document.getElementById('btDirection').value,
     amount: parseFloat(document.getElementById('btAmount').value),
     description: document.getElementById('btDesc').value
   };
   if (!body.location_id) { alert('Select a bank account.'); return; }
+  if (!body.vault_id) { alert('Select a vault.'); return; }
+  if (!body.amount || body.amount <= 0) { alert('Enter a valid amount.'); return; }
+  const dirLabel = body.direction === 'out' ? 'Vault → Bank' : 'Bank → Vault';
+  if (!confirm('Record ' + dirLabel + ' transfer of $' + fmt(body.amount) + '?')) return;
   try {
     const r = await apiFetch('/api/v1/cash/bank-transfer', {method:'POST', body: JSON.stringify(body)});
     const json = await r.json();
     if (!r.ok) { alert(json.error||'Failed'); return; }
-    closeModal('bankTransferModal');
-    document.getElementById('bankTransferForm').reset();
     alert('Bank transfer recorded.');
+    document.getElementById('btAmount').value = '';
+    document.getElementById('btDesc').value = '';
     loadLocations(); loadSummary(); loadMovements();
   } catch(err) { alert('Failed: ' + err.message); }
-});
+}
 
 // Adjustment
-document.getElementById('adjustForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
+async function doAdjustment() {
   const body = {
     location_id: document.getElementById('adjLocation').value,
     amount: parseFloat(document.getElementById('adjAmount').value),
@@ -385,17 +389,20 @@ document.getElementById('adjustForm').addEventListener('submit', async (e) => {
     denominations: adjGrid.getValues()
   };
   if (!body.location_id) { alert('Select a location.'); return; }
+  if (!body.amount || isNaN(body.amount)) { alert('Enter a valid amount.'); return; }
+  if (!body.description) { alert('Enter a reason for the adjustment.'); return; }
   if (!confirm('Adjust balance by $' + fmt(body.amount) + '?')) return;
   try {
     const r = await apiFetch('/api/v1/cash/adjust', {method:'POST', body: JSON.stringify(body)});
     const json = await r.json();
     if (!r.ok) { alert(json.error||'Failed'); return; }
-    closeModal('adjustModal');
-    document.getElementById('adjustForm').reset(); adjGrid.reset();
     alert('Adjustment recorded.');
+    document.getElementById('adjAmount').value = '';
+    document.getElementById('adjDesc').value = '';
+    adjGrid.reset();
     loadLocations(); loadSummary(); loadMovements();
   } catch(err) { alert('Failed: ' + err.message); }
-});
+}
 
 // Init — load denomination settings first, then everything else
 loadDenomSettings().then(() => {

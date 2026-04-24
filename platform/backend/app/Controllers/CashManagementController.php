@@ -193,6 +193,7 @@ final class CashManagementController
             'direction'   => 'required|in:in,out',
             'amount'      => 'required|numeric|min:0.01',
             'description' => 'nullable|string|max:500',
+            'vault_id'    => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -205,6 +206,7 @@ final class CashManagementController
                 $tenantId, $data['location_id'], $data['direction'],
                 (float)$data['amount'], $userId,
                 $data['description'] ?? '',
+                $data['vault_id'] ?? null,
             );
             return Response::created($result, 'Bank transfer recorded.');
         } catch (\RuntimeException $e) {
