@@ -711,4 +711,78 @@ final class AdminController
             [$tenantId, 'approved', 'active'],
         );
     }
+
+    public function testDbConnection(Request $request): Response
+    {
+        $validator = new Validator($request->all(), [
+            'host'     => 'required|string',
+            'port'     => 'required|string',
+            'database' => 'required|string',
+            'username' => 'required|string',
+            'password' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        $data = $validator->validated();
+
+        try {
+            $dsn = "mysql:host={$data['host']};port={$data['port']};dbname={$data['database']};charset=utf8mb4";
+            $pdo = new \PDO($dsn, $data['username'], $data['password'] ?? '', [
+                \PDO::ATTR_TIMEOUT => 5,
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+            ]);
+            $version = $pdo->query('SELECT VERSION()')->fetchColumn();
+            $tables = $pdo->query('SHOW TABLES')->rowCount();
+            return Response::ok([
+                'connected' => true,
+                'version'   => $version,
+                'tables'    => $tables,
+            ], 'Connection successful.');
+        } catch (\Throwable $e) {
+            return Response::error('Connection failed: ' . $e->getMessage(), 400);
+        }
+    }
+
+    public function backup(Request $request): Response
+    {
+        $host = env('DB_HOST', '127.0.0.1');
+        $port = env('DB_PORT', '3306');
+        $db   = env('DB_DATABASE', 'synccu');
+        $user = env('DB_USERNAME', 'root');
+        $pass = env('DB_PASSWORD', '');
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'synccu_backup_') . '.sql';
+
+        $passArg = $pass !== '' ? "-p" . escapeshellarg($pass) : '';
+        $cmd = sprintf(
+            'mysqldump --single-transaction --routines --triggers -h %s -P %s -u %s %s %s > %s 2>&1',
+            escapeshellarg($host),
+            escapeshellarg($port),
+            escapeshellarg($user),
+            $passArg,
+            escapeshellarg($db),
+            escapeshellarg($tmpFile),
+        );
+
+        exec($cmd, $output, $exitCode);
+
+        if ($exitCode !== 0) {
+            @unlink($tmpFile);
+            return Response::error('Backup failed: ' . implode("\n", $output), 500);
+        }
+
+        $content = file_get_contents($tmpFile);
+        @unlink($tmpFile);
+
+        $filename = 'synccu-backup-' . date('Y-m-d-His') . '.sql';
+
+        return Response::raw($content, 200, [
+            'Content-Type'        => 'application/sql',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Length'      => (string) strlen($content),
+        ]);
+    }
 }

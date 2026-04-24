@@ -110,7 +110,7 @@ final class AccountController
             'member_id'       => $isAdmin ? 'required|string' : 'nullable|string',
             'account_type'    => 'required|in:checking,savings,certificate',
             'name'            => 'nullable|string|max:100',
-            'currency'        => 'nullable|in:USD,EUR,GBP,CAD',
+            'currency'        => 'nullable|in:USD,EUR,GBP,CAD,BBD,XCD,TTD,JMD,GYD',
             'initial_deposit' => 'nullable|string|max:20',
             'interest_rate'   => 'nullable|string|max:10',
         ]);

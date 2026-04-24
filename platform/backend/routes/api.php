@@ -207,7 +207,9 @@ $router->group([
     $router->get('/audit-logs',  [AdminController::class, 'auditLogs']);
     $router->get('/reports',     [AdminController::class, 'reports']);
     $router->get('/loan-stats',  [AdminController::class, 'loanStats']);
-    $router->post('/reconcile',  [AdminController::class, 'reconcile']);
+    $router->post('/reconcile',          [AdminController::class, 'reconcile']);
+    $router->post('/test-db-connection', [AdminController::class, 'testDbConnection']);
+    $router->get('/backup',              [AdminController::class, 'backup']);
 });
 
 // ------------------------------------------------------------------

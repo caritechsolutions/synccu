@@ -118,6 +118,9 @@
         <button class="tab" data-tab="cash">
           <svg style="width:16px;height:16px"><use href="#icon-credit-card"/></svg> Cash
         </button>
+        <button class="tab" data-tab="system">
+          <svg style="width:16px;height:16px"><use href="#icon-settings"/></svg> System
+        </button>
       </div>
 
       <!-- General Tab -->
@@ -133,17 +136,27 @@
               <div class="form-group">
                 <label for="timezone">Timezone</label>
                 <select id="timezone" class="form-select">
+                  <option value="America/Barbados">Atlantic Standard Time (AST)</option>
                   <option value="America/New_York">Eastern Time (ET)</option>
                   <option value="America/Chicago">Central Time (CT)</option>
                   <option value="America/Denver">Mountain Time (MT)</option>
                   <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                  <option value="America/Puerto_Rico">Atlantic Time (AT)</option>
+                  <option value="America/St_Kitts">Eastern Caribbean (EC)</option>
+                  <option value="America/Jamaica">Jamaica (EST)</option>
+                  <option value="America/Port_of_Spain">Trinidad & Tobago (AST)</option>
                   <option value="UTC">UTC</option>
                 </select>
               </div>
               <div class="form-group">
                 <label for="currency">Currency</label>
                 <select id="currency" class="form-select">
-                  <option value="USD" selected>USD - US Dollar</option>
+                  <option value="BBD" selected>BBD - Barbados Dollar</option>
+                  <option value="XCD">XCD - Eastern Caribbean Dollar</option>
+                  <option value="USD">USD - US Dollar</option>
+                  <option value="TTD">TTD - Trinidad & Tobago Dollar</option>
+                  <option value="JMD">JMD - Jamaican Dollar</option>
+                  <option value="GYD">GYD - Guyanese Dollar</option>
                   <option value="EUR">EUR - Euro</option>
                   <option value="GBP">GBP - British Pound</option>
                   <option value="CAD">CAD - Canadian Dollar</option>
@@ -409,6 +422,74 @@
           </form>
         </div>
       </div>
+
+      <!-- System Tab -->
+      <div class="tab-content" id="tab-system">
+        <div class="card" style="margin-bottom:1.5rem">
+          <div class="card-header"><h3>Terminal Mode</h3></div>
+          <form id="systemForm" class="settings-form">
+            <p style="color:var(--text-muted);margin-bottom:1rem">Configure this terminal as a master (primary) or slave (connects to master's database). All slave terminals share the master's data in real-time.</p>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="terminalMode">Terminal Mode</label>
+                <select id="terminalMode" class="form-select" onchange="toggleMasterFields()">
+                  <option value="master">Master (Primary)</option>
+                  <option value="slave">Slave (Secondary)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="terminalName">Terminal Name</label>
+                <input type="text" id="terminalName" class="form-input" placeholder="e.g. Front Desk, Branch 2">
+              </div>
+            </div>
+            <div id="slaveFields" style="display:none">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="masterDbHost">Master DB Host</label>
+                  <input type="text" id="masterDbHost" class="form-input" placeholder="e.g. 192.168.1.100">
+                </div>
+                <div class="form-group">
+                  <label for="masterDbPort">Master DB Port</label>
+                  <input type="number" id="masterDbPort" class="form-input" value="3306">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="masterDbName">Database Name</label>
+                  <input type="text" id="masterDbName" class="form-input" value="synccu">
+                </div>
+                <div class="form-group">
+                  <label for="masterDbUser">Database Username</label>
+                  <input type="text" id="masterDbUser" class="form-input" placeholder="synccu_user">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="masterDbPass">Database Password</label>
+                <input type="password" id="masterDbPass" class="form-input" placeholder="Enter password">
+              </div>
+              <button type="button" class="btn btn-secondary" style="margin-bottom:1rem" onclick="testMasterConnection()">Test Connection</button>
+              <span id="connTestResult" style="margin-left:.75rem;font-size:14px"></span>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save System Settings</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>Backup & Migration</h3></div>
+          <div class="settings-form">
+            <p style="color:var(--text-muted);margin-bottom:1rem">Download a full database backup for migration or safekeeping. The backup includes all members, accounts, transactions, loans, and settings.</p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+              <button class="btn btn-primary" id="backupBtn" onclick="downloadBackup()">
+                <svg style="width:16px;height:16px;display:inline;vertical-align:middle;margin-right:4px"><use href="#icon-upload"/></svg>
+                Download Backup
+              </button>
+              <span id="backupStatus" style="align-self:center;font-size:14px;color:var(--text-muted)"></span>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -634,7 +715,7 @@
     function removeDenom(idx) { denomConfig.splice(idx, 1); renderDenomList(); }
 
     function resetDenomsToDefault() {
-      if (!confirm('Reset denominations to default USD values?')) return;
+      if (!confirm('Reset denominations to default values?')) return;
       denomConfig = JSON.parse(JSON.stringify(DEFAULT_DENOMS));
       renderDenomList();
     }
@@ -663,6 +744,103 @@
     });
 
     loadDenomSettings();
+
+    // --- System Tab ---
+    function toggleMasterFields() {
+      const mode = document.getElementById('terminalMode').value;
+      document.getElementById('slaveFields').style.display = mode === 'slave' ? 'block' : 'none';
+    }
+
+    async function loadSystemSettings() {
+      try {
+        const r = await apiFetch('/api/v1/tenant/settings');
+        const data = (await r.json()).data || {};
+        if (data.terminal_mode) document.getElementById('terminalMode').value = data.terminal_mode;
+        if (data.terminal_name) document.getElementById('terminalName').value = data.terminal_name;
+        if (data.master_db_host) document.getElementById('masterDbHost').value = data.master_db_host;
+        if (data.master_db_port) document.getElementById('masterDbPort').value = data.master_db_port;
+        if (data.master_db_name) document.getElementById('masterDbName').value = data.master_db_name;
+        if (data.master_db_user) document.getElementById('masterDbUser').value = data.master_db_user;
+        toggleMasterFields();
+      } catch(e) {}
+    }
+
+    document.getElementById('systemForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const mode = document.getElementById('terminalMode').value;
+      const payload = {
+        terminal_mode: mode,
+        terminal_name: document.getElementById('terminalName').value,
+      };
+      if (mode === 'slave') {
+        payload.master_db_host = document.getElementById('masterDbHost').value;
+        payload.master_db_port = document.getElementById('masterDbPort').value;
+        payload.master_db_name = document.getElementById('masterDbName').value;
+        payload.master_db_user = document.getElementById('masterDbUser').value;
+        const pass = document.getElementById('masterDbPass').value;
+        if (pass) payload.master_db_pass = pass;
+      }
+      try {
+        await apiFetch('/api/v1/tenant/settings', {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+        alert('System settings saved.' + (mode === 'slave' ? ' Restart the application to connect to the master database.' : ''));
+      } catch (err) { alert('Failed to save system settings.'); }
+    });
+
+    async function testMasterConnection() {
+      const result = document.getElementById('connTestResult');
+      result.textContent = 'Testing...';
+      result.style.color = 'var(--text-muted)';
+      try {
+        const resp = await apiFetch('/api/v1/admin/test-db-connection', {
+          method: 'POST',
+          body: JSON.stringify({
+            host: document.getElementById('masterDbHost').value,
+            port: document.getElementById('masterDbPort').value,
+            database: document.getElementById('masterDbName').value,
+            username: document.getElementById('masterDbUser').value,
+            password: document.getElementById('masterDbPass').value,
+          })
+        });
+        const json = await resp.json();
+        if (resp.ok) {
+          result.textContent = 'Connected successfully!';
+          result.style.color = 'var(--success)';
+        } else {
+          result.textContent = 'Failed: ' + (json.message || 'Connection refused');
+          result.style.color = 'var(--danger)';
+        }
+      } catch(e) {
+        result.textContent = 'Error: ' + e.message;
+        result.style.color = 'var(--danger)';
+      }
+    }
+
+    async function downloadBackup() {
+      const btn = document.getElementById('backupBtn');
+      const status = document.getElementById('backupStatus');
+      btn.disabled = true;
+      status.textContent = 'Generating backup...';
+      try {
+        const resp = await apiFetch('/api/v1/admin/backup');
+        if (!resp.ok) throw new Error('Backup failed');
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'synccu-backup-' + new Date().toISOString().slice(0,10) + '.sql';
+        a.click();
+        URL.revokeObjectURL(url);
+        status.textContent = 'Backup downloaded.';
+      } catch(e) {
+        status.textContent = 'Backup failed: ' + e.message;
+        status.style.color = 'var(--danger)';
+      } finally { btn.disabled = false; }
+    }
+
+    loadSystemSettings();
   </script>
 </body>
 </html>

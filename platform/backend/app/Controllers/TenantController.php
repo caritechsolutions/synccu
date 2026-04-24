@@ -94,6 +94,14 @@ final class TenantController
             'network_endpoint_url'  => 'nullable|string|max:512',
             'network_transfer_fee'  => 'nullable|numeric',
             'network_fee_type'      => 'nullable|string|max:20',
+            'terminal_mode'         => 'nullable|in:master,slave',
+            'terminal_name'         => 'nullable|string|max:255',
+            'master_db_host'        => 'nullable|string|max:255',
+            'master_db_port'        => 'nullable|string|max:10',
+            'master_db_name'        => 'nullable|string|max:100',
+            'master_db_user'        => 'nullable|string|max:100',
+            'master_db_pass'        => 'nullable|string|max:255',
+            'cash_denominations'    => 'nullable',
         ]);
 
         if ($validator->fails()) {
