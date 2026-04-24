@@ -318,6 +318,52 @@ async function loadDashboardData() {
   }
 }
 
+async function runReconcile() {
+  const btn = document.getElementById('reconcileBtn');
+  if (!btn) return;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = 'Syncing...';
+
+  try {
+    const resp = await apiFetch('/api/v1/admin/reconcile', { method: 'POST' });
+    const json = await resp.json();
+    const d = json.data || json;
+    const fixes = d.total_fixes || 0;
+
+    let msg = fixes === 0
+      ? 'All balances are in sync. No corrections needed.'
+      : fixes + ' balance(s) corrected:\n';
+
+    if (d.accounts && d.accounts.details && d.accounts.details.length) {
+      msg += '\nAccounts:\n';
+      d.accounts.details.forEach(a => {
+        msg += '  ' + a.account_number + ' (' + a.type + '): $' + a.was + ' -> $' + a.should_be + '\n';
+      });
+    }
+    if (d.loans && d.loans.details && d.loans.details.length) {
+      msg += '\nLoans:\n';
+      d.loans.details.forEach(l => {
+        msg += '  ' + l.loan_number + ': $' + l.balance_was + ' -> $' + l.balance_should_be + '\n';
+      });
+    }
+    if (d.fund_locations && d.fund_locations.details && d.fund_locations.details.length) {
+      msg += '\nFund Locations:\n';
+      d.fund_locations.details.forEach(f => {
+        msg += '  ' + f.name + ' (' + f.type + '): $' + f.was + ' -> $' + f.should_be + '\n';
+      });
+    }
+
+    alert(msg);
+    if (fixes > 0) loadDashboardData();
+  } catch (e) {
+    alert('Reconciliation failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   try {
     const user = JSON.parse(localStorage.getItem('synccu-user'));

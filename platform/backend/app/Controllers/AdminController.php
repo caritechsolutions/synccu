@@ -8,6 +8,7 @@ use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Validator;
+use App\Services\ReconciliationService;
 
 /**
  * Admin REST controller.
@@ -675,6 +676,25 @@ final class AdminController
              ORDER BY count DESC',
             [$tenantId],
         );
+    }
+
+    public function reconcile(Request $request): Response
+    {
+        $tenantId = $this->db->getTenantId();
+        $dryRun = $request->query('dry_run', '0') === '1';
+
+        try {
+            $service = new ReconciliationService();
+            $results = $service->reconcileAll($tenantId, $dryRun);
+
+            $msg = $dryRun
+                ? "Dry run complete. {$results['total_fixes']} discrepancies found."
+                : "Reconciliation complete. {$results['total_fixes']} balances corrected.";
+
+            return Response::ok($results, $msg);
+        } catch (\Throwable $e) {
+            return Response::error('Reconciliation failed: ' . $e->getMessage(), 500);
+        }
     }
 
     private function delinquencyReport(string $tenantId): array

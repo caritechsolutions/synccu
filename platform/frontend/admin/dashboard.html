@@ -252,11 +252,15 @@
 
     <!-- Page Content -->
     <main class="main-content">
-      <div class="page-header">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
         <div>
           <h1 class="page-title">Dashboard</h1>
           <p class="page-subtitle">Welcome back, Admin. Here is your credit union overview.</p>
         </div>
+        <button class="btn btn-primary" id="reconcileBtn" style="white-space:nowrap" onclick="runReconcile()">
+          <svg style="width:16px;height:16px;display:inline;vertical-align:middle;margin-right:4px"><use href="#icon-settings"/></svg>
+          Sync Balances
+        </button>
       </div>
 
       <!-- Stat Cards -->

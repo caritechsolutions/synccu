@@ -207,6 +207,7 @@ $router->group([
     $router->get('/audit-logs',  [AdminController::class, 'auditLogs']);
     $router->get('/reports',     [AdminController::class, 'reports']);
     $router->get('/loan-stats',  [AdminController::class, 'loanStats']);
+    $router->post('/reconcile',  [AdminController::class, 'reconcile']);
 });
 
 // ------------------------------------------------------------------
