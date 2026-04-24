@@ -71,7 +71,8 @@ $router->group([
         TenantMiddleware::class,
     ],
 ], function ($router) {
-    $router->post('/logout', [AuthController::class, 'logout']);
+    $router->post('/logout',          [AuthController::class, 'logout']);
+    $router->post('/change-password', [AuthController::class, 'changePassword']);
 });
 
 // ------------------------------------------------------------------

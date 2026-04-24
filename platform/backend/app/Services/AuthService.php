@@ -87,11 +87,12 @@ final class AuthService
         );
 
         return [
-            'access_token'  => $accessToken,
-            'refresh_token' => $refreshToken,
-            'token_type'    => 'Bearer',
-            'expires_in'    => (int) env('JWT_EXPIRY', 3600),
-            'user'          => $this->sanitizeUser($user),
+            'access_token'          => $accessToken,
+            'refresh_token'         => $refreshToken,
+            'token_type'            => 'Bearer',
+            'expires_in'            => (int) env('JWT_EXPIRY', 3600),
+            'user'                  => $this->sanitizeUser($user),
+            'force_password_change' => (bool) ($user['force_password_change'] ?? false),
         ];
     }
 
@@ -307,6 +308,33 @@ final class AuthService
 
         // Revoke all refresh tokens for security
         $this->logout($reset['user_id']);
+    }
+
+    // ------------------------------------------------------------------
+    // Change Password
+    // ------------------------------------------------------------------
+
+    public function changePassword(string $userId, string $currentPassword, string $newPassword): void
+    {
+        $user = $this->db->findScoped('users', ['id' => $userId]);
+        if ($user === null) {
+            throw new RuntimeException('User not found.', 404);
+        }
+
+        if (!password_verify($currentPassword, $user['password_hash'])) {
+            throw new RuntimeException('Current password is incorrect.', 400);
+        }
+
+        if (strlen($newPassword) < 8) {
+            throw new RuntimeException('New password must be at least 8 characters.', 422);
+        }
+
+        $this->db->execute(
+            'UPDATE users SET password_hash = ?, password_changed_at = NOW(), force_password_change = 0, updated_at = NOW() WHERE id = ?',
+            [password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]), $userId],
+        );
+
+        $this->logout($userId);
     }
 
     // ------------------------------------------------------------------

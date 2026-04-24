@@ -118,6 +118,38 @@ final class AuthController
     }
 
     /**
+     * POST /api/auth/change-password
+     */
+    public function changePassword(Request $request): Response
+    {
+        $userId = $request->getAttribute('user_id');
+        if (!$userId) {
+            return Response::error('Not authenticated', 401);
+        }
+
+        $validator = new Validator($request->all(), [
+            'current_password' => 'required|string',
+            'new_password'     => 'required|string|min:8|max:128',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        try {
+            $this->auth->changePassword(
+                $userId,
+                $request->input('current_password'),
+                $request->input('new_password'),
+            );
+            return Response::ok(null, 'Password changed successfully. Please log in again.');
+        } catch (\RuntimeException $e) {
+            $code = (int) $e->getCode();
+            return Response::error($e->getMessage(), $code >= 400 ? $code : 400);
+        }
+    }
+
+    /**
      * POST /api/auth/forgot-password
      */
     public function forgotPassword(Request $request): Response

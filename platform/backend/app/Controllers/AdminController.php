@@ -235,12 +235,14 @@ final class AdminController
     public function createMember(Request $request): Response
     {
         $validator = new Validator($request->all(), [
-            'email'      => 'required|email',
-            'first_name' => 'required|string|max:100',
-            'last_name'  => 'required|string|max:100',
-            'phone'      => 'nullable|string|max:20',
-            'role'       => 'nullable|in:member,teller,manager,admin',
-            'status'     => 'nullable|in:active,inactive',
+            'email'                 => 'required|email',
+            'first_name'            => 'required|string|max:100',
+            'last_name'             => 'required|string|max:100',
+            'phone'                 => 'nullable|string|max:20',
+            'password'              => 'nullable|string|min:8|max:128',
+            'role'                  => 'nullable|in:member,teller,manager,admin',
+            'status'                => 'nullable|in:active,inactive',
+            'force_password_change' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -267,17 +269,20 @@ final class AdminController
             bin2hex(random_bytes(6))
         );
         $now = date('Y-m-d H:i:s');
-        $passwordHash = password_hash('changeme123', PASSWORD_BCRYPT);
+        $password = $data['password'] ?? 'changeme123';
+        $passwordHash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+        $forceChange = ($data['force_password_change'] ?? '0') === '1' ? 1 : 0;
 
         $this->db->execute(
-            'INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, phone, role, status, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, phone, role, status, force_password_change, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $id, $tenantId, $data['email'], $passwordHash,
                 $data['first_name'], $data['last_name'],
                 $data['phone'] ?? null,
                 $data['role'] ?? 'member',
                 $data['status'] ?? 'active',
+                $forceChange,
                 $now, $now,
             ],
         );
@@ -456,12 +461,14 @@ final class AdminController
         $userId = $request->param('id');
 
         $validator = new Validator($request->all(), [
-            'email'      => 'nullable|email',
-            'first_name' => 'nullable|string|max:100',
-            'last_name'  => 'nullable|string|max:100',
-            'phone'      => 'nullable|string|max:20',
-            'role'       => 'nullable|in:admin,manager,teller,member',
-            'status'     => 'nullable|in:active,inactive,suspended',
+            'email'                 => 'nullable|email',
+            'first_name'            => 'nullable|string|max:100',
+            'last_name'             => 'nullable|string|max:100',
+            'phone'                 => 'nullable|string|max:20',
+            'password'              => 'nullable|string|min:8|max:128',
+            'role'                  => 'nullable|in:admin,manager,teller,member',
+            'status'                => 'nullable|in:active,inactive,suspended',
+            'force_password_change' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -496,6 +503,15 @@ final class AdminController
             if ($adminCount <= 1) {
                 return Response::error('Cannot change the role of the last administrator', 422);
             }
+        }
+
+        if (isset($data['password'])) {
+            $data['password_hash'] = password_hash($data['password'], PASSWORD_BCRYPT, ['cost' => 12]);
+            $data['password_changed_at'] = date('Y-m-d H:i:s');
+            unset($data['password']);
+        }
+        if (isset($data['force_password_change'])) {
+            $data['force_password_change'] = $data['force_password_change'] === '1' ? 1 : 0;
         }
 
         $data['updated_at'] = date('Y-m-d H:i:s');

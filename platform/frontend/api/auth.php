@@ -186,7 +186,7 @@ switch ($action) {
         // Find user
         $stmt = $pdo->prepare("
             SELECT id, tenant_id, email, password_hash, first_name, last_name, role, status,
-                   failed_login_attempts, locked_until
+                   failed_login_attempts, locked_until, force_password_change
             FROM users
             WHERE email = ? AND status != 'inactive'
             LIMIT 1
@@ -265,6 +265,7 @@ switch ($action) {
             'message' => 'Login successful',
             'access_token' => $accessToken,
             'refresh_token' => $refreshToken,
+            'force_password_change' => (bool) ($user['force_password_change'] ?? false),
             'user' => [
                 'id' => $user['id'],
                 'email' => $user['email'],
