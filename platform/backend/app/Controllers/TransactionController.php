@@ -482,9 +482,7 @@ final class TransactionController
         $transaction = $db->fetchOne(
             "SELECT t.*, a.account_number, a.name AS account_name, a.account_type,
                     CONCAT(u.first_name, ' ', u.last_name) AS member_name,
-                    u.address_line_1 AS member_address,
-                    u.city AS member_city,
-                    u.state AS member_state,
+                    u.email AS member_email, u.phone AS member_phone,
                     ra.account_number AS related_account_number,
                     ra.name AS related_account_name,
                     CONCAT(p.first_name, ' ', p.last_name) AS teller_name
