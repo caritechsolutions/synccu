@@ -75,15 +75,107 @@ final class AdminController
             [$tenantId, 'delinquent'],
         );
 
+        // Transaction volume by day (last 30 days) — for line/area chart
+        $transactionTrend = $this->db->fetchAll(
+            'SELECT DATE(created_at) AS date, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total
+             FROM transactions
+             WHERE tenant_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+             GROUP BY DATE(created_at)
+             ORDER BY date',
+            [$tenantId],
+        );
+
+        // Deposits vs Withdrawals this month — for comparison
+        $depositVsWithdrawal = $this->db->fetchAll(
+            "SELECT type, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total
+             FROM transactions
+             WHERE tenant_id = ? AND type IN ('deposit', 'withdrawal')
+               AND created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
+             GROUP BY type",
+            [$tenantId],
+        );
+
+        // Account types breakdown — for donut chart
+        $accountTypes = $this->db->fetchAll(
+            "SELECT account_type, COUNT(*) AS count, COALESCE(SUM(balance), 0) AS total_balance
+             FROM accounts
+             WHERE tenant_id = ? AND status = 'active'
+             GROUP BY account_type",
+            [$tenantId],
+        );
+
+        // Loan status breakdown — for donut chart
+        $loanStatus = $this->db->fetchAll(
+            'SELECT status, COUNT(*) AS count, COALESCE(SUM(outstanding_balance), 0) AS total
+             FROM loans
+             WHERE tenant_id = ?
+             GROUP BY status',
+            [$tenantId],
+        );
+
+        // Today's stats
+        $todayDate = date('Y-m-d');
+
+        $todayDeposits = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount), 0) FROM transactions
+             WHERE tenant_id = ? AND type = 'deposit' AND DATE(created_at) = ?",
+            [$tenantId, $todayDate],
+        ) ?? 0);
+
+        $todayWithdrawals = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount), 0) FROM transactions
+             WHERE tenant_id = ? AND type = 'withdrawal' AND DATE(created_at) = ?",
+            [$tenantId, $todayDate],
+        ) ?? 0);
+
+        $todayTransactions = (int) $this->db->fetchColumn(
+            'SELECT COUNT(*) FROM transactions
+             WHERE tenant_id = ? AND DATE(created_at) = ?',
+            [$tenantId, $todayDate],
+        );
+
+        $newMembersToday = (int) $this->db->fetchColumn(
+            "SELECT COUNT(*) FROM users
+             WHERE tenant_id = ? AND role = 'member' AND DATE(created_at) = ?",
+            [$tenantId, $todayDate],
+        );
+
+        $todayStats = [
+            'today_deposits'      => round($todayDeposits, 2),
+            'today_withdrawals'   => round($todayWithdrawals, 2),
+            'today_transactions'  => $todayTransactions,
+            'new_members_today'   => $newMembersToday,
+        ];
+
+        // Cash position (fund_locations table may not exist)
+        $cashPosition = [];
+        try {
+            $cashPosition = $this->db->fetchAll(
+                "SELECT type, COALESCE(SUM(balance), 0) AS total
+                 FROM fund_locations
+                 WHERE tenant_id = ? AND status = 'active'
+                 GROUP BY type",
+                [$tenantId],
+            );
+        } catch (\Throwable) {
+            // Table may not exist — return empty array
+        }
+
         return Response::ok([
-            'members'              => $totalMembers,
-            'active_accounts'      => $totalAccounts,
-            'total_deposits'       => round($totalDeposits, 2),
-            'active_loans'         => $totalLoans,
-            'total_loan_balance'   => round($totalLoanBalance, 2),
-            'pending_loan_apps'    => $pendingLoans,
-            'delinquent_loans'     => $delinquentLoans,
-            'recent_transactions'  => $recentTransactions,
+            'members'                => $totalMembers,
+            'active_accounts'        => $totalAccounts,
+            'total_deposits'         => round($totalDeposits, 2),
+            'active_loans'           => $totalLoans,
+            'total_loan_balance'     => round($totalLoanBalance, 2),
+            'pending_loan_apps'      => $pendingLoans,
+            'delinquent_loans'       => $delinquentLoans,
+            'recent_transactions'    => $recentTransactions,
+            'transaction_trend'      => $transactionTrend,
+            'deposit_vs_withdrawal'  => $depositVsWithdrawal,
+            'account_types'          => $accountTypes,
+            'loan_status'            => $loanStatus,
+            'today'                  => $todayStats,
+            'cash_position'          => $cashPosition,
         ]);
     }
 

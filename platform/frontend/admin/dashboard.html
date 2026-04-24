@@ -6,9 +6,110 @@
   <meta name="description" content="SyncCU Admin Dashboard - Overview of credit union operations and key metrics.">
   <title>Dashboard - SyncCU Admin</title>
   <link rel="stylesheet" href="../css/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script>
     if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }
   </script>
+  <style>
+    .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 24px; }
+    .dash-card {
+      background: var(--card-bg, #fff); border-radius: 16px; padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      transition: transform 0.2s, box-shadow 0.2s; position: relative; overflow: hidden;
+    }
+    .dash-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+    .dash-animate-in { animation: dashSlideUp 0.5s ease both; }
+    @keyframes dashSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    .stat-card-modern { position: relative; }
+    .stat-card-modern::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 16px 16px 0 0;
+    }
+    .stat-card-modern.grad-blue::before { background: linear-gradient(90deg, #3b82f6, #06b6d4); }
+    .stat-card-modern.grad-green::before { background: linear-gradient(90deg, #10b981, #34d399); }
+    .stat-card-modern.grad-orange::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .stat-card-modern.grad-purple::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+    .stat-card-modern.grad-cyan::before { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+    .stat-card-modern.grad-pink::before { background: linear-gradient(90deg, #ec4899, #f472b6); }
+
+    .stat-icon-wrap {
+      width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center;
+      justify-content: center; margin-bottom: 16px;
+    }
+    .stat-icon-wrap svg { width: 24px; height: 24px; }
+    .stat-icon-wrap.bg-blue { background: rgba(59,130,246,0.1); color: #3b82f6; }
+    .stat-icon-wrap.bg-green { background: rgba(16,185,129,0.1); color: #10b981; }
+    .stat-icon-wrap.bg-orange { background: rgba(245,158,11,0.1); color: #f59e0b; }
+    .stat-icon-wrap.bg-purple { background: rgba(139,92,246,0.1); color: #8b5cf6; }
+    .stat-icon-wrap.bg-cyan { background: rgba(6,182,212,0.1); color: #06b6d4; }
+    .stat-icon-wrap.bg-pink { background: rgba(236,72,153,0.1); color: #ec4899; }
+
+    .stat-value-lg { font-size: 28px; font-weight: 700; color: var(--text-primary, #111); line-height: 1.2; }
+    .stat-label-sm { font-size: 13px; color: var(--text-muted, #6b7280); margin-top: 4px; display: block; }
+
+    .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+    .chart-wrap { height: 300px; position: relative; }
+    .chart-title { font-size: 16px; font-weight: 600; color: var(--text-primary, #111); margin-bottom: 16px; }
+
+    .today-strip {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 16px;
+      padding: 24px; margin-bottom: 24px; color: #fff;
+    }
+    .today-item { text-align: center; }
+    .today-item .today-val { font-size: 24px; font-weight: 700; display: block; }
+    .today-item .today-lbl { font-size: 12px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; display: block; }
+
+    .bottom-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 24px; }
+    @media (max-width: 900px) { .chart-grid, .bottom-grid { grid-template-columns: 1fr; } }
+
+    .cash-pos-card {
+      display: flex; align-items: center; gap: 14px; padding: 16px;
+      border-radius: 12px; background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e5e7eb);
+    }
+    .cash-pos-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+    .cash-pos-icon svg { width: 20px; height: 20px; }
+    .cash-pos-blue .cash-pos-icon { background: rgba(59,130,246,0.1); color: #3b82f6; }
+    .cash-pos-green .cash-pos-icon { background: rgba(16,185,129,0.1); color: #10b981; }
+    .cash-pos-purple .cash-pos-icon { background: rgba(139,92,246,0.1); color: #8b5cf6; }
+    .cash-pos-label { font-size: 12px; color: var(--text-muted, #6b7280); text-transform: capitalize; display: block; }
+    .cash-pos-value { font-size: 18px; font-weight: 700; color: var(--text-primary, #111); }
+
+    .cash-pos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+
+    .txn-type-badge {
+      display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px;
+      background: rgba(59,130,246,0.08); color: #3b82f6; text-transform: capitalize; font-weight: 500;
+    }
+    .font-semibold { font-weight: 600; }
+
+    .quick-actions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .qa-btn {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+      padding: 20px 12px; border-radius: 12px; border: 1px solid var(--border-color, #e5e7eb);
+      background: var(--card-bg, #fff); color: var(--text-primary, #111); text-decoration: none;
+      transition: all 0.2s; font-size: 13px; font-weight: 500;
+    }
+    .qa-btn:hover { border-color: #3b82f6; background: rgba(59,130,246,0.04); color: #3b82f6; transform: translateY(-2px); }
+    .qa-btn svg { width: 24px; height: 24px; color: #6b7280; }
+    .qa-btn:hover svg { color: #3b82f6; }
+
+    .alerts-list { list-style: none; padding: 0; margin: 0; }
+    .alerts-list li {
+      display: flex; align-items: center; gap: 12px; padding: 12px 0;
+      border-bottom: 1px solid var(--border-color, #e5e7eb); font-size: 14px;
+    }
+    .alerts-list li:last-child { border-bottom: none; }
+    .alert-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .alert-dot.dot-red { background: #ef4444; }
+    .alert-dot.dot-orange { background: #f59e0b; }
+    .alert-dot.dot-blue { background: #3b82f6; }
+    .alert-dot.dot-green { background: #10b981; }
+    .alert-count { font-weight: 700; margin-left: auto; padding: 2px 10px; border-radius: 20px; font-size: 12px; }
+    .alert-count.cnt-red { background: rgba(239,68,68,0.1); color: #ef4444; }
+    .alert-count.cnt-orange { background: rgba(245,158,11,0.1); color: #f59e0b; }
+    .alert-count.cnt-blue { background: rgba(59,130,246,0.1); color: #3b82f6; }
+  </style>
 </head>
 <body>
   <!-- SVG Sprite (inline) -->
@@ -138,183 +239,130 @@
       </div>
 
       <!-- Stat Cards -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon stat-icon-blue">
-            <svg><use href="#icon-users"/></svg>
-          </div>
-          <div class="stat-info">
-            <span class="stat-value" id="statMembers">2,847</span>
-            <span class="stat-label">Total Members</span>
-          </div>
-          <span class="stat-change positive">
-            <svg><use href="#icon-arrow-up"/></svg> +4.2%
-          </span>
+      <div class="dash-grid">
+        <div class="dash-card stat-card-modern grad-blue">
+          <div class="stat-icon-wrap bg-blue"><svg><use href="#icon-users"/></svg></div>
+          <span class="stat-value-lg" id="statMembers">0</span>
+          <span class="stat-label-sm">Total Members</span>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon stat-icon-green">
-            <svg><use href="#icon-dollar"/></svg>
-          </div>
-          <div class="stat-info">
-            <span class="stat-value" id="statDeposits">$14.2M</span>
-            <span class="stat-label">Total Deposits</span>
-          </div>
-          <span class="stat-change positive">
-            <svg><use href="#icon-arrow-up"/></svg> +8.1%
-          </span>
+        <div class="dash-card stat-card-modern grad-green">
+          <div class="stat-icon-wrap bg-green"><svg><use href="#icon-dollar"/></svg></div>
+          <span class="stat-value-lg" id="statDeposits">$0</span>
+          <span class="stat-label-sm">Total Deposits</span>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon stat-icon-orange">
-            <svg><use href="#icon-credit-card"/></svg>
-          </div>
-          <div class="stat-info">
-            <span class="stat-value" id="statLoans">438</span>
-            <span class="stat-label">Active Loans</span>
-          </div>
-          <span class="stat-change negative">
-            <svg><use href="#icon-arrow-down"/></svg> -1.5%
-          </span>
+        <div class="dash-card stat-card-modern grad-orange">
+          <div class="stat-icon-wrap bg-orange"><svg><use href="#icon-credit-card"/></svg></div>
+          <span class="stat-value-lg" id="statLoans">0</span>
+          <span class="stat-label-sm">Active Loans</span>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon stat-icon-purple">
-            <svg><use href="#icon-chart"/></svg>
-          </div>
-          <div class="stat-info">
-            <span class="stat-value" id="statRevenue">$86.4K</span>
-            <span class="stat-label">Monthly Revenue</span>
-          </div>
-          <span class="stat-change positive">
-            <svg><use href="#icon-arrow-up"/></svg> +12.3%
-          </span>
+        <div class="dash-card stat-card-modern grad-purple">
+          <div class="stat-icon-wrap bg-purple"><svg><use href="#icon-chart"/></svg></div>
+          <span class="stat-value-lg" id="statLoanBal">$0</span>
+          <span class="stat-label-sm">Loan Balance</span>
+        </div>
+        <div class="dash-card stat-card-modern grad-cyan">
+          <div class="stat-icon-wrap bg-cyan"><svg><use href="#icon-send"/></svg></div>
+          <span class="stat-value-lg" id="statTodayTxn">0</span>
+          <span class="stat-label-sm">Today's Transactions</span>
+        </div>
+        <div class="dash-card stat-card-modern grad-pink">
+          <div class="stat-icon-wrap bg-pink"><svg><use href="#icon-arrow-up"/></svg></div>
+          <span class="stat-value-lg" id="statTodayDep">$0</span>
+          <span class="stat-label-sm">Today's Deposits</span>
         </div>
       </div>
 
-      <!-- Two-Column Layout -->
-      <div class="content-grid">
-        <!-- Recent Transactions -->
-        <div class="card card-wide">
-          <div class="card-header">
-            <h3>Recent Transactions</h3>
-            <a href="transactions.html" class="card-link">View All</a>
+      <!-- Today's Highlights -->
+      <div class="today-strip">
+        <div class="today-item">
+          <span class="today-val" id="activeAccounts">0</span>
+          <span class="today-lbl">Active Accounts</span>
+        </div>
+        <div class="today-item">
+          <span class="today-val" id="pendingLoans">0</span>
+          <span class="today-lbl">Pending Applications</span>
+        </div>
+        <div class="today-item">
+          <span class="today-val" id="delinquentLoans">0</span>
+          <span class="today-lbl">Delinquent Loans</span>
+        </div>
+        <div class="today-item">
+          <span class="today-val" id="newMembersToday">0</span>
+          <span class="today-lbl">New Members Today</span>
+        </div>
+        <div class="today-item">
+          <span class="today-val" id="todayWithdrawals">$0</span>
+          <span class="today-lbl">Today's Withdrawals</span>
+        </div>
+      </div>
+
+      <!-- Charts Row 1: Trend + Deposits vs Withdrawals -->
+      <div class="chart-grid">
+        <div class="dash-card">
+          <div class="chart-title">Transaction Trend (30 Days)</div>
+          <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+        </div>
+        <div class="dash-card">
+          <div class="chart-title">Deposits vs Withdrawals (This Month)</div>
+          <div class="chart-wrap"><canvas id="depWithChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Charts Row 2: Account Types + Loan Status -->
+      <div class="chart-grid">
+        <div class="dash-card">
+          <div class="chart-title">Account Types by Balance</div>
+          <div class="chart-wrap"><canvas id="acctChart"></canvas></div>
+        </div>
+        <div class="dash-card">
+          <div class="chart-title">Loan Status Overview</div>
+          <div class="chart-wrap"><canvas id="loanChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Cash Position -->
+      <div class="dash-card" style="margin-bottom:24px">
+        <div class="chart-title">Cash Position</div>
+        <div class="cash-pos-grid" id="cashPositionCards">
+          <p style="color:var(--text-muted);text-align:center;padding:24px">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Bottom: Recent Transactions + Quick Actions -->
+      <div class="bottom-grid">
+        <div class="dash-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div class="chart-title" style="margin-bottom:0">Recent Transactions</div>
+            <a href="transactions.html" style="font-size:13px;color:#3b82f6;text-decoration:none;font-weight:500">View All</a>
           </div>
           <div class="table-responsive">
             <table class="data-table">
               <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th>Member</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                </tr>
+                <tr><th>Date</th><th>Type</th><th>Reference</th><th>Amount</th><th>Status</th></tr>
               </thead>
               <tbody id="recentTransactions">
-                <tr>
-                  <td>Mar 27, 2026</td>
-                  <td>Direct Deposit</td>
-                  <td>Jane Cooper</td>
-                  <td class="text-green">+$3,240.00</td>
-                  <td><span class="badge badge-success">Completed</span></td>
-                </tr>
-                <tr>
-                  <td>Mar 27, 2026</td>
-                  <td>Wire Transfer</td>
-                  <td>Robert Fox</td>
-                  <td class="text-red">-$1,500.00</td>
-                  <td><span class="badge badge-success">Completed</span></td>
-                </tr>
-                <tr>
-                  <td>Mar 26, 2026</td>
-                  <td>Loan Payment</td>
-                  <td>Emily Wilson</td>
-                  <td class="text-green">+$842.50</td>
-                  <td><span class="badge badge-success">Completed</span></td>
-                </tr>
-                <tr>
-                  <td>Mar 26, 2026</td>
-                  <td>ATM Withdrawal</td>
-                  <td>Michael Brown</td>
-                  <td class="text-red">-$200.00</td>
-                  <td><span class="badge badge-warning">Pending</span></td>
-                </tr>
-                <tr>
-                  <td>Mar 25, 2026</td>
-                  <td>Account Transfer</td>
-                  <td>Sarah Davis</td>
-                  <td class="text-red">-$5,000.00</td>
-                  <td><span class="badge badge-success">Completed</span></td>
-                </tr>
+                <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px">Loading...</td></tr>
               </tbody>
             </table>
           </div>
         </div>
-
-        <!-- Quick Actions -->
-        <div class="card card-narrow">
-          <div class="card-header">
-            <h3>Quick Actions</h3>
+        <div class="dash-card">
+          <div class="chart-title">Quick Actions</div>
+          <div class="quick-actions-grid">
+            <a href="members.html?action=new" class="qa-btn"><svg><use href="#icon-users"/></svg>New Member</a>
+            <a href="accounts.html?action=new" class="qa-btn"><svg><use href="#icon-wallet"/></svg>New Account</a>
+            <a href="transactions.html?action=new" class="qa-btn"><svg><use href="#icon-send"/></svg>Transaction</a>
+            <a href="loans.html" class="qa-btn"><svg><use href="#icon-credit-card"/></svg>Loans</a>
+            <a href="cash-management.html" class="qa-btn"><svg><use href="#icon-key"/></svg>Cash Mgmt</a>
+            <a href="reports.html" class="qa-btn"><svg><use href="#icon-file-text"/></svg>Reports</a>
           </div>
-          <div class="quick-actions">
-            <a href="members.html?action=new" class="quick-action-btn">
-              <svg><use href="#icon-users"/></svg>
-              <span>New Member</span>
-            </a>
-            <a href="accounts.html?action=new" class="quick-action-btn">
-              <svg><use href="#icon-wallet"/></svg>
-              <span>New Account</span>
-            </a>
-            <a href="transactions.html?action=new" class="quick-action-btn">
-              <svg><use href="#icon-send"/></svg>
-              <span>Process Transaction</span>
-            </a>
-            <a href="reports.html" class="quick-action-btn">
-              <svg><use href="#icon-file-text"/></svg>
-              <span>Generate Report</span>
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <!-- Activity Feed -->
-      <div class="card">
-        <div class="card-header">
-          <h3>Recent Activity</h3>
-        </div>
-        <div class="activity-feed" id="activityFeed">
-          <div class="activity-item">
-            <div class="activity-dot dot-blue"></div>
-            <div class="activity-content">
-              <p><strong>New member registered:</strong> Patricia Garcia</p>
-              <span class="activity-time">2 minutes ago</span>
-            </div>
-          </div>
-          <div class="activity-item">
-            <div class="activity-dot dot-green"></div>
-            <div class="activity-content">
-              <p><strong>Loan approved:</strong> #LN-2026-0482 for $25,000</p>
-              <span class="activity-time">15 minutes ago</span>
-            </div>
-          </div>
-          <div class="activity-item">
-            <div class="activity-dot dot-orange"></div>
-            <div class="activity-content">
-              <p><strong>Large deposit flagged:</strong> $50,000 from Robert Fox</p>
-              <span class="activity-time">1 hour ago</span>
-            </div>
-          </div>
-          <div class="activity-item">
-            <div class="activity-dot dot-purple"></div>
-            <div class="activity-content">
-              <p><strong>Monthly report generated:</strong> February 2026 Financial Summary</p>
-              <span class="activity-time">3 hours ago</span>
-            </div>
-          </div>
-          <div class="activity-item">
-            <div class="activity-dot dot-blue"></div>
-            <div class="activity-content">
-              <p><strong>Account closed:</strong> Savings #4821 per member request</p>
-              <span class="activity-time">5 hours ago</span>
-            </div>
+          <div style="margin-top:20px">
+            <div class="chart-title">Alerts</div>
+            <ul class="alerts-list">
+              <li><span class="alert-dot dot-red"></span>Delinquent Loans<span class="alert-count cnt-red" id="alertDelinquent">0</span></li>
+              <li><span class="alert-dot dot-orange"></span>Pending Applications<span class="alert-count cnt-orange" id="alertPending">0</span></li>
+              <li><span class="alert-dot dot-blue"></span>Active Accounts<span class="alert-count cnt-blue" id="alertAccounts">0</span></li>
+            </ul>
           </div>
         </div>
       </div>
@@ -322,52 +370,6 @@
   </div>
 
   <script src="../js/admin-common.js"></script>
-  <script>
-    // Populate welcome message with user name
-    try {
-      const user = JSON.parse(localStorage.getItem('synccu-user'));
-      if (user) {
-        const subtitle = document.querySelector('.page-subtitle');
-        if (subtitle) subtitle.textContent = 'Welcome back, ' + (user.first_name || 'Admin') + '. Here is your credit union overview.';
-      }
-    } catch(e) {}
-
-    // Load dashboard data from API
-    async function loadDashboardData() {
-      try {
-        const resp = await apiFetch('/api/v1/admin/dashboard');
-        if (!resp.ok) return;
-        const json = await resp.json();
-        const d = json.data || json;
-        if (d.members !== undefined) document.getElementById('statMembers').textContent = Number(d.members).toLocaleString();
-        if (d.total_deposits !== undefined) {
-          const dep = d.total_deposits;
-          document.getElementById('statDeposits').textContent = dep >= 1000000 ? '$' + (dep / 1000000).toFixed(1) + 'M' : '$' + (dep / 1000).toFixed(1) + 'K';
-        }
-        if (d.active_loans !== undefined) document.getElementById('statLoans').textContent = Number(d.active_loans).toLocaleString();
-        if (d.total_loan_balance !== undefined) {
-          const rev = d.total_loan_balance;
-          document.getElementById('statRevenue').textContent = rev >= 1000000 ? '$' + (rev / 1000000).toFixed(1) + 'M' : '$' + (rev / 1000).toFixed(1) + 'K';
-        }
-        // Populate recent transactions from API
-        if (d.recent_transactions && d.recent_transactions.length > 0) {
-          const tbody = document.getElementById('recentTransactions');
-          if (tbody) {
-            tbody.innerHTML = d.recent_transactions.map(t => {
-              const date = new Date(t.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
-              const isCredit = ['deposit','interest','loan_payment'].includes(t.type);
-              const amtClass = isCredit ? 'text-green' : 'text-red';
-              const amtSign = isCredit ? '+' : '-';
-              const statusClass = t.status === 'completed' ? 'badge-success' : t.status === 'pending' ? 'badge-warning' : 'badge-neutral';
-              return '<tr><td>' + date + '</td><td>' + (t.description || t.type) + '</td><td>' + (t.reference_number || '-') + '</td>' +
-                '<td class="' + amtClass + '">' + amtSign + '$' + Number(t.amount).toLocaleString(undefined,{minimumFractionDigits:2}) + '</td>' +
-                '<td><span class="badge ' + statusClass + '">' + t.status + '</span></td></tr>';
-            }).join('');
-          }
-        }
-      } catch (e) { console.error('Dashboard load error:', e); }
-    }
-    loadDashboardData();
-  </script>
+  <script src="../js/dashboard.js"></script>
 </body>
 </html>
