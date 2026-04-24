@@ -2231,6 +2231,7 @@ code {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow-x: hidden;
 }
 
 /* Topbar */
@@ -2468,6 +2469,8 @@ code {
     padding: var(--space-6);
     max-width: var(--container-max);
     width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 /* Stats Grid */
