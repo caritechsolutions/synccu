@@ -103,4 +103,80 @@ async function apiFetch(url, options = {}) {
   }
   document.getElementById('logoutBtn')?.addEventListener('click', (e) => { e.preventDefault(); doLogout(); });
   document.getElementById('logoutBtn2')?.addEventListener('click', (e) => { e.preventDefault(); doLogout(); });
+
+  // ── Apply branding from tenant settings ──
+  async function applyBranding() {
+    try {
+      const resp = await fetch('/api/v1/tenant/settings', {
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('synccu-token') || '') }
+      });
+      if (!resp.ok) return;
+      const json = await resp.json();
+      const d = json.data || {};
+      const tenant = d.tenant || {};
+      const s = d.settings || {};
+
+      const cuName = tenant.name || 'SyncCU';
+      const brandEl = document.querySelector('.sidebar-brand h2');
+      if (brandEl) brandEl.textContent = cuName;
+
+      const primary = s.branding_primary_color;
+      const secondary = s.branding_secondary_color;
+      if (primary) {
+        document.documentElement.style.setProperty('--primary', primary);
+        document.documentElement.style.setProperty('--primary-hover', secondary || primary);
+        document.documentElement.style.setProperty('--text-link', primary);
+      }
+      if (secondary) {
+        document.documentElement.style.setProperty('--primary-dark', secondary);
+        document.documentElement.style.setProperty('--accent', secondary);
+      }
+
+      const logoUrl = s.branding_logo_url;
+      if (logoUrl && brandEl) {
+        brandEl.innerHTML = '<img src="' + logoUrl + '" alt="' + cuName + '" style="max-height:32px;max-width:140px">';
+      }
+
+      const favicon = s.branding_favicon_url;
+      if (favicon) {
+        let link = document.querySelector('link[rel="icon"]');
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          document.head.appendChild(link);
+        }
+        link.href = favicon;
+      }
+
+      localStorage.setItem('synccu-branding', JSON.stringify({
+        name: cuName, primary, secondary, logoUrl, favicon
+      }));
+    } catch(e) {}
+  }
+
+  // Apply cached branding instantly, then refresh from API
+  try {
+    const cached = JSON.parse(localStorage.getItem('synccu-branding') || '{}');
+    if (cached.name) {
+      const brandEl = document.querySelector('.sidebar-brand h2');
+      if (brandEl) {
+        if (cached.logoUrl) brandEl.innerHTML = '<img src="' + cached.logoUrl + '" alt="' + cached.name + '" style="max-height:32px;max-width:140px">';
+        else brandEl.textContent = cached.name;
+      }
+    }
+    if (cached.primary) {
+      document.documentElement.style.setProperty('--primary', cached.primary);
+      document.documentElement.style.setProperty('--text-link', cached.primary);
+      if (cached.secondary) {
+        document.documentElement.style.setProperty('--primary-hover', cached.secondary);
+        document.documentElement.style.setProperty('--primary-dark', cached.secondary);
+      }
+    }
+    if (cached.favicon) {
+      let link = document.querySelector('link[rel="icon"]');
+      if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+      link.href = cached.favicon;
+    }
+  } catch(e) {}
+  applyBranding();
 })();

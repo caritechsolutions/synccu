@@ -204,6 +204,11 @@
                 <input type="file" id="logoFile" accept="image/*" style="display:none">
               </div>
             </div>
+            <div class="form-group">
+              <label for="faviconUrl">Favicon URL</label>
+              <input type="text" id="faviconUrl" class="form-input" placeholder="https://example.com/favicon.ico">
+              <span class="text-muted" style="font-size:0.75rem">URL to a .ico, .png, or .svg favicon. 32x32px recommended.</span>
+            </div>
             <div class="form-row">
               <div class="form-group">
                 <label for="primaryColor">Primary Color</label>
@@ -480,12 +485,22 @@
           <div class="card-header"><h3>Backup & Migration</h3></div>
           <div class="settings-form">
             <p style="color:var(--text-muted);margin-bottom:1rem">Download a full database backup for migration or safekeeping. The backup includes all members, accounts, transactions, loans, and settings.</p>
-            <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem">
               <button class="btn btn-primary" id="backupBtn" onclick="downloadBackup()">
                 <svg style="width:16px;height:16px;display:inline;vertical-align:middle;margin-right:4px"><use href="#icon-upload"/></svg>
                 Download Backup
               </button>
               <span id="backupStatus" style="align-self:center;font-size:14px;color:var(--text-muted)"></span>
+            </div>
+            <hr style="border:none;border-top:1px solid var(--border-color);margin-bottom:1.5rem">
+            <h4 style="margin-bottom:.5rem">Restore from Backup</h4>
+            <p style="color:var(--text-muted);margin-bottom:1rem;font-size:14px">Upload a .sql backup file to restore. This will overwrite all current data. Make sure to download a backup first.</p>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
+              <input type="file" id="restoreFile" accept=".sql" class="form-input" style="max-width:300px">
+              <button class="btn btn-secondary" id="restoreBtn" onclick="uploadRestore()" style="border-color:var(--danger);color:var(--danger)">
+                Restore Backup
+              </button>
+              <span id="restoreStatus" style="font-size:14px;color:var(--text-muted)"></span>
             </div>
           </div>
         </div>
@@ -570,6 +585,9 @@
           document.getElementById('secondaryColor').value = settings.branding_secondary_color;
           document.getElementById('secondaryColorHex').value = settings.branding_secondary_color;
         }
+        if (settings.branding_favicon_url) {
+          document.getElementById('faviconUrl').value = settings.branding_favicon_url;
+        }
 
         // Security
         if (settings.min_password_length) document.getElementById('minPasswordLength').value = settings.min_password_length;
@@ -627,9 +645,11 @@
           body: JSON.stringify({
             primary_color: document.getElementById('primaryColorHex').value,
             secondary_color: document.getElementById('secondaryColorHex').value,
+            favicon_url: document.getElementById('faviconUrl').value,
           })
         });
-        alert('Branding saved.');
+        localStorage.removeItem('synccu-branding');
+        alert('Branding saved. Reload the page to see changes.');
       } catch (err) { alert('Failed to save branding.'); }
     });
 
@@ -838,6 +858,53 @@
         status.textContent = 'Backup failed: ' + e.message;
         status.style.color = 'var(--danger)';
       } finally { btn.disabled = false; }
+    }
+
+    async function uploadRestore() {
+      const fileInput = document.getElementById('restoreFile');
+      const status = document.getElementById('restoreStatus');
+      const btn = document.getElementById('restoreBtn');
+
+      if (!fileInput.files || !fileInput.files.length) {
+        alert('Select a .sql backup file first.');
+        return;
+      }
+
+      if (!confirm('WARNING: This will overwrite ALL current data with the backup. This cannot be undone.\n\nAre you sure you want to proceed?')) {
+        return;
+      }
+
+      btn.disabled = true;
+      status.textContent = 'Uploading and restoring...';
+      status.style.color = 'var(--text-muted)';
+
+      try {
+        const sqlContent = await fileInput.files[0].text();
+        const token = localStorage.getItem('synccu-token');
+        const resp = await fetch('/api/v1/admin/restore', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/sql',
+          },
+          body: sqlContent,
+        });
+        const json = await resp.json();
+        if (resp.ok) {
+          status.textContent = 'Restore complete!';
+          status.style.color = 'var(--success)';
+          alert('Database restored successfully. The page will reload.');
+          window.location.reload();
+        } else {
+          status.textContent = 'Failed: ' + (json.error || json.message || 'Unknown error');
+          status.style.color = 'var(--danger)';
+        }
+      } catch(e) {
+        status.textContent = 'Error: ' + e.message;
+        status.style.color = 'var(--danger)';
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     loadSystemSettings();

@@ -210,6 +210,7 @@ $router->group([
     $router->post('/reconcile',          [AdminController::class, 'reconcile']);
     $router->post('/test-db-connection', [AdminController::class, 'testDbConnection']);
     $router->get('/backup',              [AdminController::class, 'backup']);
+    $router->post('/restore',            [AdminController::class, 'restore']);
 });
 
 // ------------------------------------------------------------------

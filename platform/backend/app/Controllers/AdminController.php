@@ -785,4 +785,46 @@ final class AdminController
             'Content-Length'      => (string) strlen($content),
         ]);
     }
+
+    public function restore(Request $request): Response
+    {
+        $rawBody = file_get_contents('php://input');
+
+        if (empty($rawBody) || strlen($rawBody) < 20) {
+            return Response::error('No SQL data received.', 400);
+        }
+
+        if (!str_contains($rawBody, 'INSERT INTO') && !str_contains($rawBody, 'CREATE TABLE')) {
+            return Response::error('File does not appear to be a valid SQL backup.', 400);
+        }
+
+        $host = env('DB_HOST', '127.0.0.1');
+        $port = env('DB_PORT', '3306');
+        $db   = env('DB_DATABASE', 'synccu');
+        $user = env('DB_USERNAME', 'root');
+        $pass = env('DB_PASSWORD', '');
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'synccu_restore_') . '.sql';
+        file_put_contents($tmpFile, $rawBody);
+
+        $passArg = $pass !== '' ? "-p" . escapeshellarg($pass) : '';
+        $cmd = sprintf(
+            'mysql -h %s -P %s -u %s %s %s < %s 2>&1',
+            escapeshellarg($host),
+            escapeshellarg($port),
+            escapeshellarg($user),
+            $passArg,
+            escapeshellarg($db),
+            escapeshellarg($tmpFile),
+        );
+
+        exec($cmd, $output, $exitCode);
+        @unlink($tmpFile);
+
+        if ($exitCode !== 0) {
+            return Response::error('Restore failed: ' . implode("\n", $output), 500);
+        }
+
+        return Response::ok(['restored' => true], 'Database restored successfully.');
+    }
 }
