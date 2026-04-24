@@ -265,6 +265,7 @@ $router->group([
     $router->get('/locations',           [CashManagementController::class, 'listLocations']);
     $router->post('/locations',          [CashManagementController::class, 'createLocation']);
     $router->get('/locations/{id}',      [CashManagementController::class, 'showLocation']);
+    $router->get('/locations/{id}/denominations', [CashManagementController::class, 'locationDenominations']);
     $router->put('/locations/{id}',      [CashManagementController::class, 'updateLocation']);
     $router->post('/dispense',           [CashManagementController::class, 'dispense']);
     $router->post('/return',             [CashManagementController::class, 'returnCash']);

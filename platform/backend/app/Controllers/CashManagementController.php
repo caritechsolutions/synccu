@@ -76,6 +76,14 @@ final class CashManagementController
         return Response::ok($location);
     }
 
+    public function locationDenominations(Request $request): Response
+    {
+        $tenantId = $request->getAttribute('tenant_id');
+        $locationId = $request->param('id');
+        $denoms = $this->cash->getLocationDenominations($tenantId, $locationId);
+        return Response::ok($denoms);
+    }
+
     public function updateLocation(Request $request): Response
     {
         $tenantId = $request->getAttribute('tenant_id');

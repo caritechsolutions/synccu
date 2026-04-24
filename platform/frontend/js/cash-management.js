@@ -52,8 +52,24 @@ function createDenomGrid(containerId) {
       el.querySelectorAll('.dg-input').forEach(inp => { t += (parseInt(inp.value)||0) * parseFloat(inp.dataset.face); });
       return Math.round(t * 100) / 100;
     },
-    reset() { el.querySelectorAll('.dg-input').forEach(inp => { inp.value = 0; }); updateDenomGrid(containerId); }
+    reset() { el.querySelectorAll('.dg-input').forEach(inp => { inp.value = 0; }); updateDenomGrid(containerId); },
+    populate(denomData) {
+      this.reset();
+      (denomData || []).forEach(d => {
+        const inp = el.querySelector('.dg-input[data-denom="' + d.denomination + '"]');
+        if (inp) { inp.value = parseInt(d.net_count || d.count) || 0; }
+      });
+      updateDenomGrid(containerId);
+    }
   };
+}
+
+async function loadLocationDenoms(locationId, grid) {
+  try {
+    const r = await apiFetch('/api/v1/cash/locations/' + locationId + '/denominations');
+    const json = await r.json();
+    if (r.ok && json.data) { grid.populate(json.data); }
+  } catch(e) {}
 }
 
 function updateDenomGrid(containerId) {
@@ -209,7 +225,7 @@ async function loadSessions() {
         '<td>$' + fmt(s.opening_balance) + '</td>' +
         '<td><span class="badge badge-' + badge + '">' + s.status.replace(/_/g,' ') + '</span></td>' +
         '<td>' + disc + '</td>' +
-        '<td>' + (s.status === 'open' ? '<button class="btn btn-sm btn-warning" onclick="openCloseSession(\'' + s.id + '\',\'' + (s.drawer_name||'') + '\',' + s.opening_balance + ')">Close</button>' : '') + '</td>' +
+        '<td>' + (s.status === 'open' ? '<button class="btn btn-sm btn-warning" onclick="openCloseSession(\'' + s.id + '\',\'' + (s.drawer_name||'') + '\',' + s.opening_balance + ',\'' + (s.drawer_id||'') + '\')">Close</button>' : '') + '</td>' +
       '</tr>';
     }).join('');
   } catch(e) { document.getElementById('sessionsBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444">Failed to load</td></tr>'; }
@@ -276,6 +292,11 @@ async function doDispense() {
   } catch(err) { alert('Failed: ' + err.message); }
 }
 
+// Auto-populate return grid when drawer selected
+document.getElementById('retDrawer').addEventListener('change', function() {
+  if (this.value) { loadLocationDenoms(this.value, retGrid); } else { retGrid.reset(); }
+});
+
 // Return
 async function doReturn() {
   const drawerId = document.getElementById('retDrawer').value;
@@ -299,7 +320,7 @@ async function doReturn() {
 
 // Close session
 let closeSessionId = null;
-function openCloseSession(id, drawerName, openBal) {
+function openCloseSession(id, drawerName, openBal, drawerId) {
   closeSessionId = id;
   document.getElementById('closeSessionInfo').innerHTML =
     '<p><strong>Drawer:</strong> ' + drawerName + '</p>' +
@@ -307,6 +328,7 @@ function openCloseSession(id, drawerName, openBal) {
   closeGrid.reset();
   document.getElementById('closeNotes').value = '';
   openModal('closeSessionModal');
+  if (drawerId) { loadLocationDenoms(drawerId, closeGrid); }
 }
 
 document.getElementById('closeSessionForm').addEventListener('submit', async (e) => {
