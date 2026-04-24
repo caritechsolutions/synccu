@@ -19,6 +19,7 @@ final class Database
     private static ?self $instance = null;
     private PDO $pdo;
     private ?string $tenantId = null;
+    private int $transactionDepth = 0;
 
     private function __construct()
     {
@@ -245,17 +246,33 @@ final class Database
 
     public function beginTransaction(): bool
     {
-        return $this->pdo->beginTransaction();
+        if ($this->transactionDepth === 0) {
+            $this->transactionDepth++;
+            return $this->pdo->beginTransaction();
+        }
+        $this->pdo->exec('SAVEPOINT sp_' . $this->transactionDepth);
+        $this->transactionDepth++;
+        return true;
     }
 
     public function commit(): bool
     {
-        return $this->pdo->commit();
+        $this->transactionDepth--;
+        if ($this->transactionDepth === 0) {
+            return $this->pdo->commit();
+        }
+        $this->pdo->exec('RELEASE SAVEPOINT sp_' . $this->transactionDepth);
+        return true;
     }
 
     public function rollBack(): bool
     {
-        return $this->pdo->rollBack();
+        $this->transactionDepth--;
+        if ($this->transactionDepth === 0) {
+            return $this->pdo->rollBack();
+        }
+        $this->pdo->exec('ROLLBACK TO SAVEPOINT sp_' . $this->transactionDepth);
+        return true;
     }
 
     /**
