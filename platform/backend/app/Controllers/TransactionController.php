@@ -181,7 +181,7 @@ final class TransactionController
 
             return Response::created($result, 'Deposit successful');
         } catch (\RuntimeException $e) {
-            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+            $code = (int) $e->getCode(); return Response::error($e->getMessage(), $code >= 400 ? $code : 400);
         }
     }
 
@@ -231,7 +231,7 @@ final class TransactionController
 
             return Response::created($result, 'Withdrawal successful');
         } catch (\RuntimeException $e) {
-            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+            $code = (int) $e->getCode(); return Response::error($e->getMessage(), $code >= 400 ? $code : 400);
         }
     }
 
@@ -272,7 +272,7 @@ final class TransactionController
 
             return Response::created($result, 'Transfer successful');
         } catch (\RuntimeException $e) {
-            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+            $code = (int) $e->getCode(); return Response::error($e->getMessage(), $code >= 400 ? $code : 400);
         }
     }
 
@@ -303,7 +303,7 @@ final class TransactionController
 
             return Response::created($txn, 'Expense recorded');
         } catch (\RuntimeException $e) {
-            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+            $code = (int) $e->getCode(); return Response::error($e->getMessage(), $code >= 400 ? $code : 400);
         }
     }
 
@@ -357,7 +357,7 @@ final class TransactionController
 
             return Response::created($result, 'External transfer initiated');
         } catch (\RuntimeException $e) {
-            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+            $code = (int) $e->getCode(); return Response::error($e->getMessage(), $code >= 400 ? $code : 400);
         }
     }
 
