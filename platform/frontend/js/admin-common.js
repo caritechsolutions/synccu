@@ -130,6 +130,7 @@ async function apiFetch(url, options = {}) {
       if (secondary) {
         document.documentElement.style.setProperty('--primary-dark', secondary);
         document.documentElement.style.setProperty('--accent', secondary);
+        document.documentElement.style.setProperty('--bg-sidebar', secondary);
       }
 
       const logoUrl = s.branding_logo_url;
@@ -170,6 +171,7 @@ async function apiFetch(url, options = {}) {
       if (cached.secondary) {
         document.documentElement.style.setProperty('--primary-hover', cached.secondary);
         document.documentElement.style.setProperty('--primary-dark', cached.secondary);
+        document.documentElement.style.setProperty('--bg-sidebar', cached.secondary);
       }
     }
     if (cached.favicon) {
