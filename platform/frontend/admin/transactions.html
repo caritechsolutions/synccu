@@ -15,10 +15,32 @@
     .fee-summary span { font-weight:600; }
     @media print {
       body > *:not(#receiptPrintArea) { display:none !important; }
-      #receiptPrintArea { display:block !important; font-family:monospace; font-size:12pt; padding:2cm; }
-      #receiptPrintArea h2 { font-size:16pt; border-bottom:2px solid #000; padding-bottom:.5rem; margin-bottom:1rem; }
-      .receipt-row { display:flex; justify-content:space-between; padding:.2rem 0; border-bottom:1px dotted #ccc; }
-      .receipt-row:last-child { border-bottom:none; }
+      #receiptPrintArea {
+        display:block !important; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+        font-size:10pt; padding:1cm; max-width:90mm; margin:0 auto; color:#1e293b;
+      }
+      .rcpt-header { text-align:center; margin-bottom:.75rem; padding-bottom:.5rem; border-bottom:2px solid #1e293b; }
+      .rcpt-header .cu-name { font-size:16pt; font-weight:800; letter-spacing:.02em; }
+      .rcpt-header .cu-addr { font-size:8pt; color:#64748b; margin-top:2px; }
+      .rcpt-header .rcpt-title { font-size:9pt; text-transform:uppercase; letter-spacing:.1em; color:#64748b; margin-top:6px; }
+      .rcpt-meta { display:grid; grid-template-columns:1fr 1fr; gap:2px 12px; font-size:8.5pt; margin:.5rem 0; }
+      .rcpt-meta .lbl { color:#64748b; }
+      .rcpt-meta .val { font-weight:600; text-align:right; }
+      .rcpt-sep { border:none; border-top:1px solid #e2e8f0; margin:.5rem 0; }
+      .rcpt-amount-box { text-align:center; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:.5rem; margin:.5rem 0; }
+      .rcpt-amount-box .type-label { font-size:8pt; text-transform:uppercase; letter-spacing:.08em; color:#64748b; }
+      .rcpt-amount-box .amount { font-size:18pt; font-weight:800; }
+      .rcpt-detail { display:flex; justify-content:space-between; font-size:9pt; padding:3px 0; }
+      .rcpt-detail .lbl { color:#64748b; }
+      .rcpt-detail .val { font-weight:600; }
+      .rcpt-bal-row { display:flex; justify-content:space-between; font-size:9.5pt; padding:4px 0; font-weight:700; }
+      .rcpt-checks { font-size:8.5pt; margin:.3rem 0; }
+      .rcpt-checks .chk-row { display:flex; justify-content:space-between; padding:1px 0; }
+      .rcpt-totals { background:#f1f5f9; border-radius:6px; padding:.5rem; margin:.5rem 0; }
+      .rcpt-totals .tot-row { display:flex; justify-content:space-between; font-size:9pt; padding:2px 0; }
+      .rcpt-totals .tot-row .val { font-weight:700; }
+      .rcpt-member { font-size:8.5pt; color:#475569; margin-top:.4rem; }
+      .rcpt-footer { text-align:center; font-size:7.5pt; color:#94a3b8; margin-top:.75rem; padding-top:.5rem; border-top:1px solid #e2e8f0; }
     }
   </style>
   <script>
@@ -1699,6 +1721,7 @@
     // Receipt System
     // ================================================================
     let receiptTxnId = null;
+    let receiptTxnData = null;
     let receiptMethod = null;
     const receiptModal = document.getElementById('receiptModal');
 
@@ -1758,45 +1781,124 @@
       }
     });
 
+    const fmtR = n => parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
     function printReceipt() {
+      if (!receiptTxnData) { alert('No transaction data loaded.'); return; }
+      const t = receiptTxnData;
+      const meta = typeof t.metadata === 'string' ? JSON.parse(t.metadata || '{}') : (t.metadata || {});
       const area = document.getElementById('receiptPrintArea');
-      const ref  = document.getElementById('detailRef').textContent;
-      const date = document.getElementById('detailDate').textContent;
-      const type = document.getElementById('detailType').textContent;
-      const stat = document.getElementById('detailStatus').textContent;
-      const from = document.getElementById('detailFrom').textContent;
-      const to   = document.getElementById('detailTo').textContent;
-      const amt  = document.getElementById('detailAmount').textContent;
-      const bal  = document.getElementById('detailBalanceAfter').textContent;
-      const desc = document.getElementById('detailDesc').textContent;
-      const by   = document.getElementById('detailProcessedBy').textContent;
-      const cuName = document.querySelector('.sidebar-brand h2')?.textContent || 'SyncCU';
+      const cuName = t.cu_name || document.querySelector('.sidebar-brand h2')?.textContent || 'SyncCU';
+      const cuAddr = t.cu_address || '';
+      const dt = t.created_at ? new Date(t.created_at) : new Date();
+      const dateStr = dt.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+      const timeStr = dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
 
-      const row = (label, val) => `<div class="receipt-row"><span>${label}</span><span><strong>${val}</strong></span></div>`;
+      const typeLabels = {deposit:'Deposit',withdrawal:'Withdrawal',transfer:'Transfer',loan_payment:'Loan Payment',fee:'Fee',interest:'Interest Credit',expense:'Expense'};
+      const txnType = typeLabels[t.type] || (t.type||'').replace(/_/g,' ');
 
-      area.innerHTML = `
-        <h2>${cuName} — Transaction Receipt</h2>
-        ${row('Reference', ref)}
-        ${row('Date', date)}
-        ${row('Type', type)}
-        ${row('Status', stat)}
-        ${row('Account', from)}
-        ${row('Related Account', to)}
-        ${row('Amount', amt)}
-        ${row('Balance After', bal)}
-        ${row('Description', desc)}
-        ${row('Processed By', by)}
-        <p style="margin-top:2rem;text-align:center;font-size:10pt;color:#666">Thank you for your transaction.</p>
-      `;
+      const methodMap = {cash:'Cash',check:'Check',wire:'Wire Transfer',ach:'ACH / Electronic',internal:'Internal'};
+      const method = meta.funding_source || meta.disbursement_method || '';
+      const methodLabel = methodMap[method] || '';
 
+      const amt = parseFloat(t.amount||0);
+      const balAfter = parseFloat(t.balance_after||0);
+      const prevBal = t.type === 'withdrawal' || t.type === 'transfer' ? balAfter + amt : balAfter - amt;
+      const fee = parseFloat(meta.fee || t.fee || 0);
+      const interest = parseFloat(meta.interest || t.interest || 0);
+      const principal = amt - fee - interest;
+
+      let html = '';
+
+      html += '<div class="rcpt-header">';
+      html += '<div class="cu-name">' + cuName + '</div>';
+      if (cuAddr) html += '<div class="cu-addr">' + cuAddr + '</div>';
+      html += '<div class="rcpt-title">Transaction Receipt</div>';
+      html += '</div>';
+
+      html += '<div class="rcpt-meta">';
+      html += '<span class="lbl">Date</span><span class="val">' + dateStr + ' ' + timeStr + '</span>';
+      html += '<span class="lbl">Reference</span><span class="val">' + (t.reference_number || '-') + '</span>';
+      html += '<span class="lbl">Account</span><span class="val">' + (t.account_number || '-') + '</span>';
+      html += '<span class="lbl">Teller</span><span class="val">' + (t.teller_name || '-') + '</span>';
+      html += '</div>';
+
+      html += '<div class="rcpt-amount-box">';
+      html += '<div class="type-label">' + txnType + '</div>';
+      html += '<div class="amount">$' + fmtR(amt) + '</div>';
+      html += '</div>';
+
+      if (t.account_name) {
+        html += '<div class="rcpt-detail"><span class="lbl">Account Name</span><span class="val">' + t.account_name + '</span></div>';
+      }
+      if (t.account_type) {
+        html += '<div class="rcpt-detail"><span class="lbl">Account Type</span><span class="val">' + t.account_type.replace(/_/g,' ') + '</span></div>';
+      }
+      if (methodLabel) {
+        html += '<div class="rcpt-detail"><span class="lbl">Method</span><span class="val">' + methodLabel + '</span></div>';
+      }
+      if (t.description) {
+        html += '<div class="rcpt-detail"><span class="lbl">Description</span><span class="val">' + t.description + '</span></div>';
+      }
+      if (fee > 0) {
+        html += '<div class="rcpt-detail"><span class="lbl">Fee</span><span class="val">$' + fmtR(fee) + '</span></div>';
+      }
+      if (interest > 0) {
+        html += '<div class="rcpt-detail"><span class="lbl">Interest</span><span class="val">$' + fmtR(interest) + '</span></div>';
+      }
+      if (fee > 0 || interest > 0) {
+        html += '<div class="rcpt-detail"><span class="lbl">Principal</span><span class="val">$' + fmtR(principal) + '</span></div>';
+      }
+
+      if (meta.checks && meta.checks.length) {
+        html += '<hr class="rcpt-sep">';
+        html += '<div class="rcpt-checks">';
+        html += '<div style="font-weight:600;margin-bottom:2px">Checks (' + meta.checks.length + ')</div>';
+        meta.checks.forEach(function(c) {
+          html += '<div class="chk-row"><span>#' + (c.number||'-') + '</span><span>$' + fmtR(c.amount) + '</span></div>';
+        });
+        html += '</div>';
+      }
+
+      html += '<hr class="rcpt-sep">';
+
+      html += '<div class="rcpt-bal-row"><span>Previous Balance</span><span>$' + fmtR(prevBal) + '</span></div>';
+      html += '<div class="rcpt-bal-row"><span>Current Balance</span><span>$' + fmtR(balAfter) + '</span></div>';
+
+      const received = (t.type === 'deposit' || t.type === 'loan_payment') ? amt : 0;
+      const disbursed = (t.type === 'withdrawal') ? amt : 0;
+      if (received > 0 || disbursed > 0) {
+        html += '<div class="rcpt-totals">';
+        if (received > 0) html += '<div class="tot-row"><span>Total Received</span><span class="val">$' + fmtR(received) + '</span></div>';
+        if (disbursed > 0) html += '<div class="tot-row"><span>Total Disbursed</span><span class="val">$' + fmtR(disbursed) + '</span></div>';
+        html += '</div>';
+      }
+
+      if (t.member_name) {
+        html += '<hr class="rcpt-sep">';
+        html += '<div class="rcpt-member"><strong>' + t.member_name + '</strong></div>';
+        const addrParts = [t.member_address, t.member_city, t.member_state].filter(Boolean);
+        if (addrParts.length) html += '<div class="rcpt-member">' + addrParts.join(', ') + '</div>';
+      }
+
+      html += '<div class="rcpt-footer">Thank you for banking with ' + cuName + '</div>';
+
+      area.innerHTML = html;
       window.print();
     }
 
-    // Track current txn id for receipts — patch viewTransaction to set it
+    // Track current txn for receipts — patch viewTransaction to store full data
     const _origViewTransaction = viewTransaction;
     window.viewTransaction = async function(id) {
       receiptTxnId = id;
       await _origViewTransaction(id);
+      try {
+        const resp = await apiFetch('/api/v1/transactions/' + id);
+        if (resp.ok) {
+          const json = await resp.json();
+          receiptTxnData = json.data || null;
+        }
+      } catch(e) {}
     };
 
     loadTransactions();

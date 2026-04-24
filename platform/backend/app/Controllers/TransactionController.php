@@ -480,14 +480,19 @@ final class TransactionController
         $tenantId = $db->getTenantId();
 
         $transaction = $db->fetchOne(
-            "SELECT t.*, a.account_number, a.name AS account_name,
+            "SELECT t.*, a.account_number, a.name AS account_name, a.account_type,
                     CONCAT(u.first_name, ' ', u.last_name) AS member_name,
+                    u.address_line_1 AS member_address,
+                    u.city AS member_city,
+                    u.state AS member_state,
                     ra.account_number AS related_account_number,
-                    ra.name AS related_account_name
+                    ra.name AS related_account_name,
+                    CONCAT(p.first_name, ' ', p.last_name) AS teller_name
              FROM transactions t
              LEFT JOIN accounts a ON a.id = t.account_id
              LEFT JOIN users u ON u.id = a.user_id
              LEFT JOIN accounts ra ON ra.id = t.related_account_id
+             LEFT JOIN users p ON p.id = t.processed_by
              WHERE t.id = ? AND t.tenant_id = ?",
             [$transactionId, $tenantId],
         );
@@ -502,6 +507,19 @@ final class TransactionController
                 return Response::error('Forbidden', 403);
             }
         }
+
+        // Fetch tenant info for receipt header (CU name and address)
+        $tenant = $db->fetchOne(
+            "SELECT name FROM tenants WHERE id = ?",
+            [$tenantId],
+        );
+        $transaction['cu_name'] = $tenant['name'] ?? '';
+
+        $settings = $db->fetchOne(
+            "SELECT setting_value FROM tenant_settings WHERE tenant_id = ? AND setting_key = 'address'",
+            [$tenantId],
+        );
+        $transaction['cu_address'] = $settings['setting_value'] ?? '';
 
         return Response::ok($transaction);
     }
