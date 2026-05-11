@@ -157,6 +157,28 @@
               <button class="btn btn-warning" style="width:100%" onclick="doAdjustment()">Record Adjustment</button>
             </div>
           </div>
+          <div class="card" style="grid-column:1/-1" id="makeChangeCard">
+            <div class="card-header"><h3>Make Change</h3></div>
+            <div class="card-body" style="padding:1.25rem">
+              <div class="form-group"><label>Location</label><select id="mcLocation" class="form-select"></select></div>
+              <div style="display:grid;grid-template-columns:1fr 60px 1fr;gap:1rem;align-items:start">
+                <div>
+                  <h4 style="margin:0 0 .5rem;font-size:.9rem;font-weight:600">Giving Out</h4>
+                  <div id="mcOutGrid"></div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:3rem">
+                  <svg style="width:28px;height:28px;color:var(--text-muted)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16l-4-4 4-4"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M17 8l4 4-4 4"/></svg>
+                  <div id="mcMatchStatus" style="margin-top:.5rem;font-size:.8rem;font-weight:700;text-align:center">—</div>
+                </div>
+                <div>
+                  <h4 style="margin:0 0 .5rem;font-size:.9rem;font-weight:600">Receiving In</h4>
+                  <div id="mcInGrid"></div>
+                </div>
+              </div>
+              <div class="form-group" style="margin-top:1rem"><label>Description (optional)</label><input type="text" id="mcDesc" class="form-input" placeholder="e.g. Change for customer"></div>
+              <button class="btn btn-primary" style="width:100%" onclick="doMakeChange()">Make Change</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -164,7 +186,7 @@
       <div class="sub-content" id="sub-movements">
         <div class="card"><div class="card-header"><h3>Cash Movements</h3>
           <div style="display:flex;gap:.5rem">
-            <select id="filterMoveType" class="form-select" style="width:auto"><option value="">All Types</option><option value="vault_to_drawer">Vault to Drawer</option><option value="drawer_to_vault">Drawer to Vault</option><option value="deposit_to_drawer">Deposit</option><option value="withdrawal_from_drawer">Withdrawal</option><option value="bank_transfer_in">Bank In</option><option value="bank_transfer_out">Bank Out</option><option value="adjustment">Adjustment</option></select>
+            <select id="filterMoveType" class="form-select" style="width:auto"><option value="">All Types</option><option value="vault_to_drawer">Vault to Drawer</option><option value="drawer_to_vault">Drawer to Vault</option><option value="deposit_to_drawer">Deposit</option><option value="withdrawal_from_drawer">Withdrawal</option><option value="bank_transfer_in">Bank In</option><option value="bank_transfer_out">Bank Out</option><option value="adjustment">Adjustment</option><option value="make_change_out">Change (Out)</option><option value="make_change_in">Change (In)</option></select>
           </div></div>
           <div class="table-responsive"><table class="table"><thead><tr><th>Type</th><th>From</th><th>To</th><th>Amount</th><th>By</th><th>Reference</th><th>Date</th></tr></thead>
           <tbody id="movementsBody"><tr><td colspan="7" style="text-align:center;padding:2rem">Loading...</td></tr></tbody></table></div>
@@ -248,13 +270,13 @@
       if (opsTab) opsTab.classList.add('active');
       if (opsContent) opsContent.classList.add('active');
 
-      // In operations, hide Dispense, Bank Transfer, Adjustment — keep only Return to Vault
+      // In operations, hide Dispense, Bank Transfer, Adjustment — keep Return to Vault and Make Change
       var opCards = document.querySelectorAll('#sub-operations .op-cards .card');
       opCards.forEach(function(card) {
         var h3 = card.querySelector('h3');
         if (!h3) return;
         var title = h3.textContent.trim();
-        if (title !== 'Return to Vault') card.style.display = 'none';
+        if (title !== 'Return to Vault' && title !== 'Make Change') card.style.display = 'none';
       });
 
       // Update page subtitle

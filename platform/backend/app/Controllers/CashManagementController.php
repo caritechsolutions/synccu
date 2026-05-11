@@ -244,6 +244,42 @@ final class CashManagementController
     }
 
     // ------------------------------------------------------------------
+    // Make Change
+    // ------------------------------------------------------------------
+
+    public function makeChange(Request $request): Response
+    {
+        $tenantId = $request->getAttribute('tenant_id');
+        $userId = $request->getAttribute('user_id');
+
+        $validator = new Validator($request->all(), [
+            'location_id'       => 'required|string',
+            'denominations_out' => 'required',
+            'denominations_in'  => 'required',
+            'description'       => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        try {
+            $data = $validator->validated();
+            $result = $this->cash->makeChange(
+                $tenantId,
+                $data['location_id'],
+                $data['denominations_out'] ?? [],
+                $data['denominations_in'] ?? [],
+                $userId,
+                $data['description'] ?? '',
+            );
+            return Response::created($result, 'Change made successfully.');
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), $e->getCode() ?: 400);
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Movements
     // ------------------------------------------------------------------
 

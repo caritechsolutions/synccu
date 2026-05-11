@@ -296,6 +296,7 @@ $router->group([
     ],
 ], function ($router) {
     $router->get('/my-drawer',           [CashManagementController::class, 'getMyDrawer']);
+    $router->post('/make-change',        [CashManagementController::class, 'makeChange']);
 });
 
 // ------------------------------------------------------------------

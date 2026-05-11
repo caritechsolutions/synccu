@@ -12,7 +12,8 @@ let DENOMS = DEFAULT_DENOMS;
 const TYPE_LABELS = {
   vault_to_drawer:'Vault → Drawer', drawer_to_vault:'Drawer → Vault',
   deposit_to_drawer:'Deposit', withdrawal_from_drawer:'Withdrawal',
-  bank_transfer_in:'Bank In', bank_transfer_out:'Bank Out', adjustment:'Adjustment'
+  bank_transfer_in:'Bank In', bank_transfer_out:'Bank Out', adjustment:'Adjustment',
+  make_change_out:'Change (Out)', make_change_in:'Change (In)'
 };
 
 // Tab switching
@@ -83,16 +84,34 @@ function updateDenomGrid(containerId) {
   });
   const totalEl = document.getElementById(containerId + '_total');
   if (totalEl) totalEl.textContent = '$' + fmt(total);
+  if (containerId === 'mcOutGrid' || containerId === 'mcInGrid') updateMakeChangeStatus();
+}
+
+function updateMakeChangeStatus() {
+  const status = document.getElementById('mcMatchStatus');
+  if (!status || !mcOutGrid || !mcInGrid) return;
+  const outT = mcOutGrid.getTotal();
+  const inT = mcInGrid.getTotal();
+  if (outT === 0 && inT === 0) { status.textContent = '—'; status.style.color = 'var(--text-muted)'; return; }
+  if (Math.abs(outT - inT) < 0.01) {
+    status.innerHTML = '$' + fmt(outT) + '<br>Balanced';
+    status.style.color = '#22c55e';
+  } else {
+    status.innerHTML = '$' + fmt(outT) + ' / $' + fmt(inT) + '<br>Mismatch';
+    status.style.color = '#ef4444';
+  }
 }
 
 // Grids initialized after loading settings
-let dispGrid, retGrid, closeGrid, adjGrid;
+let dispGrid, retGrid, closeGrid, adjGrid, mcOutGrid, mcInGrid;
 
 function initDenomGrids() {
   dispGrid = createDenomGrid('dispDenomGrid');
   retGrid = createDenomGrid('retDenomGrid');
   closeGrid = createDenomGrid('closeDenomGrid');
   adjGrid = createDenomGrid('adjDenomGrid');
+  mcOutGrid = createDenomGrid('mcOutGrid');
+  mcInGrid = createDenomGrid('mcInGrid');
 }
 
 async function loadDenomSettings() {
@@ -164,6 +183,12 @@ function populateSelectors() {
 
   const adjSel = document.getElementById('adjLocation');
   adjSel.innerHTML = '<option value="">Select location...</option>' + locationsCache.filter(l => l.status === 'active').map(l => '<option value="' + l.id + '">' + l.name + ' (' + l.type.replace('_',' ') + ')</option>').join('');
+
+  const mcSel = document.getElementById('mcLocation');
+  if (mcSel) {
+    const cashLocs = locationsCache.filter(l => (l.type === 'vault' || l.type === 'drawer') && l.status === 'active');
+    mcSel.innerHTML = '<option value="">Select location...</option>' + cashLocs.map(l => '<option value="' + l.id + '">' + l.name + ' (' + l.type + ', $' + fmt(l.balance) + ')</option>').join('');
+  }
 }
 
 function viewLocation(id) {
@@ -401,6 +426,34 @@ async function doAdjustment() {
     document.getElementById('adjDesc').value = '';
     adjGrid.reset();
     loadLocations(); loadSummary(); loadMovements();
+  } catch(err) { alert('Failed: ' + err.message); }
+}
+
+// Make Change
+async function doMakeChange() {
+  const locationId = document.getElementById('mcLocation').value;
+  if (!locationId) { alert('Select a location.'); return; }
+  const denomsOut = mcOutGrid.getValues();
+  const denomsIn = mcInGrid.getValues();
+  const totalOut = mcOutGrid.getTotal();
+  const totalIn = mcInGrid.getTotal();
+  if (totalOut <= 0) { alert('Enter the denominations you are giving out.'); return; }
+  if (totalIn <= 0) { alert('Enter the denominations you are receiving in.'); return; }
+  if (Math.abs(totalOut - totalIn) >= 0.01) { alert('Totals must match. Giving out: $' + fmt(totalOut) + ', Receiving in: $' + fmt(totalIn)); return; }
+  if (!confirm('Make change of $' + fmt(totalOut) + ' at this location?')) return;
+  try {
+    const r = await apiFetch('/api/v1/cash/make-change', {method:'POST', body: JSON.stringify({
+      location_id: locationId,
+      denominations_out: denomsOut,
+      denominations_in: denomsIn,
+      description: document.getElementById('mcDesc').value
+    })});
+    const json = await r.json();
+    if (!r.ok) { alert(json.error||'Failed'); return; }
+    alert('Change made successfully. Ref: ' + (json.data?.reference || ''));
+    mcOutGrid.reset(); mcInGrid.reset();
+    document.getElementById('mcDesc').value = '';
+    loadLocations(); loadMovements();
   } catch(err) { alert('Failed: ' + err.message); }
 }
 

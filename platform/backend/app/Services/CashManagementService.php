@@ -592,6 +592,85 @@ final class CashManagementService
     }
 
     // ------------------------------------------------------------------
+    // Make Change
+    // ------------------------------------------------------------------
+
+    public function makeChange(string $tenantId, string $locationId, array $denominationsOut, array $denominationsIn, string $performedBy, string $description = ''): array
+    {
+        $this->ensureSchema();
+        $loc = $this->getLocation($tenantId, $locationId);
+        if (!$loc) throw new RuntimeException('Location not found.', 404);
+
+        $totalOut = $this->sumDenominations($denominationsOut);
+        $totalIn = $this->sumDenominations($denominationsIn);
+
+        if ($totalOut <= 0 || $totalIn <= 0) {
+            throw new RuntimeException('Both denomination sets must have a positive total.', 422);
+        }
+        if (abs($totalOut - $totalIn) >= 0.01) {
+            throw new RuntimeException('Denomination totals must match. Out: $' . number_format($totalOut, 2) . ', In: $' . number_format($totalIn, 2), 422);
+        }
+
+        $currentDenoms = $this->getLocationDenominations($tenantId, $locationId);
+        $denomMap = [];
+        foreach ($currentDenoms as $cd) {
+            $denomMap[$cd['denomination']] = (int)$cd['net_count'];
+        }
+        foreach ($denominationsOut as $d) {
+            $denom = (string)($d['denomination'] ?? '');
+            $count = (int)($d['count'] ?? 0);
+            if ($count <= 0) continue;
+            $available = $denomMap[$denom] ?? 0;
+            if ($count > $available) {
+                throw new RuntimeException("Insufficient \${$denom} bills. Available: {$available}, Requested: {$count}", 422);
+            }
+        }
+
+        $outId = $this->generateUuid();
+        $inId = $this->generateUuid();
+        $ref = $this->makeRef($outId);
+        $desc = $description ?: 'Make change at ' . $loc['name'];
+
+        return $this->db->transaction(function () use ($outId, $inId, $tenantId, $locationId, $totalOut, $denominationsOut, $denominationsIn, $performedBy, $desc, $ref) {
+            $this->db->query(
+                "INSERT INTO cash_movements (id, tenant_id, type, from_location_id, amount, performed_by, reference_number, description, metadata)
+                 VALUES (?, ?, 'make_change_out', ?, ?, ?, ?, ?, ?)",
+                [$outId, $tenantId, $locationId, $totalOut, $performedBy, $ref, $desc,
+                 json_encode(['paired_movement_id' => $inId])],
+            );
+            $this->saveDenominations($tenantId, $outId, $denominationsOut);
+
+            $this->db->query(
+                "INSERT INTO cash_movements (id, tenant_id, type, to_location_id, amount, performed_by, reference_number, description, metadata)
+                 VALUES (?, ?, 'make_change_in', ?, ?, ?, ?, ?, ?)",
+                [$inId, $tenantId, $locationId, $totalOut, $performedBy, $ref, $desc,
+                 json_encode(['paired_movement_id' => $outId])],
+            );
+            $this->saveDenominations($tenantId, $inId, $denominationsIn);
+
+            return [
+                'id' => $outId,
+                'paired_id' => $inId,
+                'reference' => $ref,
+                'amount' => $totalOut,
+                'type' => 'make_change',
+            ];
+        });
+    }
+
+    private function sumDenominations(array $denominations): float
+    {
+        $total = 0;
+        foreach ($denominations as $d) {
+            $denom = (string)($d['denomination'] ?? '');
+            $count = (int)($d['count'] ?? 0);
+            $face = self::$faceValues[$denom] ?? (float)$denom;
+            if ($count > 0 && $face > 0) $total += $count * $face;
+        }
+        return round($total, 2);
+    }
+
+    // ------------------------------------------------------------------
     // Teller helper
     // ------------------------------------------------------------------
 
