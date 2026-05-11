@@ -588,6 +588,209 @@ final class ReportController
     }
 
     // ------------------------------------------------------------------
+    // ISO 20022 camt.053 Bank-to-Customer Statement Export
+    // ------------------------------------------------------------------
+
+    /**
+     * GET /api/v1/reports/camt053
+     *
+     * Generate an ISO 20022 camt.053.001.08 XML statement for an account
+     * over a given date range.
+     */
+    public function camt053(Request $request): Response
+    {
+        $accountId = $request->query('account_id');
+        $from = $request->query('from', date('Y-m-01'));
+        $to = $request->query('to', date('Y-m-d'));
+
+        if (!$accountId) {
+            return Response::error('account_id is required', 422);
+        }
+
+        $tenantId = $this->db->getTenantId();
+
+        $account = $this->db->fetchOne(
+            "SELECT a.*, CONCAT(u.first_name, ' ', u.last_name) AS holder_name, u.email
+             FROM accounts a JOIN users u ON u.id = a.user_id
+             WHERE a.id = ? AND a.tenant_id = ?",
+            [$accountId, $tenantId],
+        );
+
+        if (!$account) {
+            return Response::error('Account not found', 404);
+        }
+
+        $tenant = $this->db->fetchOne('SELECT name FROM tenants WHERE id = ?', [$tenantId]);
+        $cuName = $tenant['name'] ?? 'SyncCU';
+
+        $transactions = $this->db->fetchAll(
+            "SELECT t.*, CONCAT(u.first_name, ' ', u.last_name) AS member_name
+             FROM transactions t
+             LEFT JOIN accounts a ON a.id = t.account_id
+             LEFT JOIN users u ON u.id = a.user_id
+             WHERE t.tenant_id = ? AND t.account_id = ?
+               AND DATE(t.created_at) >= ? AND DATE(t.created_at) <= ?
+             ORDER BY t.created_at ASC",
+            [$tenantId, $accountId, $from, $to],
+        );
+
+        $xml = $this->buildCamt053Xml($account, $transactions, $cuName, $from, $to);
+
+        return Response::raw($xml, 200, [
+            'Content-Type' => 'application/xml; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="camt053-' . $account['account_number'] . '-' . date('Ymd') . '.xml"',
+        ]);
+    }
+
+    private function buildCamt053Xml(array $account, array $transactions, string $cuName, string $from, string $to): string
+    {
+        $msgId = 'STMT-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(4)));
+        $stmtId = 'STMT-' . $account['account_number'] . '-' . date('Ymd');
+        $creationDateTime = date('c');
+        $currency = $account['currency'] ?? 'USD';
+
+        $totalCredits = 0.0;
+        $totalDebits = 0.0;
+        $creditCount = 0;
+        $debitCount = 0;
+        $creditTypes = ['deposit', 'interest', 'adjustment', 'loan_disbursement'];
+
+        foreach ($transactions as $t) {
+            $amt = (float) $t['amount'];
+            if (in_array($t['type'], $creditTypes) && $amt > 0) {
+                $totalCredits += $amt;
+                $creditCount++;
+            } else {
+                $totalDebits += abs($amt);
+                $debitCount++;
+            }
+        }
+
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $xml .= '<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' . "\n";
+        $xml .= '  <BkToCstmrStmt>' . "\n";
+
+        // Group Header
+        $xml .= '    <GrpHdr>' . "\n";
+        $xml .= '      <MsgId>' . $this->xmlEscape($msgId) . '</MsgId>' . "\n";
+        $xml .= '      <CreDtTm>' . $creationDateTime . '</CreDtTm>' . "\n";
+        $xml .= '      <MsgPgntn><PgNb>1</PgNb><LastPgInd>true</LastPgInd></MsgPgntn>' . "\n";
+        $xml .= '    </GrpHdr>' . "\n";
+
+        // Statement
+        $xml .= '    <Stmt>' . "\n";
+        $xml .= '      <Id>' . $this->xmlEscape($stmtId) . '</Id>' . "\n";
+        $xml .= '      <ElctrncSeqNb>1</ElctrncSeqNb>' . "\n";
+        $xml .= '      <CreDtTm>' . $creationDateTime . '</CreDtTm>' . "\n";
+        $xml .= '      <FrToDt>' . "\n";
+        $xml .= '        <FrDtTm>' . $from . 'T00:00:00</FrDtTm>' . "\n";
+        $xml .= '        <ToDtTm>' . $to . 'T23:59:59</ToDtTm>' . "\n";
+        $xml .= '      </FrToDt>' . "\n";
+
+        // Account identification
+        $xml .= '      <Acct>' . "\n";
+        $xml .= '        <Id><Othr><Id>' . $this->xmlEscape($account['account_number']) . '</Id></Othr></Id>' . "\n";
+        $xml .= '        <Ccy>' . $currency . '</Ccy>' . "\n";
+        $xml .= '        <Ownr><Nm>' . $this->xmlEscape($account['holder_name'] ?? '') . '</Nm></Ownr>' . "\n";
+        $xml .= '        <Svcr><FinInstnId><Nm>' . $this->xmlEscape($cuName) . '</Nm></FinInstnId></Svcr>' . "\n";
+        $xml .= '      </Acct>' . "\n";
+
+        // Balance (closing)
+        $xml .= '      <Bal>' . "\n";
+        $xml .= '        <Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp>' . "\n";
+        $xml .= '        <Amt Ccy="' . $currency . '">' . number_format((float) $account['balance'], 2, '.', '') . '</Amt>' . "\n";
+        $xml .= '        <CdtDbtInd>' . ((float) $account['balance'] >= 0 ? 'CRDT' : 'DBIT') . '</CdtDbtInd>' . "\n";
+        $xml .= '        <Dt><Dt>' . $to . '</Dt></Dt>' . "\n";
+        $xml .= '      </Bal>' . "\n";
+
+        // Transaction summary
+        $xml .= '      <TxsSummry>' . "\n";
+        $xml .= '        <TtlNtries><NbOfNtries>' . count($transactions) . '</NbOfNtries></TtlNtries>' . "\n";
+        $xml .= '        <TtlCdtNtries><NbOfNtries>' . $creditCount . '</NbOfNtries><Sum>' . number_format($totalCredits, 2, '.', '') . '</Sum></TtlCdtNtries>' . "\n";
+        $xml .= '        <TtlDbtNtries><NbOfNtries>' . $debitCount . '</NbOfNtries><Sum>' . number_format($totalDebits, 2, '.', '') . '</Sum></TtlDbtNtries>' . "\n";
+        $xml .= '      </TxsSummry>' . "\n";
+
+        // Individual entries
+        foreach ($transactions as $t) {
+            $amt = abs((float) $t['amount']);
+            $isCredit = in_array($t['type'], $creditTypes) && (float) $t['amount'] > 0;
+            $cdtDbt = $isCredit ? 'CRDT' : 'DBIT';
+            $statusCode = match ($t['status']) {
+                'completed' => 'BOOK',
+                'pending'   => 'PDNG',
+                'failed'    => 'INFO',
+                'reversed'  => 'INFO',
+                default     => 'BOOK',
+            };
+
+            $xml .= '      <Ntry>' . "\n";
+            $xml .= '        <Amt Ccy="' . $currency . '">' . number_format($amt, 2, '.', '') . '</Amt>' . "\n";
+            $xml .= '        <CdtDbtInd>' . $cdtDbt . '</CdtDbtInd>' . "\n";
+            $xml .= '        <Sts><Cd>' . $statusCode . '</Cd></Sts>' . "\n";
+            $xml .= '        <BookgDt><Dt>' . substr($t['created_at'], 0, 10) . '</Dt></BookgDt>' . "\n";
+            $xml .= '        <ValDt><Dt>' . ($t['settlement_date'] ?? substr($t['created_at'], 0, 10)) . '</Dt></ValDt>' . "\n";
+            $xml .= '        <AcctSvcrRef>' . $this->xmlEscape($t['reference_number']) . '</AcctSvcrRef>' . "\n";
+
+            $xml .= '        <NtryDtls><TxDtls>' . "\n";
+
+            // References
+            $xml .= '          <Refs>' . "\n";
+            if (!empty($t['end_to_end_id'])) {
+                $xml .= '            <EndToEndId>' . $this->xmlEscape($t['end_to_end_id']) . '</EndToEndId>' . "\n";
+            }
+            if (!empty($t['instruction_id'])) {
+                $xml .= '            <InstrId>' . $this->xmlEscape($t['instruction_id']) . '</InstrId>' . "\n";
+            }
+            $xml .= '            <TxId>' . $this->xmlEscape($t['reference_number']) . '</TxId>' . "\n";
+            $xml .= '          </Refs>' . "\n";
+
+            $xml .= '          <AmtDtls><TxAmt><Amt Ccy="' . $currency . '">' . number_format($amt, 2, '.', '') . '</Amt></TxAmt></AmtDtls>' . "\n";
+
+            // Related parties
+            if (!empty($t['debtor_name'])) {
+                $xml .= '          <RltdPties><Dbtr><Pty><Nm>' . $this->xmlEscape($t['debtor_name']) . '</Nm></Pty>';
+                if (!empty($t['debtor_account'])) {
+                    $xml .= '<AcctId><Othr><Id>' . $this->xmlEscape($t['debtor_account']) . '</Id></Othr></AcctId>';
+                }
+                $xml .= '</Dbtr></RltdPties>' . "\n";
+            }
+            if (!empty($t['creditor_name'])) {
+                $xml .= '          <RltdPties><Cdtr><Pty><Nm>' . $this->xmlEscape($t['creditor_name']) . '</Nm></Pty>';
+                if (!empty($t['creditor_account'])) {
+                    $xml .= '<AcctId><Othr><Id>' . $this->xmlEscape($t['creditor_account']) . '</Id></Othr></AcctId>';
+                }
+                $xml .= '</Cdtr></RltdPties>' . "\n";
+            }
+
+            // Purpose
+            if (!empty($t['purpose_code'])) {
+                $xml .= '          <Purp><Cd>' . $this->xmlEscape($t['purpose_code']) . '</Cd></Purp>' . "\n";
+            }
+
+            // Remittance
+            if (!empty($t['remittance_info'])) {
+                $xml .= '          <RmtInf><Ustrd>' . $this->xmlEscape($t['remittance_info']) . '</Ustrd></RmtInf>' . "\n";
+            } elseif (!empty($t['description'])) {
+                $xml .= '          <RmtInf><Ustrd>' . $this->xmlEscape($t['description']) . '</Ustrd></RmtInf>' . "\n";
+            }
+
+            $xml .= '        </TxDtls></NtryDtls>' . "\n";
+            $xml .= '      </Ntry>' . "\n";
+        }
+
+        $xml .= '    </Stmt>' . "\n";
+        $xml .= '  </BkToCstmrStmt>' . "\n";
+        $xml .= '</Document>' . "\n";
+
+        return $xml;
+    }
+
+    private function xmlEscape(string $str): string
+    {
+        return htmlspecialchars($str, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    }
+
+    // ------------------------------------------------------------------
 
     private function normalizeToDate(string $to): string
     {

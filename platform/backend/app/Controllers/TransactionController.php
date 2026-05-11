@@ -74,7 +74,10 @@ final class TransactionController
 
         $transactions = $db->fetchAll(
             "SELECT t.id, t.account_id, t.related_account_id, t.type, t.amount, t.balance_after,
-                    t.description, t.reference_number, t.status, t.processed_by, t.created_at,
+                    t.description, t.reference_number, t.end_to_end_id, t.purpose_code,
+                    t.debtor_name, t.debtor_account, t.creditor_name, t.creditor_account,
+                    t.remittance_info, t.charge_bearer, t.settlement_date,
+                    t.status, t.iso_status_code, t.processed_by, t.created_at,
                     a.account_number, a.name AS account_name,
                     CONCAT(u.first_name, ' ', u.last_name) AS member_name,
                     ra.account_number AS related_account_number
@@ -128,6 +131,9 @@ final class TransactionController
             'sof_declared'     => 'nullable|string',
             'drawer_id'        => 'nullable|string',
             'denominations'    => 'nullable',
+            'purpose_code'     => 'nullable|string|max:10',
+            'remittance_info'  => 'nullable|string|max:140',
+            'end_to_end_id'    => 'nullable|string|max:35',
         ]);
 
         if ($validator->fails()) {
@@ -149,6 +155,9 @@ final class TransactionController
                 'funding_source'  => $request->input('funding_source', 'cash'),
                 'drawer_id'       => $request->input('drawer_id'),
                 'denominations'   => $request->input('denominations'),
+                'purpose_code'    => $request->input('purpose_code'),
+                'remittance_info' => $request->input('remittance_info'),
+                'end_to_end_id'   => $request->input('end_to_end_id'),
             ]);
 
             $checksInput = $request->input('checks');
@@ -198,6 +207,9 @@ final class TransactionController
             'check_number'        => 'nullable|string|max:50',
             'drawer_id'           => 'nullable|string',
             'denominations'       => 'nullable',
+            'purpose_code'        => 'nullable|string|max:10',
+            'remittance_info'     => 'nullable|string|max:140',
+            'end_to_end_id'       => 'nullable|string|max:35',
         ]);
 
         if ($validator->fails()) {
@@ -219,6 +231,9 @@ final class TransactionController
                 'check_number'        => $request->input('check_number'),
                 'drawer_id'           => $request->input('drawer_id'),
                 'denominations'       => $request->input('denominations'),
+                'purpose_code'        => $request->input('purpose_code'),
+                'remittance_info'     => $request->input('remittance_info'),
+                'end_to_end_id'       => $request->input('end_to_end_id'),
             ]);
 
             $result = $this->transactions->withdraw(
@@ -325,6 +340,11 @@ final class TransactionController
             'location'          => 'nullable|string|max:255',
             'priority'          => 'nullable|string|in:normal,urgent',
             'description'       => 'nullable|string|max:500',
+            'purpose_code'      => 'nullable|string|max:10',
+            'remittance_info'   => 'nullable|string|max:140',
+            'end_to_end_id'     => 'nullable|string|max:35',
+            'creditor_agent_bic'=> 'nullable|string|max:11',
+            'charge_bearer'     => 'nullable|string|in:DEBT,CRED,SHAR,SLEV',
         ]);
 
         if ($validator->fails()) {
@@ -483,6 +503,8 @@ final class TransactionController
             "SELECT t.*, a.account_number, a.name AS account_name, a.account_type,
                     CONCAT(u.first_name, ' ', u.last_name) AS member_name,
                     u.email AS member_email, u.phone AS member_phone,
+                    u.address_line_1 AS member_address, u.city AS member_city,
+                    u.state AS member_state,
                     ra.account_number AS related_account_number,
                     ra.name AS related_account_name,
                     CONCAT(p.first_name, ' ', p.last_name) AS teller_name
@@ -557,8 +579,10 @@ final class TransactionController
         }
 
         $rows = $db->fetchAll(
-            "SELECT t.reference_number, t.created_at, t.type, t.amount, t.balance_after,
-                    t.description, t.status,
+            "SELECT t.reference_number, t.end_to_end_id, t.created_at, t.type, t.amount,
+                    t.balance_after, t.description, t.status, t.purpose_code,
+                    t.debtor_name, t.debtor_account, t.creditor_name, t.creditor_account,
+                    t.remittance_info, t.settlement_date,
                     a.account_number, CONCAT(u.first_name, ' ', u.last_name) AS member_name,
                     ra.account_number AS related_account_number
              FROM transactions t
@@ -571,17 +595,25 @@ final class TransactionController
             $params,
         );
 
-        $csv = "Reference,Date,Type,Account,Member,Amount,Balance After,Related Account,Description,Status\n";
+        $csv = "Reference,EndToEndId,Date,Type,Account,Member,Amount,Balance After,Related Account,Purpose Code,Debtor Name,Debtor Account,Creditor Name,Creditor Account,Remittance Info,Settlement Date,Description,Status\n";
         foreach ($rows as $r) {
             $csv .= implode(',', [
                 $r['reference_number'],
+                $r['end_to_end_id'] ?? '',
                 $r['created_at'],
                 $r['type'],
                 $r['account_number'] ?? '',
                 '"' . str_replace('"', '""', $r['member_name'] ?? '') . '"',
                 $r['amount'],
-                $r['balance_after'],
+                $r['balance_after'] ?? '',
                 $r['related_account_number'] ?? '',
+                $r['purpose_code'] ?? '',
+                '"' . str_replace('"', '""', $r['debtor_name'] ?? '') . '"',
+                $r['debtor_account'] ?? '',
+                '"' . str_replace('"', '""', $r['creditor_name'] ?? '') . '"',
+                $r['creditor_account'] ?? '',
+                '"' . str_replace('"', '""', $r['remittance_info'] ?? '') . '"',
+                $r['settlement_date'] ?? '',
                 '"' . str_replace('"', '""', $r['description'] ?? '') . '"',
                 $r['status'],
             ]) . "\n";

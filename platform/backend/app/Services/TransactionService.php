@@ -103,6 +103,8 @@ final class TransactionService
                 } catch (\Throwable $e) {}
             }
 
+            $this->applyIso20022Fields($txnId, 'deposit', $accountId, null, $metadata);
+
             return $this->findById($txnId);
         });
     }
@@ -171,6 +173,8 @@ final class TransactionService
                     );
                 } catch (\Throwable $e) {}
             }
+
+            $this->applyIso20022Fields($txnId, 'withdrawal', $accountId, null, $metadata);
 
             return $this->findById($txnId);
         });
@@ -256,6 +260,9 @@ final class TransactionService
             $this->accounts->updateBalance($fromAccountId, -$amount);
             $this->accounts->updateBalance($toAccountId, $amount);
 
+            $this->applyIso20022Fields($txnId, 'transfer', $fromAccountId, $toAccountId);
+            $this->applyIso20022Fields($relatedTxnId, 'transfer', $toAccountId, $fromAccountId);
+
             return $this->findById($txnId);
         });
     }
@@ -310,6 +317,8 @@ final class TransactionService
             );
 
             $this->accounts->updateBalance($accountId, -$amount);
+
+            $this->applyIso20022Fields($txnId, 'fee', $accountId, null, $metadata);
 
             return $this->findById($txnId);
         });
@@ -370,6 +379,8 @@ final class TransactionService
             );
 
             $this->accounts->updateBalance($accountId, $amount);
+
+            $this->applyIso20022Fields($txnId, 'adjustment', $accountId, null, $metadata);
 
             return $this->findById($txnId);
         });
@@ -434,6 +445,8 @@ final class TransactionService
                 $now,
             ],
         );
+
+        $this->applyIso20022Fields($txnId, 'expense', null, null, ['category' => $category]);
 
         return $this->findById($txnId);
     }
@@ -553,6 +566,13 @@ final class TransactionService
 
             $this->accounts->updateBalance($accountId, -$totalDebit);
 
+            $this->applyIso20022Fields($txnId, 'external_transfer', $accountId, null, [
+                'recipient_name'    => $recipientName,
+                'recipient_account' => $recipientAccount,
+                'charge_bearer'     => $feeHandling === 'add' ? 'DEBT' : 'SHAR',
+                'remittance_info'   => $description,
+            ]);
+
             return $this->findById($txnId);
         });
     }
@@ -655,11 +675,181 @@ final class TransactionService
     /**
      * Generate a unique transaction reference number.
      *
-     * Format: TXN-YYYYMMDD-XXXXXXXX
+     * Format: TXN-YYYYMMDD-XXXXXXXXXXXX (12 hex = 6 bytes = 281 trillion combos/day)
      */
     private function generateReferenceNumber(): string
     {
-        return 'TXN-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
+        return 'TXN-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(6)));
+    }
+
+    /**
+     * Generate an ISO 20022 EndToEndId.
+     *
+     * Max 35 chars. Format: {tenantPrefix}-{YYYYMMDD}-{UUID-suffix}
+     * Globally unique across systems for traceability.
+     */
+    private function generateEndToEndId(): string
+    {
+        $tenantId = $this->db->getTenantId();
+        $prefix = strtoupper(substr(md5($tenantId), 0, 6));
+        return $prefix . '-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(8)));
+    }
+
+    /**
+     * Map a transaction type to an ISO 20022 purpose code.
+     *
+     * @see ISO 20022 External Purpose Code Set
+     */
+    public static function mapPurposeCode(string $type, array $metadata = []): string
+    {
+        if (!empty($metadata['purpose_code'])) {
+            return strtoupper($metadata['purpose_code']);
+        }
+
+        return match ($type) {
+            'deposit'           => 'CASH',  // Cash Management Transfer
+            'withdrawal'        => 'CASH',
+            'transfer'          => 'INTC',  // Intra Company Transfer
+            'payment'           => 'SUPP',  // Supplier Payment
+            'fee'               => 'FEES',  // Fees
+            'late_fee'          => 'FEES',
+            'interest'          => 'INTR',  // Interest
+            'adjustment'        => 'ADJT',  // Adjustment
+            'loan_disbursement' => 'LOAN',  // Loan
+            'loan_payment'      => 'LOAN',
+            'expense'           => 'SUPP',  // Supplier Payment (operating expenses)
+            'external_transfer' => 'TRFD',  // Fund Transfer
+            'network_transfer'  => 'TRFD',
+            default             => 'OTHR',  // Other
+        };
+    }
+
+    /**
+     * Resolve debtor/creditor names from an account.
+     */
+    private function resolvePartyName(string $accountId): string
+    {
+        $row = $this->db->fetchOne(
+            "SELECT CONCAT(u.first_name, ' ', u.last_name) AS name
+             FROM accounts a JOIN users u ON u.id = a.user_id
+             WHERE a.id = ?",
+            [$accountId],
+        );
+        return $row['name'] ?? '';
+    }
+
+    /**
+     * Add ISO 20022 fields to a transaction after insert.
+     * Uses UPDATE to keep the INSERT statements backward-compatible.
+     */
+    private function applyIso20022Fields(
+        string $txnId,
+        string $type,
+        ?string $accountId,
+        ?string $relatedAccountId = null,
+        array $metadata = [],
+    ): void {
+        $this->ensureIso20022Schema();
+
+        $e2eId = $this->generateEndToEndId();
+        $purposeCode = self::mapPurposeCode($type, $metadata);
+        $settlementDate = date('Y-m-d');
+
+        $debtorName = null;
+        $debtorAccount = null;
+        $creditorName = null;
+        $creditorAccount = null;
+        $remittance = $metadata['remittance_info'] ?? $metadata['description'] ?? null;
+        $chargeBearer = $metadata['charge_bearer'] ?? null;
+
+        if ($accountId) {
+            $account = $this->db->fetchOne(
+                'SELECT account_number FROM accounts WHERE id = ?', [$accountId]
+            );
+            $partyName = $this->resolvePartyName($accountId);
+            $acctNum = $account['account_number'] ?? null;
+
+            $isDebit = in_array($type, ['withdrawal', 'fee', 'late_fee', 'expense', 'external_transfer', 'network_transfer']);
+            if ($isDebit || $type === 'transfer') {
+                $debtorName = $partyName;
+                $debtorAccount = $acctNum;
+            }
+            if (!$isDebit && $type !== 'transfer') {
+                $creditorName = $partyName;
+                $creditorAccount = $acctNum;
+            }
+        }
+
+        if ($relatedAccountId) {
+            $relAcct = $this->db->fetchOne(
+                'SELECT account_number FROM accounts WHERE id = ?', [$relatedAccountId]
+            );
+            $relName = $this->resolvePartyName($relatedAccountId);
+            if ($type === 'transfer') {
+                $creditorName = $relName;
+                $creditorAccount = $relAcct['account_number'] ?? null;
+            }
+        }
+
+        if (!empty($metadata['recipient_name'])) {
+            $creditorName = $metadata['recipient_name'];
+            $creditorAccount = $metadata['recipient_account'] ?? null;
+        }
+
+        $this->db->execute(
+            "UPDATE transactions SET
+                end_to_end_id = ?, purpose_code = ?, settlement_date = ?,
+                debtor_name = ?, debtor_account = ?,
+                creditor_name = ?, creditor_account = ?,
+                remittance_info = ?, charge_bearer = ?
+             WHERE id = ?",
+            [
+                $e2eId, $purposeCode, $settlementDate,
+                $debtorName, $debtorAccount,
+                $creditorName, $creditorAccount,
+                $remittance ? substr($remittance, 0, 140) : null,
+                $chargeBearer,
+                $txnId,
+            ],
+        );
+    }
+
+    /**
+     * Ensure ISO 20022 columns exist on the transactions table.
+     */
+    private function ensureIso20022Schema(): void
+    {
+        static $checked = false;
+        if ($checked) {
+            return;
+        }
+
+        try {
+            $cols = $this->db->fetchAll("SHOW COLUMNS FROM transactions LIKE 'end_to_end_id'");
+            if (empty($cols)) {
+                $this->db->query(
+                    "ALTER TABLE transactions
+                        ADD COLUMN `end_to_end_id` VARCHAR(35) DEFAULT NULL AFTER `reference_number`,
+                        ADD COLUMN `instruction_id` VARCHAR(35) DEFAULT NULL AFTER `end_to_end_id`,
+                        ADD COLUMN `purpose_code` VARCHAR(10) DEFAULT NULL AFTER `instruction_id`,
+                        ADD COLUMN `debtor_name` VARCHAR(140) DEFAULT NULL AFTER `purpose_code`,
+                        ADD COLUMN `debtor_account` VARCHAR(34) DEFAULT NULL AFTER `debtor_name`,
+                        ADD COLUMN `debtor_agent_bic` VARCHAR(11) DEFAULT NULL AFTER `debtor_account`,
+                        ADD COLUMN `creditor_name` VARCHAR(140) DEFAULT NULL AFTER `debtor_agent_bic`,
+                        ADD COLUMN `creditor_account` VARCHAR(34) DEFAULT NULL AFTER `creditor_name`,
+                        ADD COLUMN `creditor_agent_bic` VARCHAR(11) DEFAULT NULL AFTER `creditor_account`,
+                        ADD COLUMN `remittance_info` VARCHAR(140) DEFAULT NULL AFTER `creditor_agent_bic`,
+                        ADD COLUMN `charge_bearer` ENUM('DEBT','CRED','SHAR','SLEV') DEFAULT NULL AFTER `remittance_info`,
+                        ADD COLUMN `settlement_date` DATE DEFAULT NULL AFTER `charge_bearer`,
+                        ADD COLUMN `iso_status_code` VARCHAR(10) DEFAULT NULL AFTER `settlement_date`,
+                        ADD INDEX `idx_transactions_e2e` (`end_to_end_id`)"
+                );
+            }
+        } catch (\Throwable $e) {
+            error_log('ISO 20022 schema migration note: ' . $e->getMessage());
+        }
+
+        $checked = true;
     }
 
     private function generateUuid(): string

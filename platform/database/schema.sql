@@ -107,6 +107,19 @@ CREATE TABLE IF NOT EXISTS `transactions` (
   `balance_after` DECIMAL(15,2) DEFAULT NULL,
   `description` VARCHAR(500) DEFAULT NULL,
   `reference_number` VARCHAR(50) NOT NULL,
+  `end_to_end_id` VARCHAR(35) DEFAULT NULL COMMENT 'ISO 20022 EndToEndId for cross-system traceability',
+  `instruction_id` VARCHAR(35) DEFAULT NULL COMMENT 'ISO 20022 InstructionId assigned by initiating party',
+  `purpose_code` VARCHAR(10) DEFAULT NULL COMMENT 'ISO 20022 purpose code e.g. SALA, LOAN, CASH, TRAD',
+  `debtor_name` VARCHAR(140) DEFAULT NULL COMMENT 'ISO 20022 structured debtor name',
+  `debtor_account` VARCHAR(34) DEFAULT NULL COMMENT 'ISO 20022 debtor IBAN or account identifier',
+  `debtor_agent_bic` VARCHAR(11) DEFAULT NULL COMMENT 'ISO 20022 debtor agent BIC/SWIFT code',
+  `creditor_name` VARCHAR(140) DEFAULT NULL COMMENT 'ISO 20022 structured creditor name',
+  `creditor_account` VARCHAR(34) DEFAULT NULL COMMENT 'ISO 20022 creditor IBAN or account identifier',
+  `creditor_agent_bic` VARCHAR(11) DEFAULT NULL COMMENT 'ISO 20022 creditor agent BIC/SWIFT code',
+  `remittance_info` VARCHAR(140) DEFAULT NULL COMMENT 'ISO 20022 unstructured remittance information',
+  `charge_bearer` ENUM('DEBT','CRED','SHAR','SLEV') DEFAULT NULL COMMENT 'ISO 20022 charge bearer type',
+  `settlement_date` DATE DEFAULT NULL COMMENT 'ISO 20022 settlement/value date',
+  `iso_status_code` VARCHAR(10) DEFAULT NULL COMMENT 'ISO 20022 status reason code e.g. AC01, AM04, RJCT',
   `related_transaction_id` CHAR(36) DEFAULT NULL,
   `related_account_id` CHAR(36) DEFAULT NULL,
   `status` ENUM('pending','completed','failed','reversed','cancelled') DEFAULT 'pending',
@@ -122,6 +135,7 @@ CREATE TABLE IF NOT EXISTS `transactions` (
   INDEX `idx_transactions_type` (`type`),
   INDEX `idx_transactions_status` (`status`),
   INDEX `idx_transactions_reference` (`reference_number`),
+  INDEX `idx_transactions_e2e` (`end_to_end_id`),
   INDEX `idx_transactions_created` (`created_at`)
 ) ENGINE=InnoDB;
 
@@ -315,7 +329,15 @@ CREATE TABLE IF NOT EXISTS `network_transfers` (
   `currency` CHAR(3) DEFAULT 'USD',
   `status` ENUM('pending','sent','received','confirmed','failed','reversed','settled') DEFAULT 'pending',
   `settled_in_batch` CHAR(36) DEFAULT NULL COMMENT 'References network_settlements.id',
+  `end_to_end_id` VARCHAR(35) DEFAULT NULL COMMENT 'ISO 20022 EndToEndId',
+  `instruction_id` VARCHAR(35) DEFAULT NULL COMMENT 'ISO 20022 InstructionId',
+  `purpose_code` VARCHAR(10) DEFAULT NULL COMMENT 'ISO 20022 purpose code',
+  `charge_bearer` ENUM('DEBT','CRED','SHAR','SLEV') DEFAULT 'SHAR' COMMENT 'ISO 20022 charge bearer',
+  `settlement_date` DATE DEFAULT NULL COMMENT 'ISO 20022 settlement date',
+  `sender_agent_bic` VARCHAR(11) DEFAULT NULL COMMENT 'Sender institution BIC/SWIFT',
+  `recipient_agent_bic` VARCHAR(11) DEFAULT NULL COMMENT 'Recipient institution BIC/SWIFT',
   `failure_reason` VARCHAR(500) DEFAULT NULL,
+  `iso_status_code` VARCHAR(10) DEFAULT NULL COMMENT 'ISO 20022 status reason code',
   `metadata` JSON DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -326,6 +348,7 @@ CREATE TABLE IF NOT EXISTS `network_transfers` (
   INDEX `idx_network_transfers_peer` (`peer_node_code`),
   INDEX `idx_network_transfers_status` (`status`),
   INDEX `idx_network_transfers_settled` (`settled_in_batch`),
+  INDEX `idx_network_transfers_e2e` (`end_to_end_id`),
   INDEX `idx_network_transfers_created` (`created_at`)
 ) ENGINE=InnoDB;
 

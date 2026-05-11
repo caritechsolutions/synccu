@@ -233,6 +233,7 @@ $router->group([
     $router->get('/member-growth',      [ReportController::class, 'memberGrowth']);
     $router->get('/delinquency',        [ReportController::class, 'delinquency']);
     $router->get('/export',             [ReportController::class, 'export']);
+    $router->get('/camt053',            [ReportController::class, 'camt053']);
 });
 
 // ------------------------------------------------------------------
