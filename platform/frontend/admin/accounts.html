@@ -94,52 +94,87 @@
       <div class="page-header">
         <div>
           <h1 class="page-title">Accounts</h1>
-          <p class="page-subtitle">Manage member accounts and view account details.</p>
+          <p class="page-subtitle">Manage member accounts, account products, and view details.</p>
         </div>
-        <button class="btn btn-primary" id="createAccountBtn">
-          <svg><use href="#icon-plus"/></svg> Create Account
-        </button>
-      </div>
-
-      <!-- Filter Bar -->
-      <div class="filter-bar">
-        <select id="accountTypeFilter" class="form-select">
-          <option value="all">All Types</option>
-          <option value="checking">Checking</option>
-          <option value="savings">Savings</option>
-          <option value="certificate">Certificate</option>
-        </select>
-        <select id="accountStatusFilter" class="form-select">
-          <option value="all">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="frozen">Frozen</option>
-          <option value="closed">Closed</option>
-        </select>
-        <div class="search-box filter-search">
-          <svg class="search-icon"><use href="#icon-search"/></svg>
-          <input type="text" id="accountSearch" placeholder="Search by account number or member..." aria-label="Search accounts">
+        <div class="page-actions" style="display:flex;gap:.5rem">
+          <button class="btn btn-primary" id="createAccountBtn"><svg><use href="#icon-plus"/></svg> Create Account</button>
+          <button class="btn btn-secondary" id="createProductBtn" style="display:none"><svg><use href="#icon-plus"/></svg> New Product</button>
         </div>
       </div>
 
-      <!-- Accounts Table -->
-      <div class="card">
-        <div class="table-responsive">
-          <table class="data-table" id="accountsTable">
-            <thead>
-              <tr>
-                <th>Account Number</th>
-                <th>Type</th>
-                <th>Name</th>
-                <th>Balance</th>
-                <th>Interest Rate</th>
-                <th>Status</th>
-                <th>Opened</th>
-              </tr>
-            </thead>
-            <tbody id="accountsBody">
-              <tr><td colspan="7" class="empty-state">Loading accounts...</td></tr>
-            </tbody>
-          </table>
+      <div class="tabs-sub" style="display:flex;gap:0;border-bottom:2px solid var(--border,#e2e8f0);margin-bottom:1.5rem">
+        <button class="tab-sub active" data-sub="accounts" style="padding:.75rem 1.25rem;cursor:pointer;border:none;background:none;font-size:.875rem;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Member Accounts</button>
+        <button class="tab-sub" data-sub="products" style="padding:.75rem 1.25rem;cursor:pointer;border:none;background:none;font-size:.875rem;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px">Account Products</button>
+      </div>
+
+      <!-- Accounts Tab -->
+      <div class="sub-content active" id="sub-accounts">
+        <div class="filter-bar">
+          <select id="accountTypeFilter" class="form-select">
+            <option value="all">All Types</option>
+            <option value="checking">Checking</option>
+            <option value="savings">Savings</option>
+            <option value="permanent_shares">Permanent Shares</option>
+            <option value="regular_shares">Regular Shares</option>
+          </select>
+          <select id="accountStatusFilter" class="form-select">
+            <option value="all">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="frozen">Frozen</option>
+            <option value="closed">Closed</option>
+          </select>
+          <div class="search-box filter-search">
+            <svg class="search-icon"><use href="#icon-search"/></svg>
+            <input type="text" id="accountSearch" placeholder="Search by account number or member..." aria-label="Search accounts">
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table" id="accountsTable">
+              <thead>
+                <tr>
+                  <th>Account Number</th>
+                  <th>Type</th>
+                  <th>Name</th>
+                  <th>Balance</th>
+                  <th>Rate</th>
+                  <th>Earning</th>
+                  <th>Status</th>
+                  <th>Opened</th>
+                </tr>
+              </thead>
+              <tbody id="accountsBody">
+                <tr><td colspan="8" class="empty-state">Loading accounts...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Products Tab -->
+      <div class="sub-content" id="sub-products" style="display:none">
+        <div class="card">
+          <div class="card-header"><h3>Account Products</h3><p style="color:var(--text-muted);font-size:.8rem;margin:0">Define account product templates that tellers can select when creating member accounts.</p></div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Code</th>
+                  <th>Category</th>
+                  <th>Rate</th>
+                  <th>Interval</th>
+                  <th>Min Balance</th>
+                  <th>Expires</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="productsBody">
+                <tr><td colspan="9" class="empty-state">Loading products...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </main>
@@ -147,7 +182,7 @@
 
   <!-- Create Account Modal -->
   <div class="modal-overlay" id="accountModal">
-    <div class="modal">
+    <div class="modal" style="max-width:520px">
       <div class="modal-header">
         <h3>Create Account</h3>
         <button class="icon-btn modal-close" id="closeAccountModal"><svg><use href="#icon-x"/></svg></button>
@@ -164,25 +199,108 @@
             <label for="accountType">Account Type</label>
             <select id="accountType" name="account_type" class="form-select" required>
               <option value="">Select type...</option>
-              <option value="checking">Checking</option>
               <option value="savings">Savings</option>
-                  <option value="certificate">Certificate of Deposit</option>
+              <option value="checking">Checking</option>
+              <option value="permanent_shares">Permanent Shares</option>
+              <option value="regular_shares">Regular Shares</option>
             </select>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="initialDeposit">Initial Deposit</label>
-              <input type="number" id="initialDeposit" name="initial_deposit" class="form-input" placeholder="0.00" min="0" step="0.01" required>
+          <div class="form-group" id="productSelectGroup" style="display:none">
+            <label for="accountProduct">Account Product</label>
+            <select id="accountProduct" class="form-select">
+              <option value="">— Manual (no product) —</option>
+            </select>
+            <small style="color:var(--text-muted)">Select a product to auto-fill rate and interval</small>
+          </div>
+          <div id="earningFieldsGroup">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="earningRate" id="earningRateLabel">Interest / Dividend Rate (%)</label>
+                <input type="number" id="earningRate" name="earning_rate" class="form-input" placeholder="0.00" min="0" step="0.01">
+              </div>
+              <div class="form-group">
+                <label for="earningInterval">Earning Interval</label>
+                <select id="earningInterval" name="earning_interval" class="form-select">
+                  <option value="yearly">Yearly</option>
+                  <option value="bi_annually">Bi-Annually</option>
+                  <option value="quarterly">Quarterly</option>
+                </select>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="interestRate">Interest Rate (%)</label>
-              <input type="number" id="interestRate" name="interest_rate" class="form-input" placeholder="0.00" min="0" step="0.01">
-            </div>
+          </div>
+          <div class="form-group">
+            <label for="initialDeposit">Initial Deposit</label>
+            <input type="number" id="initialDeposit" name="initial_deposit" class="form-input" placeholder="0.00" min="0" step="0.01" required>
+            <small id="minBalanceHint" style="color:var(--text-muted);display:none">Minimum: $<span id="minBalanceVal">0.00</span></small>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="cancelAccountBtn">Cancel</button>
           <button type="submit" class="btn btn-primary">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create/Edit Product Modal -->
+  <div class="modal-overlay" id="productModal">
+    <div class="modal" style="max-width:520px">
+      <div class="modal-header">
+        <h3 id="productModalTitle">Create Account Product</h3>
+        <button class="icon-btn modal-close" onclick="document.getElementById('productModal').classList.remove('active')">&times;</button>
+      </div>
+      <form id="productForm">
+        <input type="hidden" id="editProductId">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group" style="flex:2">
+              <label for="prodName">Product Name</label>
+              <input type="text" id="prodName" class="form-input" placeholder="e.g. Regular Savings" required>
+            </div>
+            <div class="form-group" style="flex:1">
+              <label for="prodCode">Code</label>
+              <input type="text" id="prodCode" class="form-input" placeholder="e.g. SAV01" maxlength="20" required style="text-transform:uppercase">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="prodCategory">Category</label>
+            <select id="prodCategory" class="form-select" required>
+              <option value="savings">Savings (earns interest)</option>
+              <option value="checking">Checking (earns interest)</option>
+              <option value="permanent_shares">Permanent Shares (earns dividend)</option>
+              <option value="regular_shares">Regular Shares (earns dividend)</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="prodRate" id="prodRateLabel">Interest Rate (%)</label>
+              <input type="number" id="prodRate" class="form-input" step="0.01" min="0" placeholder="0.00" required>
+            </div>
+            <div class="form-group">
+              <label for="prodInterval">Earning Interval</label>
+              <select id="prodInterval" class="form-select" required>
+                <option value="yearly">Yearly</option>
+                <option value="bi_annually">Bi-Annually</option>
+                <option value="quarterly">Quarterly</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="prodMinBal">Minimum Opening Balance ($)</label>
+            <input type="number" id="prodMinBal" class="form-input" step="0.01" min="0" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label for="prodDesc">Description</label>
+            <textarea id="prodDesc" class="form-input" rows="2" placeholder="Brief description of this product..." maxlength="500"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="prodExpires">Expires At (leave empty for no expiry)</label>
+            <input type="date" id="prodExpires" class="form-input">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('productModal').classList.remove('active')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="productSubmitBtn">Create Product</button>
         </div>
       </form>
     </div>
@@ -209,7 +327,9 @@
               <dt>Member</dt><dd id="detailAccMember">-</dd>
               <dt>Status</dt><dd id="detailAccStatus">-</dd>
               <dt>Balance</dt><dd id="detailAccBalance">-</dd>
-              <dt>Interest Rate</dt><dd id="detailAccRate">-</dd>
+              <dt>Earning Type</dt><dd id="detailEarningType">-</dd>
+              <dt>Rate</dt><dd id="detailAccRate">-</dd>
+              <dt>Interval</dt><dd id="detailEarningInterval">-</dd>
               <dt>Opened</dt><dd id="detailAccOpened">-</dd>
             </dl>
           </div>
@@ -252,56 +372,112 @@
 
   <script src="../js/admin-common.js"></script>
   <script>
+    const INTERVAL_LABELS = { yearly:'Yearly', bi_annually:'Bi-Annually', quarterly:'Quarterly' };
+    const TYPE_LABELS = { savings:'Savings', checking:'Checking', permanent_shares:'Permanent Shares', regular_shares:'Regular Shares', loan:'Loan' };
+    const TYPE_CLASSES = { checking:'badge-primary', savings:'badge-info', permanent_shares:'badge-purple', regular_shares:'badge-purple', loan:'badge-warning' };
+    const STATUS_CLASSES = { active:'badge-success', frozen:'badge-muted', closed:'badge-danger', dormant:'badge-warning' };
+    let productsCache = [];
+
+    // ── Tab switching ───────────────────────────────────────────────
+    document.querySelectorAll('.tab-sub').forEach(t => {
+      t.addEventListener('click', () => {
+        document.querySelectorAll('.tab-sub').forEach(b => { b.classList.remove('active'); b.style.color = 'var(--text-muted)'; b.style.borderBottomColor = 'transparent'; });
+        document.querySelectorAll('.sub-content').forEach(c => { c.style.display = 'none'; c.classList.remove('active'); });
+        t.classList.add('active');
+        t.style.color = 'var(--color-primary,#2563eb)';
+        t.style.borderBottomColor = 'var(--color-primary,#2563eb)';
+        const sub = document.getElementById('sub-' + t.dataset.sub);
+        if (sub) { sub.style.display = 'block'; sub.classList.add('active'); }
+        document.getElementById('createProductBtn').style.display = t.dataset.sub === 'products' ? '' : 'none';
+        document.getElementById('createAccountBtn').style.display = t.dataset.sub === 'accounts' ? '' : 'none';
+        if (t.dataset.sub === 'products') loadProducts();
+      });
+    });
+    document.querySelector('.tab-sub.active').style.color = 'var(--color-primary,#2563eb)';
+    document.querySelector('.tab-sub.active').style.borderBottomColor = 'var(--color-primary,#2563eb)';
+
+    // ── Modals ──────────────────────────────────────────────────────
     const accountModal = document.getElementById('accountModal');
     const accountSlideOver = document.getElementById('accountSlideOver');
-    const createAccountBtn = document.getElementById('createAccountBtn');
-    const closeAccountModal = document.getElementById('closeAccountModal');
-    const cancelAccountBtn = document.getElementById('cancelAccountBtn');
-    const closeSlideOver = document.getElementById('closeSlideOver');
     const accountForm = document.getElementById('accountForm');
 
     function openAccountModal() {
       accountForm.reset();
       document.getElementById('accountMemberId').value = '';
       document.getElementById('memberSearchResults').innerHTML = '';
+      document.getElementById('productSelectGroup').style.display = 'none';
+      document.getElementById('earningFieldsGroup').style.display = '';
+      document.getElementById('minBalanceHint').style.display = 'none';
       accountModal.classList.add('active');
+      loadAvailableProducts();
     }
     function closeAccountModalFn() {
       accountModal.classList.remove('active');
       document.getElementById('memberSearchResults').innerHTML = '';
     }
-    createAccountBtn.addEventListener('click', openAccountModal);
-    closeAccountModal.addEventListener('click', closeAccountModalFn);
-    cancelAccountBtn.addEventListener('click', closeAccountModalFn);
+    document.getElementById('createAccountBtn').addEventListener('click', openAccountModal);
+    document.getElementById('closeAccountModal').addEventListener('click', closeAccountModalFn);
+    document.getElementById('cancelAccountBtn').addEventListener('click', closeAccountModalFn);
     accountModal.addEventListener('click', (e) => { if (e.target === accountModal) closeAccountModalFn(); });
 
+    // ── Account type changes → load matching products ───────────────
+    document.getElementById('accountType').addEventListener('change', function() {
+      const isShares = this.value === 'permanent_shares' || this.value === 'regular_shares';
+      document.getElementById('earningRateLabel').textContent = isShares ? 'Dividend Rate (%)' : 'Interest Rate (%)';
+      loadAvailableProducts();
+    });
+
+    async function loadAvailableProducts() {
+      const cat = document.getElementById('accountType').value;
+      if (!cat) { document.getElementById('productSelectGroup').style.display = 'none'; return; }
+      try {
+        const r = await apiFetch('/api/v1/accounts/products/available?category=' + cat);
+        const json = await r.json();
+        const products = json.data || [];
+        const sel = document.getElementById('accountProduct');
+        sel.innerHTML = '<option value="">— Manual (no product) —</option>' +
+          products.map(p => '<option value="' + p.id + '" data-rate="' + p.earning_rate + '" data-interval="' + p.earning_interval + '" data-min="' + p.min_opening_balance + '">' + p.name + ' (' + Number(p.earning_rate).toFixed(2) + '% ' + (INTERVAL_LABELS[p.earning_interval]||p.earning_interval) + ')</option>').join('');
+        document.getElementById('productSelectGroup').style.display = products.length ? '' : 'none';
+      } catch(e) { document.getElementById('productSelectGroup').style.display = 'none'; }
+    }
+
+    document.getElementById('accountProduct').addEventListener('change', function() {
+      const opt = this.selectedOptions[0];
+      if (this.value && opt) {
+        document.getElementById('earningRate').value = opt.dataset.rate || '';
+        document.getElementById('earningInterval').value = opt.dataset.interval || 'yearly';
+        document.getElementById('earningFieldsGroup').style.display = 'none';
+        const minBal = parseFloat(opt.dataset.min || 0);
+        if (minBal > 0) {
+          document.getElementById('minBalanceVal').textContent = Number(minBal).toFixed(2);
+          document.getElementById('minBalanceHint').style.display = '';
+          document.getElementById('initialDeposit').min = minBal;
+        } else {
+          document.getElementById('minBalanceHint').style.display = 'none';
+          document.getElementById('initialDeposit').min = 0;
+        }
+      } else {
+        document.getElementById('earningFieldsGroup').style.display = '';
+        document.getElementById('minBalanceHint').style.display = 'none';
+        document.getElementById('initialDeposit').min = 0;
+      }
+    });
+
+    // ── Slide-over ──────────────────────────────────────────────────
     const slidePanel = accountSlideOver.querySelector('.slideover');
     const detailView = document.getElementById('accountDetailView');
     const editView = document.getElementById('accountEditView');
     let currentAccountId = null;
 
     function openSlideOver() { accountSlideOver.classList.add('active'); slidePanel.classList.add('active'); }
-    function closeSlideOverFn() {
-      accountSlideOver.classList.remove('active');
-      slidePanel.classList.remove('active');
-      showDetailView();
-    }
-    function showDetailView() {
-      detailView.style.display = '';
-      editView.style.display = 'none';
-      document.getElementById('slideOverTitle').textContent = 'Account Details';
-    }
-    function showEditView() {
-      detailView.style.display = 'none';
-      editView.style.display = '';
-      document.getElementById('slideOverTitle').textContent = 'Edit Account';
-    }
+    function closeSlideOverFn() { accountSlideOver.classList.remove('active'); slidePanel.classList.remove('active'); showDetailView(); }
+    function showDetailView() { detailView.style.display = ''; editView.style.display = 'none'; document.getElementById('slideOverTitle').textContent = 'Account Details'; }
+    function showEditView() { detailView.style.display = 'none'; editView.style.display = ''; document.getElementById('slideOverTitle').textContent = 'Edit Account'; }
 
-    closeSlideOver.addEventListener('click', closeSlideOverFn);
+    document.getElementById('closeSlideOver').addEventListener('click', closeSlideOverFn);
     accountSlideOver.addEventListener('click', (e) => { if (e.target === accountSlideOver) closeSlideOverFn(); });
 
     document.getElementById('editAccountBtn').addEventListener('click', () => {
-      // Populate edit form from current detail values
       const accName = document.getElementById('detailAccNum').dataset.name || '';
       const accStatus = document.getElementById('detailAccStatus').dataset.value || 'active';
       const accRate = document.getElementById('detailAccRate').dataset.value || '0';
@@ -310,39 +486,24 @@
       document.getElementById('editAccRate').value = accRate;
       showEditView();
     });
-
     document.getElementById('cancelEditBtn').addEventListener('click', showDetailView);
 
     document.getElementById('editAccountForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!currentAccountId) return;
       const submitBtn = e.target.querySelector('button[type="submit"]');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Saving...';
-      const formData = new FormData(e.target);
-      const data = Object.fromEntries(formData);
+      submitBtn.disabled = true; submitBtn.textContent = 'Saving...';
+      const data = Object.fromEntries(new FormData(e.target));
       try {
-        const resp = await apiFetch('/api/v1/accounts/' + currentAccountId, {
-          method: 'PUT',
-          body: JSON.stringify(data)
-        });
+        const resp = await apiFetch('/api/v1/accounts/' + currentAccountId, { method: 'PUT', body: JSON.stringify(data) });
         const result = await resp.json();
-        if (!resp.ok) {
-          alert(result.error || result.message || 'Failed to update account');
-          return;
-        }
-        showDetailView();
-        openAccountDetail(currentAccountId);
-        loadAccounts();
-      } catch (err) {
-        alert('Network error: ' + err.message);
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Save Changes';
-      }
+        if (!resp.ok) { alert(result.error || result.message || 'Failed to update'); return; }
+        showDetailView(); openAccountDetail(currentAccountId); loadAccounts();
+      } catch (err) { alert('Network error: ' + err.message); }
+      finally { submitBtn.disabled = false; submitBtn.textContent = 'Save Changes'; }
     });
 
-    // Member search for create account form
+    // ── Member search ───────────────────────────────────────────────
     let memberSearchTimeout;
     const acctMemberInput = document.getElementById('accountMemberSearch');
     const acctMemberResults = document.getElementById('memberSearchResults');
@@ -358,14 +519,12 @@
           if (!resp.ok) return;
           const json = await resp.json();
           const members = (json.data || []).filter(m => m.role === 'member');
-          if (!members.length) { acctMemberResults.innerHTML = '<div style="padding:.75rem;color:var(--text-muted,#888);font-size:.875rem">No members found</div>'; return; }
+          if (!members.length) { acctMemberResults.innerHTML = '<div style="padding:.75rem;color:var(--text-muted);font-size:.875rem">No members found</div>'; return; }
           acctMemberResults.innerHTML = members.map(m => {
-            const accts = m.account_numbers || '';
-            return `<div class="search-result-item" data-id="${m.id}" data-label="${m.first_name} ${m.last_name} — ${m.email}" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid var(--border,#eee)">
-              <strong>${m.first_name} ${m.last_name}</strong>
-              <div style="font-size:.8rem;color:var(--text-secondary,#555)">${m.email}</div>
-              <div style="font-size:.75rem;color:var(--text-muted,#888)">${m.phone || 'No phone'}${accts ? ' · Acct: ' + accts : ''}</div>
-            </div>`;
+            return '<div class="search-result-item" data-id="' + m.id + '" data-label="' + m.first_name + ' ' + m.last_name + ' — ' + m.email + '" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid var(--border,#eee)">' +
+              '<strong>' + m.first_name + ' ' + m.last_name + '</strong>' +
+              '<div style="font-size:.8rem;color:var(--text-secondary,#555)">' + m.email + '</div>' +
+              '<div style="font-size:.75rem;color:var(--text-muted)">' + (m.phone || 'No phone') + (m.account_numbers ? ' · Acct: ' + m.account_numbers : '') + '</div></div>';
           }).join('');
           acctMemberResults.querySelectorAll('.search-result-item').forEach(item => {
             item.addEventListener('mouseenter', () => item.style.background = 'var(--bg-muted,#f5f5f5)');
@@ -376,44 +535,41 @@
               acctMemberResults.innerHTML = '';
             });
           });
-        } catch (e) { /* ignore */ }
+        } catch (e) {}
       }, 300);
     });
 
+    // ── Create account submit ───────────────────────────────────────
     accountForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const submitBtn = accountForm.querySelector('button[type="submit"]');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Creating...';
-      const formData = new FormData(accountForm);
-      const data = Object.fromEntries(formData);
+      submitBtn.disabled = true; submitBtn.textContent = 'Creating...';
+      const data = {
+        member_id: document.getElementById('accountMemberId').value,
+        account_type: document.getElementById('accountType').value,
+        account_product_id: document.getElementById('accountProduct').value || undefined,
+        earning_rate: document.getElementById('earningRate').value || '0',
+        earning_interval: document.getElementById('earningInterval').value,
+        initial_deposit: document.getElementById('initialDeposit').value,
+      };
+      if (!data.account_product_id) delete data.account_product_id;
       try {
-        const resp = await apiFetch('/api/v1/accounts', {
-          method: 'POST',
-          body: JSON.stringify(data)
-        });
+        const resp = await apiFetch('/api/v1/accounts', { method: 'POST', body: JSON.stringify(data) });
         const result = await resp.json();
         if (!resp.ok) {
           let msg = result.error || result.message || 'Failed to create account';
-          if (result.errors) {
-            const details = Object.entries(result.errors).map(([f, m]) => f + ': ' + (Array.isArray(m) ? m.join(', ') : m)).join('\n');
-            msg += '\n\n' + details;
-          }
-          alert(msg);
-          return;
+          if (result.errors) msg += '\n\n' + Object.entries(result.errors).map(([f, m]) => f + ': ' + (Array.isArray(m) ? m.join(', ') : m)).join('\n');
+          alert(msg); return;
         }
-        accountModal.classList.remove('active');
+        closeAccountModalFn();
         accountForm.reset();
         document.getElementById('accountMemberId').value = '';
         loadAccounts();
-      } catch (e) {
-        alert('Network error: ' + e.message);
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Create Account';
-      }
+      } catch (e) { alert('Network error: ' + e.message); }
+      finally { submitBtn.disabled = false; submitBtn.textContent = 'Create Account'; }
     });
 
+    // ── Load & render accounts ──────────────────────────────────────
     async function loadAccounts() {
       try {
         const type = document.getElementById('accountTypeFilter').value;
@@ -422,21 +578,14 @@
         const resp = await apiFetch('/api/v1/accounts?type=' + type + '&status=' + status + '&search=' + encodeURIComponent(search));
         if (!resp.ok) return;
         const json = await resp.json();
-        const accounts = json.data || [];
-        renderAccounts(accounts);
-      } catch (e) { /* API not available */ }
+        renderAccounts(json.data || []);
+      } catch (e) {}
     }
 
     function renderAccounts(accounts) {
       const tbody = document.getElementById('accountsBody');
-      if (!accounts.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No accounts found.</td></tr>';
-        return;
-      }
-      const typeClasses = { checking: 'badge-primary', savings: 'badge-info', loan: 'badge-warning', certificate: 'badge-purple' };
-      const statusClasses = { active: 'badge-success', frozen: 'badge-muted', closed: 'badge-danger', dormant: 'badge-warning' };
+      if (!accounts.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No accounts found.</td></tr>'; return; }
 
-      // Group accounts by member
       const grouped = {};
       accounts.forEach(a => {
         const key = a.user_id || 'unknown';
@@ -446,94 +595,174 @@
 
       let html = '';
       Object.values(grouped).forEach(member => {
-        html += `<tr class="member-group-header"><td colspan="7"><strong>${member.name}</strong>${member.email ? ' <span style="color:var(--text-muted);font-size:var(--text-xs)">' + member.email + '</span>' : ''}</td></tr>`;
+        html += '<tr class="member-group-header"><td colspan="8"><strong>' + member.name + '</strong>' + (member.email ? ' <span style="color:var(--text-muted);font-size:var(--text-xs)">' + member.email + '</span>' : '') + '</td></tr>';
         member.accounts.forEach(a => {
-          const rate = a.interest_rate ? (Number(a.interest_rate) * 100).toFixed(2) + '%' : '0%';
+          const rate = a.earning_rate ? Number(a.earning_rate).toFixed(2) + '%' : (a.interest_rate ? (Number(a.interest_rate) * 100).toFixed(2) + '%' : '0%');
+          const earningLabel = a.earning_type === 'dividend' ? 'Dividend' : (a.earning_type === 'interest' ? 'Interest' : '-');
+          const intervalLabel = INTERVAL_LABELS[a.earning_interval] || '-';
           const opened = a.opened_at ? new Date(a.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
-          html += `<tr class="account-row" data-id="${a.id}" style="cursor:pointer">
-            <td><span style="font-family:var(--font-mono)">${a.account_number || '---'}</span></td>
-            <td><span class="badge ${typeClasses[a.account_type] || 'badge-info'}">${a.account_type}</span></td>
-            <td>${a.name || '-'}</td>
-            <td style="font-weight:600">$${Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-            <td>${rate}</td>
-            <td><span class="badge ${statusClasses[a.status] || 'badge-muted'}">${a.status}</span></td>
-            <td>${opened}</td>
-          </tr>`;
+          html += '<tr class="account-row" data-id="' + a.id + '" style="cursor:pointer">' +
+            '<td><span style="font-family:var(--font-mono)">' + (a.account_number || '---') + '</span></td>' +
+            '<td><span class="badge ' + (TYPE_CLASSES[a.account_type] || 'badge-info') + '">' + (TYPE_LABELS[a.account_type] || a.account_type) + '</span></td>' +
+            '<td>' + (a.name || '-') + '</td>' +
+            '<td style="font-weight:600">$' + Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) + '</td>' +
+            '<td>' + rate + '</td>' +
+            '<td>' + earningLabel + (intervalLabel !== '-' ? ' / ' + intervalLabel : '') + '</td>' +
+            '<td><span class="badge ' + (STATUS_CLASSES[a.status] || 'badge-muted') + '">' + a.status + '</span></td>' +
+            '<td>' + opened + '</td></tr>';
         });
       });
       tbody.innerHTML = html;
-
       tbody.querySelectorAll('.account-row').forEach(row => {
         row.addEventListener('click', () => openAccountDetail(row.dataset.id));
       });
     }
 
+    // ── Account detail ──────────────────────────────────────────────
     async function openAccountDetail(accountId) {
       currentAccountId = accountId;
       showDetailView();
-      document.getElementById('detailAccNum').textContent = 'Loading...';
-      document.getElementById('detailAccType').textContent = '-';
-      document.getElementById('detailAccMember').textContent = '-';
-      document.getElementById('detailAccBalance').textContent = '-';
-      document.getElementById('detailAccStatus').textContent = '-';
-      document.getElementById('detailAccRate').textContent = '-';
-      document.getElementById('detailAccOpened').textContent = '-';
+      ['detailAccNum','detailAccType','detailAccMember','detailAccBalance','detailAccStatus','detailAccRate','detailEarningType','detailEarningInterval','detailAccOpened']
+        .forEach(id => document.getElementById(id).textContent = '-');
       document.getElementById('detailTransactions').innerHTML = '<p style="color:var(--text-muted);font-size:0.875rem">Loading...</p>';
       openSlideOver();
 
       try {
         const resp = await apiFetch('/api/v1/accounts/' + accountId);
-        if (!resp.ok) { document.getElementById('detailAccNum').textContent = 'Error loading'; return; }
-        const json = await resp.json();
-        const a = json.data || {};
-        const ratePercent = a.interest_rate ? (Number(a.interest_rate) * 100).toFixed(2) : '0';
+        if (!resp.ok) { document.getElementById('detailAccNum').textContent = 'Error'; return; }
+        const a = (await resp.json()).data || {};
+        const ratePercent = a.earning_rate ? Number(a.earning_rate).toFixed(2) : (a.interest_rate ? (Number(a.interest_rate) * 100).toFixed(2) : '0');
         const numEl = document.getElementById('detailAccNum');
         numEl.textContent = a.account_number || '-';
         numEl.dataset.name = a.name || '';
-        document.getElementById('detailAccType').textContent = a.account_type || '-';
+        document.getElementById('detailAccType').textContent = TYPE_LABELS[a.account_type] || a.account_type || '-';
         document.getElementById('detailAccMember').textContent = a.member_name || a.name || '-';
         document.getElementById('detailAccBalance').textContent = '$' + Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
         const statusEl = document.getElementById('detailAccStatus');
-        statusEl.textContent = a.status || '-';
-        statusEl.dataset.value = a.status || 'active';
+        statusEl.textContent = a.status || '-'; statusEl.dataset.value = a.status || 'active';
+        document.getElementById('detailEarningType').textContent = a.earning_type === 'dividend' ? 'Dividend' : (a.earning_type === 'interest' ? 'Interest' : 'None');
         const rateEl = document.getElementById('detailAccRate');
-        rateEl.textContent = ratePercent + '%';
-        rateEl.dataset.value = ratePercent;
+        rateEl.textContent = ratePercent + '%'; rateEl.dataset.value = ratePercent;
+        document.getElementById('detailEarningInterval').textContent = INTERVAL_LABELS[a.earning_interval] || '-';
         document.getElementById('detailAccOpened').textContent = a.opened_at ? new Date(a.opened_at).toLocaleDateString() : '-';
-      } catch (e) {
-        document.getElementById('detailAccNum').textContent = 'Error';
-      }
+      } catch (e) { document.getElementById('detailAccNum').textContent = 'Error'; }
 
-      // Load transactions for this account
       try {
         const txResp = await apiFetch('/api/v1/accounts/' + accountId + '/transactions?per_page=10');
         if (!txResp.ok) return;
-        const txJson = await txResp.json();
-        const txns = txJson.data || [];
+        const txns = (await txResp.json()).data || [];
         const txEl = document.getElementById('detailTransactions');
-        if (!txns.length) {
-          txEl.innerHTML = '<p style="color:var(--text-muted);font-size:0.875rem">No transactions yet</p>';
-          return;
-        }
+        if (!txns.length) { txEl.innerHTML = '<p style="color:var(--text-muted);font-size:0.875rem">No transactions yet</p>'; return; }
         txEl.innerHTML = txns.map(t => {
           const isCredit = ['deposit', 'interest'].includes(t.type) || (t.type === 'transfer' && t.related_account_id);
           const sign = isCredit ? '+' : '-';
           const color = isCredit ? 'text-green' : 'text-red';
           const date = t.created_at ? new Date(t.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-';
-          return '<div class="mini-table-row">' +
-            '<span class="mini-date">' + date + '</span>' +
-            '<span class="mini-desc">' + (t.description || t.type) + '</span>' +
-            '<span class="mini-amount ' + color + '">' + sign + '$' + Number(t.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) + '</span></div>';
+          return '<div class="mini-table-row"><span class="mini-date">' + date + '</span><span class="mini-desc">' + (t.description || t.type) + '</span><span class="mini-amount ' + color + '">' + sign + '$' + Number(t.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) + '</span></div>';
         }).join('');
-      } catch (e) { /* ignore */ }
+      } catch (e) {}
     }
 
+    // ── Products ────────────────────────────────────────────────────
+    document.getElementById('createProductBtn').addEventListener('click', () => {
+      document.getElementById('productForm').reset();
+      document.getElementById('editProductId').value = '';
+      document.getElementById('productModalTitle').textContent = 'Create Account Product';
+      document.getElementById('productSubmitBtn').textContent = 'Create Product';
+      document.getElementById('productModal').classList.add('active');
+    });
+
+    document.getElementById('prodCategory').addEventListener('change', function() {
+      const isShares = this.value === 'permanent_shares' || this.value === 'regular_shares';
+      document.getElementById('prodRateLabel').textContent = isShares ? 'Dividend Rate (%)' : 'Interest Rate (%)';
+    });
+
+    async function loadProducts() {
+      try {
+        const r = await apiFetch('/api/v1/accounts/products');
+        const json = await r.json();
+        productsCache = json.data || [];
+        const tb = document.getElementById('productsBody');
+        if (!productsCache.length) { tb.innerHTML = '<tr><td colspan="9" class="empty-state">No account products defined. Click "New Product" to create one.</td></tr>'; return; }
+        tb.innerHTML = productsCache.map(p => {
+          const isShares = p.category === 'permanent_shares' || p.category === 'regular_shares';
+          const catLabel = TYPE_LABELS[p.category] || p.category;
+          const expires = p.expires_at ? new Date(p.expires_at).toLocaleDateString() : 'Never';
+          return '<tr>' +
+            '<td><strong>' + p.name + '</strong>' + (p.description ? '<div style="font-size:.75rem;color:var(--text-muted)">' + p.description + '</div>' : '') + '</td>' +
+            '<td style="font-family:var(--font-mono);font-size:.8rem">' + p.code + '</td>' +
+            '<td><span class="badge ' + (TYPE_CLASSES[p.category] || 'badge-info') + '">' + catLabel + '</span></td>' +
+            '<td>' + Number(p.earning_rate).toFixed(2) + '% <span style="color:var(--text-muted);font-size:.75rem">(' + (isShares ? 'div' : 'int') + ')</span></td>' +
+            '<td>' + (INTERVAL_LABELS[p.earning_interval] || p.earning_interval) + '</td>' +
+            '<td>$' + Number(p.min_opening_balance || 0).toFixed(2) + '</td>' +
+            '<td>' + expires + '</td>' +
+            '<td><span class="badge ' + (p.status === 'active' ? 'badge-success' : 'badge-muted') + '">' + p.status + '</span></td>' +
+            '<td><button class="btn btn-sm btn-secondary" onclick="editProduct(\'' + p.id + '\')">Edit</button></td></tr>';
+        }).join('');
+      } catch(e) { document.getElementById('productsBody').innerHTML = '<tr><td colspan="9" class="empty-state" style="color:#ef4444">Failed to load</td></tr>'; }
+    }
+
+    function editProduct(id) {
+      const p = productsCache.find(x => x.id === id);
+      if (!p) return;
+      document.getElementById('editProductId').value = p.id;
+      document.getElementById('prodName').value = p.name;
+      document.getElementById('prodCode').value = p.code;
+      document.getElementById('prodCategory').value = p.category;
+      document.getElementById('prodCategory').disabled = true;
+      document.getElementById('prodRate').value = p.earning_rate;
+      document.getElementById('prodInterval').value = p.earning_interval;
+      document.getElementById('prodMinBal').value = p.min_opening_balance || '';
+      document.getElementById('prodDesc').value = p.description || '';
+      document.getElementById('prodExpires').value = p.expires_at ? p.expires_at.split('T')[0].split(' ')[0] : '';
+      document.getElementById('productModalTitle').textContent = 'Edit Account Product';
+      document.getElementById('productSubmitBtn').textContent = 'Save Changes';
+      document.getElementById('productModal').classList.add('active');
+    }
+
+    document.getElementById('productForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const editId = document.getElementById('editProductId').value;
+      const body = {
+        name: document.getElementById('prodName').value,
+        code: document.getElementById('prodCode').value,
+        category: document.getElementById('prodCategory').value,
+        earning_rate: parseFloat(document.getElementById('prodRate').value) || 0,
+        earning_interval: document.getElementById('prodInterval').value,
+        min_opening_balance: parseFloat(document.getElementById('prodMinBal').value) || 0,
+        description: document.getElementById('prodDesc').value,
+        expires_at: document.getElementById('prodExpires').value || null,
+      };
+      const url = editId ? '/api/v1/accounts/products/' + editId : '/api/v1/accounts/products';
+      const method = editId ? 'PUT' : 'POST';
+      try {
+        const r = await apiFetch(url, { method, body: JSON.stringify(body) });
+        const json = await r.json();
+        if (!r.ok) { alert(json.error || json.message || 'Failed'); return; }
+        document.getElementById('productModal').classList.remove('active');
+        document.getElementById('prodCategory').disabled = false;
+        loadProducts();
+      } catch(err) { alert('Failed: ' + err.message); }
+    });
+
+    // ── Filters ─────────────────────────────────────────────────────
     document.getElementById('accountTypeFilter').addEventListener('change', loadAccounts);
     document.getElementById('accountStatusFilter').addEventListener('change', loadAccounts);
     let searchTimeout;
     document.getElementById('accountSearch').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(loadAccounts, 300); });
 
-    if (new URLSearchParams(window.location.search).get('action') === 'new') { accountModal.classList.add('active'); }
+    if (new URLSearchParams(window.location.search).get('action') === 'new') openAccountModal();
+
+    // ── Role check: hide products tab for tellers ───────────────────
+    (function() {
+      try {
+        var u = JSON.parse(localStorage.getItem('synccu-user'));
+        if (u && u.role === 'teller') {
+          document.querySelector('[data-sub="products"]').style.display = 'none';
+          document.getElementById('createProductBtn').style.display = 'none';
+        }
+      } catch(e) {}
+    })();
 
     loadAccounts();
   </script>

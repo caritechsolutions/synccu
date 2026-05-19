@@ -70,19 +70,23 @@ CREATE TABLE IF NOT EXISTS `refresh_tokens` (
   INDEX `idx_refresh_tokens_user` (`user_id`)
 ) ENGINE=InnoDB;
 
--- Accounts (savings, checking, loan)
+-- Accounts (savings, checking, shares, loan)
 CREATE TABLE IF NOT EXISTS `accounts` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
   `tenant_id` CHAR(36) NOT NULL,
   `user_id` CHAR(36) NOT NULL,
   `account_number` VARCHAR(20) NOT NULL,
-  `account_type` ENUM('savings','checking','loan','certificate') NOT NULL,
+  `account_type` ENUM('savings','checking','permanent_shares','regular_shares','loan') NOT NULL,
+  `account_product_id` CHAR(36) DEFAULT NULL,
   `name` VARCHAR(100) NOT NULL,
   `balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `available_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `currency` CHAR(3) DEFAULT 'USD',
   `status` ENUM('active','frozen','closed','dormant') DEFAULT 'active',
   `interest_rate` DECIMAL(5,2) DEFAULT 0.00,
+  `earning_type` ENUM('interest','dividend','none') DEFAULT 'none',
+  `earning_rate` DECIMAL(5,2) DEFAULT 0.00,
+  `earning_interval` ENUM('yearly','bi_annually','quarterly') DEFAULT NULL,
   `opened_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `closed_at` TIMESTAMP NULL DEFAULT NULL,
   `metadata` JSON DEFAULT NULL,
@@ -94,7 +98,8 @@ CREATE TABLE IF NOT EXISTS `accounts` (
   INDEX `idx_accounts_tenant` (`tenant_id`),
   INDEX `idx_accounts_user` (`user_id`),
   INDEX `idx_accounts_type` (`account_type`),
-  INDEX `idx_accounts_status` (`status`)
+  INDEX `idx_accounts_status` (`status`),
+  INDEX `idx_accounts_product` (`account_product_id`)
 ) ENGINE=InnoDB;
 
 -- Transactions
@@ -377,6 +382,47 @@ CREATE TABLE IF NOT EXISTS `network_settlements` (
   INDEX `idx_network_settlements_peer` (`peer_node_code`),
   INDEX `idx_network_settlements_period` (`period_start`, `period_end`),
   INDEX `idx_network_settlements_status` (`status`)
+) ENGINE=InnoDB;
+
+-- Account Products (templates for creating member accounts)
+CREATE TABLE IF NOT EXISTS `account_products` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `code` VARCHAR(20) NOT NULL,
+  `category` ENUM('savings','checking','permanent_shares','regular_shares') NOT NULL,
+  `earning_type` ENUM('interest','dividend') NOT NULL,
+  `earning_rate` DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+  `earning_interval` ENUM('yearly','bi_annually','quarterly') NOT NULL DEFAULT 'yearly',
+  `min_opening_balance` DECIMAL(15,2) DEFAULT 0.00,
+  `description` TEXT DEFAULT NULL,
+  `expires_at` DATETIME DEFAULT NULL,
+  `status` ENUM('active','inactive') DEFAULT 'active',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `unique_product_code` (`tenant_id`, `code`),
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  INDEX `idx_ap_tenant` (`tenant_id`),
+  INDEX `idx_ap_category` (`tenant_id`, `category`),
+  INDEX `idx_ap_status` (`tenant_id`, `status`)
+) ENGINE=InnoDB;
+
+-- Period Low Balances (monthly lowest balance tracking for interest/dividend calculation)
+CREATE TABLE IF NOT EXISTS `period_low_balances` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `account_id` CHAR(36) NOT NULL,
+  `year` SMALLINT NOT NULL,
+  `month` TINYINT NOT NULL,
+  `lowest_balance` DECIMAL(15,2) NOT NULL,
+  `lowest_balance_date` DATE NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `unique_period` (`tenant_id`, `account_id`, `year`, `month`),
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`account_id`) REFERENCES `accounts`(`id`) ON DELETE CASCADE,
+  INDEX `idx_plb_account` (`account_id`),
+  INDEX `idx_plb_period` (`tenant_id`, `year`, `month`)
 ) ENGINE=InnoDB;
 
 -- Seed default tenant and super admin

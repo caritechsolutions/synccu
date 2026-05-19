@@ -27,43 +27,45 @@ final class AccountService
     // Create
     // ------------------------------------------------------------------
 
-    /**
-     * Open a new account for a user.
-     *
-     * @param array{
-     *     user_id: string,
-     *     account_type: string,
-     *     currency?: string,
-     *     name?: string,
-     * } $data
-     */
     public function create(array $data, string $tenantId): array
     {
         $accountId     = $this->generateUuid();
         $accountNumber = $this->generateAccountNumber($tenantId);
         $now           = date('Y-m-d H:i:s');
 
-        $interestRate = (float) ($data['interest_rate_value'] ?? 0);
+        $earningType = $data['earning_type'] ?? 'none';
+        $earningRate = (float) ($data['earning_rate'] ?? 0);
+        $earningInterval = $data['earning_interval'] ?? null;
+        $interestRate = $earningRate > 0 ? $earningRate / 100 : 0;
 
         $this->db->query(
             'INSERT INTO accounts
-                (id, tenant_id, user_id, account_number, account_type, name, currency, balance, available_balance, interest_rate, status, opened_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, ?, ?, ?, ?, ?)',
+                (id, tenant_id, user_id, account_number, account_type, account_product_id,
+                 name, currency, balance, available_balance, interest_rate,
+                 earning_type, earning_rate, earning_interval,
+                 status, opened_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $accountId,
                 $tenantId,
                 $data['user_id'],
                 $accountNumber,
                 $data['account_type'],
+                $data['account_product_id'] ?? null,
                 $data['name'] ?? $this->defaultAccountName($data['account_type']),
                 $data['currency'] ?? 'USD',
                 $interestRate,
+                $earningType,
+                $earningRate,
+                $earningInterval,
                 'active',
                 $now,
                 $now,
                 $now,
             ],
         );
+
+        $this->initPeriodLowBalance($accountId, $tenantId, 0.00);
 
         return $this->findById($accountId);
     }
@@ -263,10 +265,63 @@ final class AccountService
      */
     public function updateBalance(string $accountId, float $amount): void
     {
+        $tenantId = $this->db->getTenantId();
         $this->db->execute(
             'UPDATE accounts SET balance = balance + ?, available_balance = available_balance + ?, updated_at = NOW()
              WHERE id = ? AND tenant_id = ?',
-            [$amount, $amount, $accountId, $this->db->getTenantId()],
+            [$amount, $amount, $accountId, $tenantId],
+        );
+
+        $account = $this->findById($accountId);
+        if ($account && $account['earning_type'] !== 'none') {
+            $this->trackPeriodLowBalance($accountId, $tenantId, (float) $account['balance']);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Period Low Balance Tracking
+    // ------------------------------------------------------------------
+
+    public function trackPeriodLowBalance(string $accountId, string $tenantId, float $currentBalance): void
+    {
+        $year = (int) date('Y');
+        $month = (int) date('n');
+        $today = date('Y-m-d');
+
+        $existing = $this->db->fetchOne(
+            'SELECT id, lowest_balance FROM period_low_balances
+             WHERE tenant_id = ? AND account_id = ? AND year = ? AND month = ?',
+            [$tenantId, $accountId, $year, $month],
+        );
+
+        if (!$existing) {
+            $this->db->query(
+                'INSERT INTO period_low_balances (id, tenant_id, account_id, year, month, lowest_balance, lowest_balance_date)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [$this->generateUuid(), $tenantId, $accountId, $year, $month, $currentBalance, $today],
+            );
+        } elseif ($currentBalance < (float) $existing['lowest_balance']) {
+            $this->db->execute(
+                'UPDATE period_low_balances SET lowest_balance = ?, lowest_balance_date = ?, updated_at = NOW()
+                 WHERE id = ?',
+                [$currentBalance, $today, $existing['id']],
+            );
+        }
+    }
+
+    private function initPeriodLowBalance(string $accountId, string $tenantId, float $balance): void
+    {
+        $this->trackPeriodLowBalance($accountId, $tenantId, $balance);
+    }
+
+    public function getPeriodLowBalances(string $accountId, int $year): array
+    {
+        return $this->db->fetchAll(
+            'SELECT year, month, lowest_balance, lowest_balance_date
+             FROM period_low_balances
+             WHERE account_id = ? AND year = ?
+             ORDER BY month',
+            [$accountId, $year],
         );
     }
 
@@ -308,12 +363,12 @@ final class AccountService
     private function defaultAccountName(string $type): string
     {
         return match ($type) {
-            'checking' => 'Checking Account',
-            'savings'  => 'Savings Account',
-            'loan'     => 'Loan Account',
-            'cd'       => 'Certificate of Deposit',
-            'money_market' => 'Money Market Account',
-            default    => ucfirst($type) . ' Account',
+            'checking'         => 'Checking Account',
+            'savings'          => 'Savings Account',
+            'permanent_shares' => 'Permanent Shares Account',
+            'regular_shares'   => 'Regular Shares Account',
+            'loan'             => 'Loan Account',
+            default            => ucfirst(str_replace('_', ' ', $type)) . ' Account',
         };
     }
 

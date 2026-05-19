@@ -89,6 +89,17 @@ $router->group([
 ], function ($router) {
     $router->get('/',                [AccountController::class, 'index']);
     $router->post('/',               [AccountController::class, 'store']);
+    $router->get('/products',        [AccountController::class, 'listProducts']);
+    $router->get('/products/available', [AccountController::class, 'listAvailableProducts']);
+    $router->post('/products',       [AccountController::class, 'createProduct'], [
+        RBACMiddleware::class . ':admin,manager',
+    ]);
+    $router->put('/products/{id}',   [AccountController::class, 'updateProduct'], [
+        RBACMiddleware::class . ':admin,manager',
+    ]);
+    $router->delete('/products/{id}', [AccountController::class, 'deleteProduct'], [
+        RBACMiddleware::class . ':admin,manager',
+    ]);
     $router->get('/{id}',            [AccountController::class, 'show']);
     $router->put('/{id}',            [AccountController::class, 'update']);
     $router->get('/{id}/transactions', [AccountController::class, 'transactions']);

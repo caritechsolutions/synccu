@@ -8,6 +8,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Validator;
 use App\Services\AccountService;
+use App\Services\AccountProductService;
 use App\Services\TransactionService;
 
 /**
@@ -16,11 +17,13 @@ use App\Services\TransactionService;
 final class AccountController
 {
     private AccountService $accounts;
+    private AccountProductService $products;
     private TransactionService $transactions;
 
     public function __construct()
     {
         $this->accounts     = new AccountService();
+        $this->products     = new AccountProductService();
         $this->transactions = new TransactionService();
     }
 
@@ -99,7 +102,7 @@ final class AccountController
     /**
      * POST /api/accounts
      *
-     * Create a new account.
+     * Create a new account. Optionally linked to an account product.
      */
     public function store(Request $request): Response
     {
@@ -107,12 +110,14 @@ final class AccountController
         $isAdmin = in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true);
 
         $validator = new Validator($request->all(), [
-            'member_id'       => $isAdmin ? 'required|string' : 'nullable|string',
-            'account_type'    => 'required|in:checking,savings,certificate',
-            'name'            => 'nullable|string|max:100',
-            'currency'        => 'nullable|in:USD,EUR,GBP,CAD,BBD,XCD,TTD,JMD,GYD',
-            'initial_deposit' => 'nullable|string|max:20',
-            'interest_rate'   => 'nullable|string|max:10',
+            'member_id'          => $isAdmin ? 'required|string' : 'nullable|string',
+            'account_type'       => 'required|in:checking,savings,permanent_shares,regular_shares',
+            'account_product_id' => 'nullable|string',
+            'name'               => 'nullable|string|max:100',
+            'currency'           => 'nullable|in:USD,EUR,GBP,CAD,BBD,XCD,TTD,JMD,GYD',
+            'initial_deposit'    => 'nullable|string|max:20',
+            'earning_rate'       => 'nullable|string|max:10',
+            'earning_interval'   => 'nullable|in:yearly,bi_annually,quarterly',
         ]);
 
         if ($validator->fails()) {
@@ -121,23 +126,43 @@ final class AccountController
 
         try {
             $data = $validator->validated();
+            $tenantId = $request->getAttribute('tenant_id');
 
-            // Admin creates accounts for members; members create for themselves
             $data['user_id'] = $isAdmin && !empty($data['member_id'])
                 ? $data['member_id']
                 : $request->getAttribute('user_id');
             unset($data['member_id']);
 
-            $tenantId = $request->getAttribute('tenant_id');
             $initialDeposit = (float) ($data['initial_deposit'] ?? 0);
-            $interestRate = (float) ($data['interest_rate'] ?? 0);
-            unset($data['initial_deposit'], $data['interest_rate']);
+            unset($data['initial_deposit']);
 
-            $data['interest_rate_value'] = $interestRate / 100;
+            // If a product is selected, pull earning fields from the product
+            if (!empty($data['account_product_id'])) {
+                $product = $this->products->findById($tenantId, $data['account_product_id']);
+                if (!$product || $product['status'] !== 'active') {
+                    return Response::error('Account product not found or inactive.', 404);
+                }
+                if ($product['expires_at'] && strtotime($product['expires_at']) < time()) {
+                    return Response::error('This account product has expired.', 422);
+                }
+                if ($initialDeposit < (float) $product['min_opening_balance']) {
+                    return Response::error('Minimum opening balance for this product is $' . number_format((float) $product['min_opening_balance'], 2), 422);
+                }
+                $data['account_type'] = $product['category'];
+                $data['earning_type'] = $product['earning_type'];
+                $data['earning_rate'] = (float) $product['earning_rate'];
+                $data['earning_interval'] = $product['earning_interval'];
+                $data['name'] = $data['name'] ?? $product['name'];
+            } else {
+                // Manual creation without product
+                $isShares = in_array($data['account_type'], ['permanent_shares', 'regular_shares']);
+                $data['earning_type'] = $isShares ? 'dividend' : 'interest';
+                $data['earning_rate'] = (float) ($data['earning_rate'] ?? 0);
+                $data['earning_interval'] = $data['earning_interval'] ?? 'yearly';
+            }
 
             $account = $this->accounts->create($data, $tenantId);
 
-            // Process initial deposit if specified
             if ($initialDeposit > 0 && $account) {
                 try {
                     $this->transactions->deposit(
@@ -148,7 +173,6 @@ final class AccountController
                     );
                 } catch (\Throwable $e) {
                     error_log('Initial deposit failed for account ' . $account['id'] . ': ' . $e->getMessage());
-                    // Fallback: update balance directly so the member isn't left at zero
                     try {
                         $this->accounts->updateBalance($account['id'], $initialDeposit);
                     } catch (\Throwable $e2) {
@@ -238,6 +262,96 @@ final class AccountController
             return Response::ok($updated, 'Account updated successfully');
         } catch (\RuntimeException $e) {
             return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Account Products
+    // ------------------------------------------------------------------
+
+    public function listProducts(Request $request): Response
+    {
+        $tenantId = $request->getAttribute('tenant_id');
+        $filters = array_filter([
+            'category' => $request->query('category'),
+            'status'   => $request->query('status'),
+        ]);
+        $products = $this->products->list($tenantId, $filters);
+        return Response::ok($products);
+    }
+
+    public function listAvailableProducts(Request $request): Response
+    {
+        $tenantId = $request->getAttribute('tenant_id');
+        $category = $request->query('category');
+        $products = $this->products->listAvailable($tenantId, $category);
+        return Response::ok($products);
+    }
+
+    public function createProduct(Request $request): Response
+    {
+        $tenantId = $request->getAttribute('tenant_id');
+        $validator = new Validator($request->all(), [
+            'name'                => 'required|string|max:100',
+            'code'                => 'required|string|max:20',
+            'category'            => 'required|in:savings,checking,permanent_shares,regular_shares',
+            'earning_rate'        => 'required|numeric',
+            'earning_interval'    => 'required|in:yearly,bi_annually,quarterly',
+            'min_opening_balance' => 'nullable|numeric',
+            'description'         => 'nullable|string|max:500',
+            'expires_at'          => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        try {
+            $product = $this->products->create($tenantId, $validator->validated());
+            return Response::created($product, 'Account product created.');
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), $e->getCode() ?: 400);
+        }
+    }
+
+    public function updateProduct(Request $request): Response
+    {
+        $tenantId = $request->getAttribute('tenant_id');
+        $productId = $request->param('id');
+
+        $validator = new Validator($request->all(), [
+            'name'                => 'nullable|string|max:100',
+            'code'                => 'nullable|string|max:20',
+            'earning_rate'        => 'nullable|numeric',
+            'earning_interval'    => 'nullable|in:yearly,bi_annually,quarterly',
+            'min_opening_balance' => 'nullable|numeric',
+            'description'         => 'nullable|string|max:500',
+            'expires_at'          => 'nullable|string',
+            'status'              => 'nullable|in:active,inactive',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        try {
+            $product = $this->products->update($tenantId, $productId, $validator->validated());
+            return Response::ok($product, 'Account product updated.');
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), $e->getCode() ?: 400);
+        }
+    }
+
+    public function deleteProduct(Request $request): Response
+    {
+        $tenantId = $request->getAttribute('tenant_id');
+        $productId = $request->param('id');
+
+        try {
+            $this->products->delete($tenantId, $productId);
+            return Response::ok(null, 'Account product deactivated.');
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), $e->getCode() ?: 400);
         }
     }
 
