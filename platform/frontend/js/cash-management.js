@@ -13,7 +13,8 @@ const TYPE_LABELS = {
   vault_to_drawer:'Vault → Drawer', drawer_to_vault:'Drawer → Vault',
   deposit_to_drawer:'Deposit', withdrawal_from_drawer:'Withdrawal',
   bank_transfer_in:'Bank In', bank_transfer_out:'Bank Out', adjustment:'Adjustment',
-  make_change_out:'Change (Out)', make_change_in:'Change (In)'
+  make_change_out:'Change (Out)', make_change_in:'Change (In)',
+  loan_disbursement:'Loan Disbursement'
 };
 
 // Tab switching
@@ -223,7 +224,7 @@ async function loadMovements() {
     tb.innerHTML = items.map(m => '<tr>' +
       '<td><span class="type-badge">' + (TYPE_LABELS[m.type] || m.type) + '</span></td>' +
       '<td>' + (m.from_name || '—') + '</td>' +
-      '<td>' + (m.to_name || '—') + '</td>' +
+      '<td>' + (m.to_name || m.description || '—') + '</td>' +
       '<td>$' + fmt(m.amount) + '</td>' +
       '<td>' + (m.performed_by_name || '—') + '</td>' +
       '<td style="font-size:.8rem">' + m.reference_number + '</td>' +

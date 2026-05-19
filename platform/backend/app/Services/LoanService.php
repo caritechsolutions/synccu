@@ -184,6 +184,19 @@ final class LoanService
                 [$principal, $now, $sourceLocationId, $tenantId],
             );
 
+            // Look up the member name for the movement record
+            $member = $this->db->fetchOne(
+                "SELECT CONCAT(first_name, ' ', last_name) AS name FROM users WHERE id = ? AND tenant_id = ?",
+                [$loan['user_id'], $tenantId],
+            );
+            $memberName = $member ? $member['name'] : 'Unknown';
+            $methodLabels = [
+                'account' => 'account', 'cash' => 'cash', 'check' => 'check',
+                'wire' => 'wire', 'ach' => 'ACH',
+            ];
+            $methodLabel = $methodLabels[$method] ?? $method;
+            $description = "{$loan['loan_number']} — {$memberName} via {$methodLabel}";
+
             // Record cash movement
             $movementId = $this->generateUuid();
             $reference = 'LF-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
@@ -200,9 +213,10 @@ final class LoanService
                     $principal,
                     $reference,
                     $disbursedBy,
-                    "Loan disbursement - {$loan['loan_type']} #{$loan['loan_number']}",
+                    $description,
                     json_encode([
                         'loan_id' => $loanId,
+                        'member_name' => $memberName,
                         'disbursement_method' => $method,
                         'target_account_id' => $targetAccountId,
                     ]),
