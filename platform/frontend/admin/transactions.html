@@ -1105,7 +1105,11 @@
 
       try {
         const resp = await apiFetch('/api/v1/transactions/' + id);
-        if (!resp.ok) { document.getElementById('detailRef').textContent = 'Error loading'; return; }
+        if (!resp.ok) {
+          const errBody = await resp.json().catch(() => null);
+          document.getElementById('detailRef').textContent = errBody?.error || ('Error loading (HTTP ' + resp.status + ')');
+          return;
+        }
         const json = await resp.json();
         const t = json.data || {};
         const dt = t.created_at ? new Date(t.created_at) : null;
