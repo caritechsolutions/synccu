@@ -152,6 +152,11 @@ final class TransactionController
             }
         }
 
+        $account = $this->accounts->findById($request->input('account_id'));
+        if ($account && $account['account_type'] === 'loan') {
+            return Response::error('Cannot deposit to a loan account. Use the loan payment feature instead.', 422);
+        }
+
         try {
             $metadata = array_filter([
                 'funding_source'  => $request->input('funding_source', 'cash'),
@@ -225,6 +230,11 @@ final class TransactionController
             if (!$this->accounts->verifyOwnership($request->input('account_id'), $userId)) {
                 return Response::error('You can only withdraw from your own accounts', 403);
             }
+        }
+
+        $account = $this->accounts->findById($request->input('account_id'));
+        if ($account && $account['account_type'] === 'loan') {
+            return Response::error('Cannot withdraw from a loan account.', 422);
         }
 
         try {

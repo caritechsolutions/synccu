@@ -803,7 +803,7 @@
     });
 
     // --- Account Search Autocomplete ---
-    function setupAccountSearch(inputId, resultsId, hiddenId) {
+    function setupAccountSearch(inputId, resultsId, hiddenId, opts) {
       const input = document.getElementById(inputId);
       const results = document.getElementById(resultsId);
       const hidden = document.getElementById(hiddenId);
@@ -818,7 +818,14 @@
             const resp = await apiFetch('/api/v1/accounts?search=' + encodeURIComponent(q) + '&per_page=8');
             if (!resp.ok) return;
             const json = await resp.json();
-            const accts = json.data || [];
+            let accts = json.data || [];
+            // Filter out loan accounts for deposit/withdrawal flows
+            if (opts && opts.excludeLoanAccounts) {
+              const type = txnType.value;
+              if (type === 'deposit' || type === 'withdrawal') {
+                accts = accts.filter(a => a.account_type !== 'loan');
+              }
+            }
             results.innerHTML = accts.map(a =>
               '<div class="search-result-item" data-id="' + a.id + '">' +
               a.account_number + ' - ' + (a.member_name || a.name || 'Unknown') +
@@ -837,7 +844,7 @@
       // Close results on outside click
       document.addEventListener('click', (e) => { if (!input.contains(e.target) && !results.contains(e.target)) results.innerHTML = ''; });
     }
-    setupAccountSearch('txnAccountSearch', 'txnAccountResults', 'txnAccountId');
+    setupAccountSearch('txnAccountSearch', 'txnAccountResults', 'txnAccountId', { excludeLoanAccounts: true });
     setupAccountSearch('txnDestSearch', 'txnDestResults', 'txnDestId');
 
     // --- Form Submit ---
