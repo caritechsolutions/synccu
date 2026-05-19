@@ -109,15 +109,18 @@ final class AccountController
         $role = $request->getAttribute('role');
         $isAdmin = in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true);
 
+        $isInstitutional = (bool) $request->input('is_institutional', false);
+
         $validator = new Validator($request->all(), [
-            'member_id'          => $isAdmin ? 'required|string' : 'nullable|string',
+            'member_id'          => ($isAdmin && !$isInstitutional) ? 'required|string' : 'nullable|string',
             'account_type'       => 'required|in:checking,savings,permanent_shares,regular_shares',
             'account_product_id' => 'nullable|string',
-            'name'               => 'nullable|string|max:100',
+            'name'               => $isInstitutional ? 'required|string|max:100' : 'nullable|string|max:100',
             'currency'           => 'nullable|in:USD,EUR,GBP,CAD,BBD,XCD,TTD,JMD,GYD',
             'initial_deposit'    => 'nullable|string|max:20',
             'earning_rate'       => 'nullable|string|max:10',
             'earning_interval'   => 'nullable|in:yearly,bi_annually,quarterly',
+            'is_institutional'   => 'nullable',
         ]);
 
         if ($validator->fails()) {
@@ -128,9 +131,14 @@ final class AccountController
             $data = $validator->validated();
             $tenantId = $request->getAttribute('tenant_id');
 
-            $data['user_id'] = $isAdmin && !empty($data['member_id'])
-                ? $data['member_id']
-                : $request->getAttribute('user_id');
+            if ($isInstitutional) {
+                $data['user_id'] = $request->getAttribute('user_id');
+                $data['is_institutional'] = true;
+            } else {
+                $data['user_id'] = $isAdmin && !empty($data['member_id'])
+                    ? $data['member_id']
+                    : $request->getAttribute('user_id');
+            }
             unset($data['member_id']);
 
             $initialDeposit = (float) ($data['initial_deposit'] ?? 0);

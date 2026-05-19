@@ -21,6 +21,19 @@ final class AccountService
     public function __construct()
     {
         $this->db = Database::getInstance();
+        $this->ensureInstitutionalColumn();
+    }
+
+    private function ensureInstitutionalColumn(): void
+    {
+        static $checked = false;
+        if ($checked) return;
+        try {
+            $this->db->query("ALTER TABLE `accounts` ADD COLUMN `is_institutional` TINYINT(1) NOT NULL DEFAULT 0 AFTER `status`");
+        } catch (\Throwable $e) {
+            // Column already exists
+        }
+        $checked = true;
     }
 
     // ------------------------------------------------------------------
@@ -38,13 +51,15 @@ final class AccountService
         $earningInterval = $data['earning_interval'] ?? null;
         $interestRate = $earningRate > 0 ? $earningRate / 100 : 0;
 
+        $isInstitutional = !empty($data['is_institutional']) ? 1 : 0;
+
         $this->db->query(
             'INSERT INTO accounts
                 (id, tenant_id, user_id, account_number, account_type, account_product_id,
                  name, currency, balance, available_balance, interest_rate,
                  earning_type, earning_rate, earning_interval,
-                 status, opened_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, ?, ?, ?, ?, ?, ?, ?, ?)',
+                 status, is_institutional, opened_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $accountId,
                 $tenantId,
@@ -59,6 +74,7 @@ final class AccountService
                 $earningRate,
                 $earningInterval,
                 'active',
+                $isInstitutional,
                 $now,
                 $now,
                 $now,

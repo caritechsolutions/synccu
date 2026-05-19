@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS `accounts` (
   `available_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `currency` CHAR(3) DEFAULT 'USD',
   `status` ENUM('active','frozen','closed','dormant') DEFAULT 'active',
+  `is_institutional` TINYINT(1) NOT NULL DEFAULT 0,
   `interest_rate` DECIMAL(5,2) DEFAULT 0.00,
   `earning_type` ENUM('interest','dividend','none') DEFAULT 'none',
   `earning_rate` DECIMAL(5,2) DEFAULT 0.00,

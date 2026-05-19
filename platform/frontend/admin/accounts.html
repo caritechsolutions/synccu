@@ -189,11 +189,22 @@
       </div>
       <form id="accountForm">
         <div class="modal-body">
-          <div class="form-group" style="position:relative">
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+              <input type="checkbox" id="accountInstitutional" style="width:auto">
+              <span>CU / Institutional Account</span>
+            </label>
+            <small style="color:var(--text-muted)">Check this for credit union operating accounts (e.g. Loan Fund, Operating, Vault)</small>
+          </div>
+          <div class="form-group" id="memberSearchGroup" style="position:relative">
             <label for="accountMemberSearch">Member</label>
             <input type="text" id="accountMemberSearch" class="form-input" placeholder="Search member by name or email..." autocomplete="off" required>
             <input type="hidden" id="accountMemberId" name="member_id">
             <div class="search-results" id="memberSearchResults" style="position:absolute;z-index:50;background:var(--bg-card,#fff);border:1px solid var(--border,#ddd);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:280px;overflow-y:auto;width:100%;left:0;top:100%"></div>
+          </div>
+          <div class="form-group" id="institutionalNameGroup" style="display:none">
+            <label for="accountInstitutionalName">Account Name</label>
+            <input type="text" id="accountInstitutionalName" class="form-input" placeholder="e.g. Loan Fund, Operating Account, Vault...">
           </div>
           <div class="form-group">
             <label for="accountType">Account Type</label>
@@ -546,19 +557,40 @@
       }, 300);
     });
 
+    // ── Institutional account toggle ───────────────────────────────
+    const institutionalCheckbox = document.getElementById('accountInstitutional');
+    institutionalCheckbox.addEventListener('change', () => {
+      const isInst = institutionalCheckbox.checked;
+      document.getElementById('memberSearchGroup').style.display = isInst ? 'none' : '';
+      document.getElementById('institutionalNameGroup').style.display = isInst ? '' : 'none';
+      const memberSearch = document.getElementById('accountMemberSearch');
+      memberSearch.required = !isInst;
+      document.getElementById('accountInstitutionalName').required = isInst;
+      if (isInst) {
+        document.getElementById('accountMemberId').value = '';
+        memberSearch.value = '';
+      }
+    });
+
     // ── Create account submit ───────────────────────────────────────
     accountForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const submitBtn = accountForm.querySelector('button[type="submit"]');
       submitBtn.disabled = true; submitBtn.textContent = 'Creating...';
+      const isInst = institutionalCheckbox.checked;
       const data = {
-        member_id: document.getElementById('accountMemberId').value,
         account_type: document.getElementById('accountType').value,
         account_product_id: document.getElementById('accountProduct').value || undefined,
         earning_rate: document.getElementById('earningRate').value || '0',
         earning_interval: document.getElementById('earningInterval').value,
         initial_deposit: document.getElementById('initialDeposit').value,
       };
+      if (isInst) {
+        data.is_institutional = true;
+        data.name = document.getElementById('accountInstitutionalName').value;
+      } else {
+        data.member_id = document.getElementById('accountMemberId').value;
+      }
       if (!data.account_product_id) delete data.account_product_id;
       try {
         const resp = await apiFetch('/api/v1/accounts', { method: 'POST', body: JSON.stringify(data) });
@@ -571,6 +603,8 @@
         closeAccountModalFn();
         accountForm.reset();
         document.getElementById('accountMemberId').value = '';
+        document.getElementById('memberSearchGroup').style.display = '';
+        document.getElementById('institutionalNameGroup').style.display = 'none';
         loadAccounts();
       } catch (e) { alert('Network error: ' + e.message); }
       finally { submitBtn.disabled = false; submitBtn.textContent = 'Create Account'; }
@@ -608,10 +642,11 @@
           const earningLabel = a.earning_type === 'dividend' ? 'Dividend' : (a.earning_type === 'interest' ? 'Interest' : '-');
           const intervalLabel = INTERVAL_LABELS[a.earning_interval] || '-';
           const opened = a.opened_at ? new Date(a.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
+          const instBadge = (a.is_institutional == 1 || a.is_institutional === true) ? ' <span class="badge badge-warning" style="font-size:.65rem;padding:1px 5px">CU</span>' : '';
           html += '<tr class="account-row" data-id="' + a.id + '" style="cursor:pointer">' +
             '<td><span style="font-family:var(--font-mono)">' + (a.account_number || '---') + '</span></td>' +
             '<td><span class="badge ' + (TYPE_CLASSES[a.account_type] || 'badge-info') + '">' + (TYPE_LABELS[a.account_type] || a.account_type) + '</span></td>' +
-            '<td>' + (a.name || '-') + '</td>' +
+            '<td>' + (a.name || '-') + instBadge + '</td>' +
             '<td style="font-weight:600">$' + Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) + '</td>' +
             '<td>' + rate + '</td>' +
             '<td>' + earningLabel + (intervalLabel !== '-' ? ' / ' + intervalLabel : '') + '</td>' +

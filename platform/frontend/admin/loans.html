@@ -863,13 +863,17 @@
       const disburseSection = document.getElementById('disburseSection');
       if (l.status === 'approved') {
         disburseSection.style.display = 'block';
-        // Populate funding source accounts
+        // Populate funding source accounts (institutional/CU accounts only)
         const sourceSelect = document.getElementById('disburseSourceAccount');
         sourceSelect.innerHTML = '<option value="">Select funding source...</option>';
-        (l.funding_accounts || []).forEach(a => {
-          sourceSelect.innerHTML += '<option value="' + a.id + '">' + a.account_number + ' - ' +
-            (a.member_name || '').trim() + ' / ' + (a.name || a.account_type) +
-            ' ($' + Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ')</option>';
+        const fundingAccounts = l.funding_accounts || [];
+        if (fundingAccounts.length === 0) {
+          sourceSelect.innerHTML += '<option value="" disabled>No CU accounts found — create one in Accounts</option>';
+        }
+        fundingAccounts.forEach(a => {
+          sourceSelect.innerHTML += '<option value="' + a.id + '">' +
+            (a.name || a.account_type) + ' (' + a.account_number + ')' +
+            ' — $' + Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) + '</option>';
         });
         // Populate member accounts for disbursement target
         const acctSelect = document.getElementById('disburseTargetAccount');

@@ -175,17 +175,15 @@ final class LoanController
             );
         }
 
-        // Include all tenant non-loan accounts as potential funding sources for disbursement
+        // Include institutional (CU) accounts as potential funding sources for disbursement
         if ($loan['status'] === 'approved' && in_array($role, ['admin', 'super_admin', 'manager'], true)) {
             $db = $db ?? \App\Core\Database::getInstance();
             $tenantId = $tenantId ?? $db->getTenantId();
             $loan['funding_accounts'] = $db->fetchAll(
-                "SELECT a.id, a.account_number, a.name, a.account_type, a.balance,
-                        CONCAT(u.first_name, ' ', u.last_name) AS member_name
+                "SELECT a.id, a.account_number, a.name, a.account_type, a.balance
                  FROM accounts a
-                 LEFT JOIN users u ON u.id = a.user_id AND u.tenant_id = a.tenant_id
-                 WHERE a.tenant_id = ? AND a.account_type != 'loan' AND a.status = 'active'
-                 ORDER BY a.account_type, a.name",
+                 WHERE a.tenant_id = ? AND a.is_institutional = 1 AND a.account_type != 'loan' AND a.status = 'active'
+                 ORDER BY a.name, a.account_type",
                 [$tenantId],
             );
         }
