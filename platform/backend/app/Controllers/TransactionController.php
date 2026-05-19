@@ -494,6 +494,8 @@ final class TransactionController
      */
     public function show(Request $request): Response
     {
+        $this->transactions->ensureSchema();
+
         $transactionId = $request->param('id');
         $userId        = $request->getAttribute('user_id');
         $role          = $request->getAttribute('role');
@@ -524,7 +526,7 @@ final class TransactionController
         }
 
         // Non-admin users can only view transactions on their own accounts
-        if (!in_array($role, ['admin', 'super_admin', 'teller'], true)) {
+        if (!in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true)) {
             if (!$this->accounts->verifyOwnership($transaction['account_id'], $userId)) {
                 return Response::error('Forbidden', 403);
             }
