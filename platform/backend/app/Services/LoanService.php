@@ -126,8 +126,6 @@ final class LoanService
                 'updated_at'          => $now,
             ], ['id' => $loanId]);
 
-            $this->generateSchedule($loanId, $loan);
-
             return $this->findById($loanId);
         });
     }
@@ -219,6 +217,9 @@ final class LoanService
                     $now,
                 ],
             );
+
+            // Generate the amortization schedule starting from today
+            $this->generateSchedule($loanId, $loan, $now);
 
             // Activate the loan
             $this->db->updateScoped('loans', [
@@ -375,6 +376,30 @@ final class LoanService
                 ],
             );
 
+            // Mark the next upcoming schedule row as paid
+            $nextRow = $this->db->fetchOne(
+                "SELECT id FROM loan_schedules WHERE loan_id = ? AND status IN ('upcoming', 'due') ORDER BY payment_number ASC LIMIT 1",
+                [$loanId],
+            );
+            if ($nextRow) {
+                $this->db->query(
+                    "UPDATE loan_schedules SET status = 'paid', paid_amount = ?, paid_at = ? WHERE id = ?",
+                    [$amount, $now, $nextRow['id']],
+                );
+            }
+
+            // Recalculate remaining schedule based on new balance
+            $updatedLoan = $this->findById($loanId);
+            if ($updatedLoan && (float) $updatedLoan['outstanding_balance'] > 0.01) {
+                $this->recalculateSchedule($loanId, $updatedLoan);
+            } else {
+                // Loan paid off — remove remaining upcoming rows
+                $this->db->query(
+                    "DELETE FROM loan_schedules WHERE loan_id = ? AND status IN ('upcoming', 'due')",
+                    [$loanId],
+                );
+            }
+
             return [
                 'payment_id'   => $txnId,
                 'amount'       => $amount,
@@ -394,12 +419,13 @@ final class LoanService
     /**
      * Calculate the amortisation schedule for a loan.
      */
-    public function calculateSchedule(float $principal, float $annualRate, int $termMonths): array
+    public function calculateSchedule(float $principal, float $annualRate, int $termMonths, ?string $startDate = null, int $startNumber = 1): array
     {
         $monthlyRate = $annualRate / 100 / 12;
         $payment     = $this->calculateMonthlyPayment($principal, $annualRate, $termMonths);
         $balance     = $principal;
         $schedule    = [];
+        $baseDate    = $startDate ?? date('Y-m-d');
 
         for ($month = 1; $month <= $termMonths; $month++) {
             $interest       = round($balance * $monthlyRate, 2);
@@ -414,8 +440,8 @@ final class LoanService
             $balance -= $principalPart;
 
             $schedule[] = [
-                'payment_number'    => $month,
-                'due_date'          => date('Y-m-d', strtotime("+{$month} months")),
+                'payment_number'    => $startNumber + $month - 1,
+                'due_date'          => date('Y-m-d', strtotime("+{$month} months", strtotime($baseDate))),
                 'payment_amount'    => round($payment, 2),
                 'principal'         => $principalPart,
                 'interest'          => $interest,
@@ -433,7 +459,9 @@ final class LoanService
     public function getSchedule(string $loanId): array
     {
         $loan = $this->findById($loanId);
-        $principal = $loan ? (float) $loan['principal_amount'] : 0;
+        if (!$loan) {
+            return [];
+        }
 
         $rows = $this->db->fetchAll(
             'SELECT payment_number, due_date, principal_amount, interest_amount,
@@ -442,10 +470,20 @@ final class LoanService
             [$loanId],
         );
 
-        $balance = $principal;
+        // Build running balance: start from principal, subtract each row's principal
+        $balance = (float) $loan['principal_amount'];
         $schedule = [];
         foreach ($rows as $row) {
-            $balance -= (float) $row['principal_amount'];
+            $principalAmt = (float) $row['principal_amount'];
+            // For paid rows, use actual paid principal (may differ from scheduled)
+            if ($row['status'] === 'paid' && (float) $row['paid_amount'] > 0) {
+                $paidInterest = min((float) $row['interest_amount'], (float) $row['paid_amount']);
+                $paidPrincipal = (float) $row['paid_amount'] - $paidInterest;
+                $balance -= $paidPrincipal;
+            } else {
+                $balance -= $principalAmt;
+            }
+
             $schedule[] = [
                 'payment_number'    => (int) $row['payment_number'],
                 'due_date'          => $row['due_date'],
@@ -844,13 +882,24 @@ final class LoanService
 
     /**
      * Persist the amortisation schedule to the database.
+     *
+     * When called during disbursement, creates the initial schedule.
+     * When called after a payment, deletes unpaid rows and regenerates
+     * based on the new outstanding balance and remaining term.
      */
-    private function generateSchedule(string $loanId, array $loan): void
+    private function generateSchedule(string $loanId, array $loan, ?string $startDate = null): void
     {
         $schedule = $this->calculateSchedule(
             (float) $loan['principal_amount'],
             (float) $loan['interest_rate'],
             (int) $loan['term_months'],
+            $startDate,
+        );
+
+        // Clear any existing unpaid schedule rows (for recalculation)
+        $this->db->query(
+            "DELETE FROM loan_schedules WHERE loan_id = ? AND status IN ('upcoming', 'due')",
+            [$loanId],
         );
 
         foreach ($schedule as $row) {
@@ -869,6 +918,91 @@ final class LoanService
                 ],
             );
         }
+    }
+
+    /**
+     * Recalculate the remaining schedule after a payment.
+     *
+     * Keeps paid rows intact, replaces upcoming rows with a new schedule
+     * based on the current outstanding balance.
+     */
+    private function recalculateSchedule(string $loanId, array $loan): void
+    {
+        $newBalance = (float) $loan['outstanding_balance'];
+        if ($newBalance <= 0.01) {
+            $this->db->query(
+                "DELETE FROM loan_schedules WHERE loan_id = ? AND status IN ('upcoming', 'due')",
+                [$loanId],
+            );
+            return;
+        }
+
+        $annualRate = (float) $loan['interest_rate'];
+        $originalPayment = $this->calculateMonthlyPayment(
+            (float) $loan['principal_amount'],
+            $annualRate,
+            (int) $loan['term_months'],
+        );
+
+        // Count how many payments have been made (paid rows)
+        $paidCount = (int) $this->db->fetchColumn(
+            "SELECT COUNT(*) FROM loan_schedules WHERE loan_id = ? AND status = 'paid'",
+            [$loanId],
+        );
+
+        // Calculate remaining months at the original payment amount
+        $monthlyRate = $annualRate / 100 / 12;
+        if ($monthlyRate > 0) {
+            // n = -log(1 - B*r/P) / log(1+r)
+            $ratio = $newBalance * $monthlyRate / $originalPayment;
+            if ($ratio < 1) {
+                $remainingMonths = (int) ceil(-log(1 - $ratio) / log(1 + $monthlyRate));
+            } else {
+                $remainingMonths = (int) $loan['term_months'] - $paidCount;
+            }
+        } else {
+            $remainingMonths = (int) ceil($newBalance / $originalPayment);
+        }
+        $remainingMonths = max(1, $remainingMonths);
+
+        // Delete upcoming rows and regenerate
+        $this->db->query(
+            "DELETE FROM loan_schedules WHERE loan_id = ? AND status IN ('upcoming', 'due')",
+            [$loanId],
+        );
+
+        $schedule = $this->calculateSchedule(
+            $newBalance,
+            $annualRate,
+            $remainingMonths,
+            date('Y-m-d'),
+            $paidCount + 1,
+        );
+
+        foreach ($schedule as $row) {
+            $this->db->query(
+                'INSERT INTO loan_schedules
+                    (id, loan_id, payment_number, due_date, principal_amount, interest_amount, total_amount, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
+                [
+                    $this->generateUuid(),
+                    $loanId,
+                    $row['payment_number'],
+                    $row['due_date'],
+                    $row['principal'],
+                    $row['interest'],
+                    $row['payment_amount'],
+                ],
+            );
+        }
+
+        // Update maturity date and monthly payment on the loan
+        $lastRow = end($schedule);
+        $this->db->updateScoped('loans', [
+            'maturity_date'   => $lastRow['due_date'],
+            'monthly_payment' => $schedule[0]['payment_amount'],
+            'updated_at'      => date('Y-m-d H:i:s'),
+        ], ['id' => $loanId]);
     }
 
     private function delinquencyCategory(int $daysPastDue): string

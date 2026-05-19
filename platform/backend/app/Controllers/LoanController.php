@@ -307,10 +307,11 @@ final class LoanController
             return Response::error('Forbidden', 403);
         }
 
-        // If loan is approved, fetch stored schedule; otherwise calculate a preview
-        if (in_array($loan['status'], ['approved', 'active', 'delinquent', 'paid_off'], true)) {
+        // Active/delinquent/paid_off loans have a stored schedule
+        if (in_array($loan['status'], ['active', 'delinquent', 'paid_off'], true)) {
             $schedule = $this->loans->getSchedule($loanId);
         } else {
+            // Pending/approved loans get a preview (not stored yet)
             $schedule = $this->loans->calculateSchedule(
                 (float) $loan['principal_amount'],
                 (float) $loan['interest_rate'],
