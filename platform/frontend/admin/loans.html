@@ -958,12 +958,16 @@
         tbody.innerHTML = payments.map(p => {
           let meta = {};
           try { meta = p.metadata ? (typeof p.metadata === 'string' ? JSON.parse(p.metadata) : p.metadata) : {}; } catch(e) {}
-          const typeLabel = p.type === 'loan_disbursement' ? 'Disbursement' : 'Payment';
-          const typeBadge = p.type === 'loan_disbursement' ? 'badge-info' : 'badge-success';
+          const isDisburse = p.type === 'loan_disbursement';
+          const typeLabel = isDisburse ? 'Disbursement' : 'Payment';
+          const typeBadge = isDisburse ? 'badge-warning' : 'badge-success';
+          const amt = Number(p.amount || 0);
+          const amtColor = isDisburse ? '#dc2626' : '#059669';
+          const amtPrefix = isDisburse ? '-' : '+';
           return `<tr>
             <td>${p.created_at ? new Date(p.created_at).toLocaleString() : '-'}</td>
             <td><span class="badge ${typeBadge}">${typeLabel}</span></td>
-            <td>$${Number(p.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td style="color:${amtColor};font-weight:600">${amtPrefix}$${amt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
             <td>${meta.principal != null ? '$' + Number(meta.principal).toFixed(2) : '-'}</td>
             <td>${meta.interest != null ? '$' + Number(meta.interest).toFixed(2) : '-'}</td>
             <td class="font-mono">${p.reference_number || '-'}</td>
