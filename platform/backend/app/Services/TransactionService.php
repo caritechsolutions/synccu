@@ -25,6 +25,11 @@ final class TransactionService
         $this->accounts = new AccountService();
     }
 
+    public function ensureSchema(): void
+    {
+        $this->ensureIso20022Schema();
+    }
+
     // ------------------------------------------------------------------
     // Deposit
     // ------------------------------------------------------------------

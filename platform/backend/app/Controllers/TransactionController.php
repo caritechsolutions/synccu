@@ -31,6 +31,8 @@ final class TransactionController
      */
     public function index(Request $request): Response
     {
+        $this->transactions->ensureSchema();
+
         $db       = \App\Core\Database::getInstance();
         $tenantId = $db->getTenantId();
         $page     = max(1, (int) ($request->query('page', '1')));
@@ -549,6 +551,8 @@ final class TransactionController
      */
     public function export(Request $request): Response
     {
+        $this->transactions->ensureSchema();
+
         $db       = \App\Core\Database::getInstance();
         $tenantId = $db->getTenantId();
         $params   = [$tenantId];
