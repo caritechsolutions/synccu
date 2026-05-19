@@ -157,6 +157,23 @@ final class LoanController
             return Response::error('Forbidden', 403);
         }
 
+        // Include live accrued interest for active loans
+        if (in_array($loan['status'], ['active', 'delinquent', 'approved'], true)) {
+            $loan['accrued_interest'] = $this->loans->getAccruedInterest($loanId);
+        }
+
+        // Include member's non-loan accounts for disbursement/payment UI
+        if (in_array($loan['status'], ['approved', 'active', 'delinquent'], true)) {
+            $db = \App\Core\Database::getInstance();
+            $loan['member_accounts'] = $db->fetchAll(
+                "SELECT id, account_number, name, account_type, balance
+                 FROM accounts
+                 WHERE user_id = ? AND tenant_id = ? AND account_type != 'loan' AND status = 'active'
+                 ORDER BY account_type, name",
+                [$loan['user_id'], $db->getTenantId()],
+            );
+        }
+
         return Response::ok($loan);
     }
 
@@ -172,7 +189,40 @@ final class LoanController
 
         try {
             $loan = $this->loans->approve($loanId, $approvedBy);
-            return Response::ok($loan, 'Loan approved and disbursed');
+            return Response::ok($loan, 'Loan approved');
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+        }
+    }
+
+    /**
+     * POST /api/loans/{id}/disburse
+     *
+     * Disburse an approved loan to the member.
+     */
+    public function disburse(Request $request): Response
+    {
+        $validator = new Validator($request->all(), [
+            'disbursement_method' => 'required|in:account,cash,check,wire,ach',
+            'target_account_id'  => 'nullable|string',
+            'check_number'       => 'nullable|string|max:50',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        $loanId     = $request->param('id');
+        $disbursedBy = $request->getAttribute('user_id');
+        $data = $validator->validated();
+
+        if ($data['disbursement_method'] === 'account' && empty($data['target_account_id'])) {
+            return Response::error('Target account is required when disbursing to an account.', 422);
+        }
+
+        try {
+            $loan = $this->loans->disburse($loanId, $disbursedBy, $data);
+            return Response::ok($loan, 'Loan disbursed successfully');
         } catch (\RuntimeException $e) {
             return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
         }

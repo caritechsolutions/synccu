@@ -109,7 +109,7 @@ final class LoanService
                 (int) $loan['term_months'],
             );
 
-            // Create a dedicated loan account for this member
+            // Create a loan tracking account (ledger only — no funds held)
             $loanAccount = $this->accounts->createLoanAccount([
                 'user_id'       => $loan['user_id'],
                 'name'          => ucfirst($loan['loan_type']) . ' Loan - ' . $loan['loan_number'],
@@ -121,22 +121,85 @@ final class LoanService
                 'account_id'          => $loanAccount['id'],
                 'approved_by'         => $approvedBy,
                 'approved_at'         => $now,
-                'disbursed_at'        => $now,
-                'disbursed_amount'    => $principal,
                 'monthly_payment'     => $monthlyPayment,
                 'outstanding_balance' => $principal,
-                'next_payment_date'   => date('Y-m-d', strtotime('+1 month')),
-                'maturity_date'       => date('Y-m-d', strtotime("+{$loan['term_months']} months")),
                 'updated_at'          => $now,
             ], ['id' => $loanId]);
 
-            // Record disbursement transaction linked to the loan account
+            $this->generateSchedule($loanId, $loan);
+
+            return $this->findById($loanId);
+        });
+    }
+
+    /**
+     * Disburse an approved loan.
+     *
+     * Moves funds to the member's chosen destination (account, cash, check, etc.)
+     * and activates the loan.
+     */
+    public function disburse(string $loanId, string $disbursedBy, array $options): array
+    {
+        $loan = $this->findById($loanId);
+        if ($loan === null) {
+            throw new RuntimeException('Loan not found.', 404);
+        }
+
+        if ($loan['status'] !== 'approved') {
+            throw new RuntimeException('Only approved loans can be disbursed.', 422);
+        }
+
+        $method = $options['disbursement_method'] ?? 'cash';
+        $targetAccountId = $options['target_account_id'] ?? null;
+
+        return $this->db->transaction(function () use ($loanId, $loan, $disbursedBy, $method, $targetAccountId, $options) {
+            $now = date('Y-m-d H:i:s');
+            $principal = (float) $loan['principal_amount'];
+            $termMonths = (int) $loan['term_months'];
+
+            // If disbursing to a member account, credit that account
+            if ($method === 'account' && $targetAccountId) {
+                $targetAccount = $this->accounts->findById($targetAccountId);
+                if (!$targetAccount) {
+                    throw new RuntimeException('Target account not found.', 404);
+                }
+                if ($targetAccount['account_type'] === 'loan') {
+                    throw new RuntimeException('Cannot disburse to a loan account.', 422);
+                }
+                $this->accounts->updateBalance($targetAccountId, $principal);
+
+                // Record deposit into member's account
+                $depositTxnId = $this->generateUuid();
+                $newBalance = (float) $targetAccount['balance'] + $principal;
+                $this->db->query(
+                    'INSERT INTO transactions
+                        (id, tenant_id, reference_number, type, status, amount,
+                         account_id, balance_after, processed_by, description, metadata, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        $depositTxnId,
+                        $loan['tenant_id'],
+                        'LD-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4))),
+                        'deposit',
+                        'completed',
+                        $principal,
+                        $targetAccountId,
+                        $newBalance,
+                        $disbursedBy,
+                        "Loan disbursement - {$loan['loan_type']} #{$loan['loan_number']}",
+                        json_encode(['source' => 'loan_disbursement', 'loan_id' => $loanId]),
+                        $now,
+                    ],
+                );
+            }
+
+            // Record disbursement on the loan tracking account
             $txnId = $this->generateUuid();
             $this->db->query(
                 'INSERT INTO transactions
                     (id, tenant_id, reference_number, type, status, amount,
-                     account_id, balance_after, processed_by, description, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     account_id, balance_after, processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $loan['tenant_id'],
@@ -144,15 +207,28 @@ final class LoanService
                     'loan_disbursement',
                     'completed',
                     $principal,
-                    $loanAccount['id'],
+                    $loan['account_id'],
                     $principal,
-                    $approvedBy,
+                    $disbursedBy,
                     "Loan disbursement - {$loan['loan_type']} #{$loan['loan_number']}",
+                    json_encode([
+                        'disbursement_method' => $method,
+                        'target_account_id'   => $targetAccountId,
+                        'check_number'        => $options['check_number'] ?? null,
+                    ]),
                     $now,
                 ],
             );
 
-            $this->generateSchedule($loanId, $loan);
+            // Activate the loan
+            $this->db->updateScoped('loans', [
+                'status'            => 'active',
+                'disbursed_at'      => $now,
+                'disbursed_amount'  => $principal,
+                'next_payment_date' => date('Y-m-d', strtotime('+1 month')),
+                'maturity_date'     => date('Y-m-d', strtotime("+{$termMonths} months")),
+                'updated_at'        => $now,
+            ], ['id' => $loanId]);
 
             return $this->findById($loanId);
         });
@@ -515,6 +591,37 @@ final class LoanService
     public function findById(string $loanId): ?array
     {
         return $this->db->findScoped('loans', ['id' => $loanId]);
+    }
+
+    /**
+     * Calculate accrued interest since the last payment (or disbursement).
+     */
+    public function getAccruedInterest(string $loanId): array
+    {
+        $loan = $this->findById($loanId);
+        if ($loan === null || !in_array($loan['status'], ['active', 'delinquent', 'approved'], true)) {
+            return ['accrued_interest' => 0, 'days_since_last_payment' => 0, 'daily_rate' => 0, 'as_of' => date('Y-m-d')];
+        }
+
+        $outstanding = (float) $loan['outstanding_balance'];
+        $annualRate = (float) $loan['interest_rate'];
+        $dailyRate = $annualRate / 100 / 365;
+
+        $lastActivityDate = $this->getLastActivityDate($loanId, $loan);
+        $lastDate = new \DateTimeImmutable($lastActivityDate);
+        $today = new \DateTimeImmutable('today');
+        $daysSince = max(0, (int) $today->diff($lastDate)->days);
+
+        $accrued = round($outstanding * $dailyRate * $daysSince, 2);
+
+        return [
+            'accrued_interest'        => $accrued,
+            'days_since_last_payment' => $daysSince,
+            'daily_rate'              => round($dailyRate, 8),
+            'per_diem'                => round($outstanding * $dailyRate, 2),
+            'last_activity_date'      => $lastActivityDate,
+            'as_of'                   => date('Y-m-d'),
+        ];
     }
 
     public function getByUser(string $userId, int $page = 1, int $perPage = 20): array

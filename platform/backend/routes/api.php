@@ -171,8 +171,11 @@ $router->group([
     $router->get('/{id}/schedule',  [LoanController::class, 'schedule']);
     $router->post('/{id}/payment',  [LoanController::class, 'payment']);
 
-    // Approval/denial requires admin or manager role
+    // Approval/denial/disbursement requires admin or manager role
     $router->put('/{id}/approve', [LoanController::class, 'approve'], [
+        RBACMiddleware::class . ':admin,manager',
+    ]);
+    $router->post('/{id}/disburse', [LoanController::class, 'disburse'], [
         RBACMiddleware::class . ':admin,manager',
     ]);
     $router->put('/{id}/deny', [LoanController::class, 'deny'], [

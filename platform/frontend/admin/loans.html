@@ -318,16 +318,62 @@
             <dt>Purpose</dt><dd id="detailLoanPurpose">-</dd>
           </dl>
 
-          <!-- Approval/Denial Actions (shown only for applications) -->
+          <!-- Live Accrued Interest (shown for active/delinquent loans) -->
+          <div id="accruedInterestBox" style="display:none;margin-top:1rem;padding:1rem;background:linear-gradient(135deg,#fef3c7,#fde68a);border-left:4px solid #f59e0b;border-radius:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+              <div>
+                <h4 style="margin:0;font-size:.875rem;color:#92400e">Interest Accrued Since Last Payment</h4>
+                <p style="margin:.25rem 0 0 0;font-size:1.25rem;font-weight:700;color:#78350f" id="accruedAmount">$0.00</p>
+              </div>
+              <div style="text-align:right;font-size:.75rem;color:#92400e">
+                <div><span id="accruedDays">0</span> days @ <span id="accruedPerDiem">$0.00</span>/day</div>
+                <div>Since: <span id="accruedSince">-</span></div>
+                <div style="margin-top:.25rem;color:#a16207">Total payoff: <strong id="accruedPayoff">$0.00</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Approval Actions (shown only for applications) -->
           <div id="approvalActions" style="display:none;margin-top:1.5rem;padding:1rem;background:var(--bg-muted);border-radius:8px">
             <h4 style="margin:0 0 .75rem 0">Application Review</h4>
             <div style="display:flex;gap:.5rem">
-              <button class="btn btn-success" id="approveLoanBtn">Approve &amp; Disburse</button>
+              <button class="btn btn-success" id="approveLoanBtn">Approve</button>
               <button class="btn btn-danger" id="denyLoanBtn">Deny</button>
             </div>
           </div>
 
-          <!-- Denial Reason (if denied) -->
+          <!-- Disbursement Form (shown only for approved loans awaiting disbursement) -->
+          <div id="disburseSection" style="display:none;margin-top:1.5rem;padding:1rem;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-left:4px solid #10b981;border-radius:8px">
+            <h4 style="margin:0 0 .75rem 0;color:#065f46">Disburse Funds</h4>
+            <p style="margin:0 0 1rem 0;font-size:.8rem;color:#047857">Loan approved. Choose how to disburse the funds to the member.</p>
+            <form id="disburseForm" style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;align-items:end">
+              <div class="form-group" style="margin:0">
+                <label for="disburseMethod" style="font-size:.75rem">Disbursement Method</label>
+                <select id="disburseMethod" class="form-select" required>
+                  <option value="account">Deposit to Member Account</option>
+                  <option value="cash">Cash</option>
+                  <option value="check">Check</option>
+                  <option value="wire">Wire Transfer</option>
+                  <option value="ach">ACH / Electronic</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0" id="disburseAccountGroup">
+                <label for="disburseTargetAccount" style="font-size:.75rem">Member Account</label>
+                <select id="disburseTargetAccount" class="form-select" required>
+                  <option value="">Select account...</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0;display:none" id="disburseCheckGroup">
+                <label for="disburseCheckNumber" style="font-size:.75rem">Check Number</label>
+                <input type="text" id="disburseCheckNumber" class="form-input" maxlength="50">
+              </div>
+              <div style="grid-column:1/-1">
+                <button type="submit" class="btn btn-success" style="width:100%">Disburse Loan</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Denial Reason (if denied/cancelled) -->
           <div id="denialReasonBox" style="display:none;margin-top:1.5rem;padding:1rem;background:#fef2f2;border-left:4px solid #dc2626;border-radius:4px">
             <strong>Denial Reason:</strong>
             <p id="denialReasonText" style="margin:.5rem 0 0 0"></p>
@@ -342,7 +388,7 @@
                 <input type="number" id="paymentAmount" class="form-input" step="0.01" min="0.01" required>
               </div>
               <div class="form-group" style="margin:0">
-                <label for="paymentAccount" style="font-size:.75rem">From Account (optional)</label>
+                <label for="paymentAccount" style="font-size:.75rem">From Account</label>
                 <select id="paymentAccount" class="form-select">
                   <option value="">Cash / External</option>
                 </select>
@@ -773,7 +819,7 @@
     }
 
     function renderLoanOverview(l) {
-      const statusClasses = { application:'badge-warning', approved:'badge-info', active:'badge-success', delinquent:'badge-danger', default:'badge-danger', paid_off:'badge-muted', cancelled:'badge-muted', denied:'badge-danger' };
+      const statusClasses = { application:'badge-warning', approved:'badge-info', active:'badge-success', delinquent:'badge-danger', default:'badge-danger', paid_off:'badge-muted', cancelled:'badge-muted' };
       const statusLabel = l.status ? l.status.replace('_',' ').replace(/\b\w/g, c => c.toUpperCase()) : '-';
       const memberName = l.member_name || (loansCache.find(x => x.id === l.id) || {}).member_name || '-';
 
@@ -790,13 +836,56 @@
       document.getElementById('detailLoanNextDue').textContent = l.next_payment_date || '-';
       document.getElementById('detailLoanPurpose').textContent = l.purpose || '-';
 
-      // Show/hide approval actions
+      // Accrued interest display
+      const ai = l.accrued_interest || {};
+      const accruedBox = document.getElementById('accruedInterestBox');
+      if (['active', 'delinquent'].includes(l.status) && ai.accrued_interest > 0) {
+        accruedBox.style.display = 'block';
+        document.getElementById('accruedAmount').textContent = '$' + Number(ai.accrued_interest).toLocaleString('en-US', { minimumFractionDigits: 2 });
+        document.getElementById('accruedDays').textContent = ai.days_since_last_payment || 0;
+        document.getElementById('accruedPerDiem').textContent = '$' + Number(ai.per_diem || 0).toFixed(2);
+        document.getElementById('accruedSince').textContent = ai.last_activity_date ? new Date(ai.last_activity_date).toLocaleDateString() : '-';
+        document.getElementById('accruedPayoff').textContent = '$' + Number((Number(l.outstanding_balance || 0) + Number(ai.accrued_interest || 0))).toLocaleString('en-US', { minimumFractionDigits: 2 });
+      } else {
+        accruedBox.style.display = 'none';
+      }
+
+      // Show/hide approval actions (application stage)
       document.getElementById('approvalActions').style.display = l.status === 'application' ? 'block' : 'none';
+
+      // Show/hide disbursement section (approved but not yet disbursed)
+      const disburseSection = document.getElementById('disburseSection');
+      if (l.status === 'approved') {
+        disburseSection.style.display = 'block';
+        // Populate member accounts for disbursement target
+        const acctSelect = document.getElementById('disburseTargetAccount');
+        acctSelect.innerHTML = '<option value="">Select account...</option>';
+        (l.member_accounts || []).forEach(a => {
+          acctSelect.innerHTML += '<option value="' + a.id + '">' + a.account_number + ' - ' + (a.name || a.account_type) +
+            ' ($' + Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ')</option>';
+        });
+      } else {
+        disburseSection.style.display = 'none';
+      }
+
       // Show/hide denial reason
-      document.getElementById('denialReasonBox').style.display = (l.status === 'denied' && l.denial_reason) ? 'block' : 'none';
+      document.getElementById('denialReasonBox').style.display = (['cancelled', 'denied'].includes(l.status) && l.denial_reason) ? 'block' : 'none';
       if (l.denial_reason) document.getElementById('denialReasonText').textContent = l.denial_reason;
-      // Show/hide payment section
-      document.getElementById('paymentSection').style.display = ['active', 'delinquent', 'approved'].includes(l.status) ? 'block' : 'none';
+
+      // Show/hide payment section (active/delinquent only — not approved since funds haven't been disbursed yet)
+      const paymentSection = document.getElementById('paymentSection');
+      if (['active', 'delinquent'].includes(l.status)) {
+        paymentSection.style.display = 'block';
+        // Populate member accounts for payment source
+        const payAcctSelect = document.getElementById('paymentAccount');
+        payAcctSelect.innerHTML = '<option value="">Cash / External</option>';
+        (l.member_accounts || []).forEach(a => {
+          payAcctSelect.innerHTML += '<option value="' + a.id + '">' + a.account_number + ' - ' + (a.name || a.account_type) +
+            ' ($' + Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ')</option>';
+        });
+      } else {
+        paymentSection.style.display = 'none';
+      }
       document.getElementById('payoffQuoteResult').textContent = '';
     }
 
@@ -906,15 +995,48 @@
       document.getElementById('coSignerId').value = loan.co_signer_id || '';
     }
 
-    // === APPROVE / DENY ===
+    // === APPROVE / DENY / DISBURSE ===
     document.getElementById('approveLoanBtn').addEventListener('click', async () => {
       if (!currentLoan) return;
-      if (!confirm('Approve and disburse loan ' + currentLoan.loan_number + '?')) return;
+      if (!confirm('Approve loan ' + currentLoan.loan_number + '?\n\nYou will be able to choose how to disburse funds in the next step.')) return;
       try {
         const resp = await apiFetch('/api/v1/loans/' + currentLoan.id + '/approve', { method: 'PUT' });
         const json = await resp.json().catch(() => ({}));
-        if (!resp.ok) { alert('Error: ' + (json.message || 'Approval failed')); return; }
-        alert('Loan approved and disbursed.');
+        if (!resp.ok) { alert('Error: ' + (json.error || json.message || 'Approval failed')); return; }
+        alert('Loan approved. Please proceed with disbursement.');
+        await openLoanDetail(currentLoan.id);
+        loadLoans(currentLoanPage);
+      } catch (e) { alert('Error: ' + e.message); }
+    });
+
+    // Disbursement method toggle
+    document.getElementById('disburseMethod').addEventListener('change', function() {
+      const method = this.value;
+      document.getElementById('disburseAccountGroup').style.display = method === 'account' ? '' : 'none';
+      document.getElementById('disburseTargetAccount').required = method === 'account';
+      document.getElementById('disburseCheckGroup').style.display = method === 'check' ? '' : 'none';
+    });
+
+    // Disburse form submit
+    document.getElementById('disburseForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentLoan) return;
+      const method = document.getElementById('disburseMethod').value;
+      const body = { disbursement_method: method };
+      if (method === 'account') body.target_account_id = document.getElementById('disburseTargetAccount').value;
+      if (method === 'check') body.check_number = document.getElementById('disburseCheckNumber').value;
+
+      const methodLabels = { account: 'member account', cash: 'cash', check: 'check', wire: 'wire transfer', ach: 'ACH' };
+      if (!confirm('Disburse $' + Number(currentLoan.principal_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' via ' + (methodLabels[method] || method) + '?')) return;
+
+      try {
+        const resp = await apiFetch('/api/v1/loans/' + currentLoan.id + '/disburse', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) { alert('Error: ' + (json.error || json.message || 'Disbursement failed')); return; }
+        alert('Loan disbursed successfully. The loan is now active.');
         await openLoanDetail(currentLoan.id);
         loadLoans(currentLoanPage);
       } catch (e) { alert('Error: ' + e.message); }
