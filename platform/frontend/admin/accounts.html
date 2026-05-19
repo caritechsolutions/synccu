@@ -271,14 +271,14 @@
               <option value="regular_shares">Regular Shares (earns dividend)</option>
             </select>
           </div>
-          <div class="form-row">
+          <div class="form-row" id="prodRateRow">
             <div class="form-group">
-              <label for="prodRate" id="prodRateLabel">Interest Rate (%)</label>
-              <input type="number" id="prodRate" class="form-input" step="0.01" min="0" placeholder="0.00" required>
+              <label for="prodRate">Interest Rate (%)</label>
+              <input type="number" id="prodRate" class="form-input" step="0.01" min="0" placeholder="0.00">
             </div>
             <div class="form-group">
               <label for="prodInterval">Earning Interval</label>
-              <select id="prodInterval" class="form-select" required>
+              <select id="prodInterval" class="form-select">
                 <option value="yearly">Yearly</option>
                 <option value="bi_annually">Bi-Annually</option>
                 <option value="quarterly">Quarterly</option>
@@ -423,7 +423,14 @@
     // ── Account type changes → load matching products ───────────────
     document.getElementById('accountType').addEventListener('change', function() {
       const isShares = this.value === 'permanent_shares' || this.value === 'regular_shares';
-      document.getElementById('earningRateLabel').textContent = isShares ? 'Dividend Rate (%)' : 'Interest Rate (%)';
+      if (isShares) {
+        document.getElementById('earningFieldsGroup').style.display = 'none';
+        document.getElementById('earningRate').value = '0';
+        document.getElementById('earningInterval').value = 'yearly';
+      } else {
+        document.getElementById('earningFieldsGroup').style.display = '';
+        document.getElementById('earningRateLabel').textContent = 'Interest Rate (%)';
+      }
       loadAvailableProducts();
     });
 
@@ -667,6 +674,8 @@
     document.getElementById('createProductBtn').addEventListener('click', () => {
       document.getElementById('productForm').reset();
       document.getElementById('editProductId').value = '';
+      document.getElementById('prodCategory').disabled = false;
+      document.getElementById('prodRateRow').style.display = '';
       document.getElementById('productModalTitle').textContent = 'Create Account Product';
       document.getElementById('productSubmitBtn').textContent = 'Create Product';
       document.getElementById('productModal').classList.add('active');
@@ -674,7 +683,8 @@
 
     document.getElementById('prodCategory').addEventListener('change', function() {
       const isShares = this.value === 'permanent_shares' || this.value === 'regular_shares';
-      document.getElementById('prodRateLabel').textContent = isShares ? 'Dividend Rate (%)' : 'Interest Rate (%)';
+      document.getElementById('prodRateRow').style.display = isShares ? 'none' : '';
+      if (isShares) { document.getElementById('prodRate').value = '0'; document.getElementById('prodInterval').value = 'yearly'; }
     });
 
     async function loadProducts() {
@@ -692,8 +702,8 @@
             '<td><strong>' + p.name + '</strong>' + (p.description ? '<div style="font-size:.75rem;color:var(--text-muted)">' + p.description + '</div>' : '') + '</td>' +
             '<td style="font-family:var(--font-mono);font-size:.8rem">' + p.code + '</td>' +
             '<td><span class="badge ' + (TYPE_CLASSES[p.category] || 'badge-info') + '">' + catLabel + '</span></td>' +
-            '<td>' + Number(p.earning_rate).toFixed(2) + '% <span style="color:var(--text-muted);font-size:.75rem">(' + (isShares ? 'div' : 'int') + ')</span></td>' +
-            '<td>' + (INTERVAL_LABELS[p.earning_interval] || p.earning_interval) + '</td>' +
+            '<td>' + (isShares ? '<span style="color:var(--text-muted)">Set at year-end</span>' : Number(p.earning_rate).toFixed(2) + '%') + '</td>' +
+            '<td>' + (isShares ? 'Yearly' : (INTERVAL_LABELS[p.earning_interval] || p.earning_interval)) + '</td>' +
             '<td>$' + Number(p.min_opening_balance || 0).toFixed(2) + '</td>' +
             '<td>' + expires + '</td>' +
             '<td><span class="badge ' + (p.status === 'active' ? 'badge-success' : 'badge-muted') + '">' + p.status + '</span></td>' +
@@ -710,6 +720,8 @@
       document.getElementById('prodCode').value = p.code;
       document.getElementById('prodCategory').value = p.category;
       document.getElementById('prodCategory').disabled = true;
+      const isShares = p.category === 'permanent_shares' || p.category === 'regular_shares';
+      document.getElementById('prodRateRow').style.display = isShares ? 'none' : '';
       document.getElementById('prodRate').value = p.earning_rate;
       document.getElementById('prodInterval').value = p.earning_interval;
       document.getElementById('prodMinBal').value = p.min_opening_balance || '';
