@@ -175,17 +175,21 @@ final class LoanController
             );
         }
 
-        // Include institutional (CU) accounts as potential funding sources for disbursement
+        // Include fund locations (vault, bank) as funding sources for disbursement
         if ($loan['status'] === 'approved' && in_array($role, ['admin', 'super_admin', 'manager'], true)) {
             $db = $db ?? \App\Core\Database::getInstance();
             $tenantId = $tenantId ?? $db->getTenantId();
-            $loan['funding_accounts'] = $db->fetchAll(
-                "SELECT a.id, a.account_number, a.name, a.account_type, a.balance
-                 FROM accounts a
-                 WHERE a.tenant_id = ? AND a.is_institutional = 1 AND a.account_type != 'loan' AND a.status = 'active'
-                 ORDER BY a.name, a.account_type",
-                [$tenantId],
-            );
+            try {
+                $loan['funding_locations'] = $db->fetchAll(
+                    "SELECT id, type, name, balance, bank_name, bank_account_number
+                     FROM fund_locations
+                     WHERE tenant_id = ? AND status = 'active'
+                     ORDER BY FIELD(type, 'vault', 'bank_account', 'drawer'), name",
+                    [$tenantId],
+                );
+            } catch (\Throwable $e) {
+                $loan['funding_locations'] = [];
+            }
         }
 
         return Response::ok($loan);
@@ -219,7 +223,7 @@ final class LoanController
         $validator = new Validator($request->all(), [
             'disbursement_method' => 'required|in:account,cash,check,wire,ach',
             'target_account_id'  => 'nullable|string',
-            'source_account_id'  => 'required|string',
+            'source_location_id' => 'required|string',
             'check_number'       => 'nullable|string|max:50',
         ]);
 

@@ -149,52 +149,63 @@ final class LoanService
 
         $method = $options['disbursement_method'] ?? 'cash';
         $targetAccountId = $options['target_account_id'] ?? null;
-        $sourceAccountId = $options['source_account_id'] ?? null;
+        $sourceLocationId = $options['source_location_id'] ?? null;
 
-        if (!$sourceAccountId) {
-            throw new RuntimeException('A funding source account is required for disbursement.', 422);
+        if (!$sourceLocationId) {
+            throw new RuntimeException('A funding source (vault/bank) is required for disbursement.', 422);
         }
 
-        return $this->db->transaction(function () use ($loanId, $loan, $disbursedBy, $method, $targetAccountId, $sourceAccountId, $options) {
+        return $this->db->transaction(function () use ($loanId, $loan, $disbursedBy, $method, $targetAccountId, $sourceLocationId, $options) {
             $now = date('Y-m-d H:i:s');
             $principal = (float) $loan['principal_amount'];
             $termMonths = (int) $loan['term_months'];
+            $tenantId = $loan['tenant_id'];
 
-            // Validate and debit the funding source account
-            $sourceAccount = $this->accounts->findById($sourceAccountId);
-            if (!$sourceAccount) {
-                throw new RuntimeException('Funding source account not found.', 404);
+            // Validate and debit the funding source location (vault/bank)
+            $sourceLocation = $this->db->fetchOne(
+                'SELECT * FROM fund_locations WHERE id = ? AND tenant_id = ?',
+                [$sourceLocationId, $tenantId],
+            );
+            if (!$sourceLocation) {
+                throw new RuntimeException('Funding source location not found.', 404);
             }
-            if ((float) $sourceAccount['balance'] < $principal) {
+            if ((float) $sourceLocation['balance'] < $principal) {
                 throw new RuntimeException(
-                    'Insufficient funds in source account. Available: $'
-                    . number_format((float) $sourceAccount['balance'], 2)
+                    'Insufficient funds in ' . $sourceLocation['name'] . '. Available: $'
+                    . number_format((float) $sourceLocation['balance'], 2)
                     . ', Required: $' . number_format($principal, 2),
                     422,
                 );
             }
-            $this->accounts->updateBalance($sourceAccountId, -$principal);
 
-            // Record withdrawal from funding source
-            $sourceTxnId = $this->generateUuid();
-            $sourceNewBalance = (float) $sourceAccount['balance'] - $principal;
+            // Debit the fund location
             $this->db->query(
-                'INSERT INTO transactions
-                    (id, tenant_id, reference_number, type, status, amount,
-                     account_id, balance_after, processed_by, description, metadata, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'UPDATE fund_locations SET balance = balance - ?, updated_at = ? WHERE id = ? AND tenant_id = ?',
+                [$principal, $now, $sourceLocationId, $tenantId],
+            );
+
+            // Record cash movement
+            $movementId = $this->generateUuid();
+            $reference = 'LF-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            $this->db->query(
+                'INSERT INTO cash_movements
+                    (id, tenant_id, type, from_location_id, amount, reference_number,
+                     performed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
-                    $sourceTxnId,
-                    $loan['tenant_id'],
-                    'LF-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4))),
-                    'withdrawal',
-                    'completed',
+                    $movementId,
+                    $tenantId,
+                    'loan_disbursement',
+                    $sourceLocationId,
                     $principal,
-                    $sourceAccountId,
-                    $sourceNewBalance,
+                    $reference,
                     $disbursedBy,
-                    "Loan funding - {$loan['loan_type']} #{$loan['loan_number']}",
-                    json_encode(['source' => 'loan_funding', 'loan_id' => $loanId, 'disbursement_method' => $method]),
+                    "Loan disbursement - {$loan['loan_type']} #{$loan['loan_number']}",
+                    json_encode([
+                        'loan_id' => $loanId,
+                        'disbursement_method' => $method,
+                        'target_account_id' => $targetAccountId,
+                    ]),
                     $now,
                 ],
             );
@@ -229,7 +240,7 @@ final class LoanService
                         $newBalance,
                         $disbursedBy,
                         "Loan disbursement - {$loan['loan_type']} #{$loan['loan_number']}",
-                        json_encode(['source' => 'loan_disbursement', 'loan_id' => $loanId, 'funded_from' => $sourceAccountId]),
+                        json_encode(['source' => 'loan_disbursement', 'loan_id' => $loanId, 'funded_from_location' => $sourceLocationId]),
                         $now,
                     ],
                 );
@@ -256,7 +267,7 @@ final class LoanService
                     json_encode([
                         'disbursement_method' => $method,
                         'target_account_id'   => $targetAccountId,
-                        'source_account_id'   => $sourceAccountId,
+                        'source_location_id'  => $sourceLocationId,
                         'check_number'        => $options['check_number'] ?? null,
                     ]),
                     $now,

@@ -348,8 +348,8 @@
             <p style="margin:0 0 1rem 0;font-size:.8rem;color:#047857">Loan approved. Choose how to disburse the funds to the member.</p>
             <form id="disburseForm" style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;align-items:end">
               <div class="form-group" style="margin:0;grid-column:1/-1">
-                <label for="disburseSourceAccount" style="font-size:.75rem;font-weight:600">Fund From (Source Account)</label>
-                <select id="disburseSourceAccount" class="form-select" required>
+                <label for="disburseSourceLocation" style="font-size:.75rem;font-weight:600">Fund From (Vault / Bank)</label>
+                <select id="disburseSourceLocation" class="form-select" required>
                   <option value="">Select funding source...</option>
                 </select>
               </div>
@@ -863,17 +863,19 @@
       const disburseSection = document.getElementById('disburseSection');
       if (l.status === 'approved') {
         disburseSection.style.display = 'block';
-        // Populate funding source accounts (institutional/CU accounts only)
-        const sourceSelect = document.getElementById('disburseSourceAccount');
+        // Populate fund locations (vault, bank, drawer)
+        const sourceSelect = document.getElementById('disburseSourceLocation');
         sourceSelect.innerHTML = '<option value="">Select funding source...</option>';
-        const fundingAccounts = l.funding_accounts || [];
-        if (fundingAccounts.length === 0) {
-          sourceSelect.innerHTML += '<option value="" disabled>No CU accounts found — create one in Accounts</option>';
+        const locations = l.funding_locations || [];
+        if (locations.length === 0) {
+          sourceSelect.innerHTML += '<option value="" disabled>No fund locations found — set them up under Cash Management</option>';
         }
-        fundingAccounts.forEach(a => {
-          sourceSelect.innerHTML += '<option value="' + a.id + '">' +
-            (a.name || a.account_type) + ' (' + a.account_number + ')' +
-            ' — $' + Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) + '</option>';
+        const typeLabels = { vault: 'Vault', bank_account: 'Bank', drawer: 'Drawer' };
+        locations.forEach(loc => {
+          const label = (typeLabels[loc.type] || loc.type) + ': ' + loc.name +
+            (loc.bank_name ? ' (' + loc.bank_name + ')' : '') +
+            ' — $' + Number(loc.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+          sourceSelect.innerHTML += '<option value="' + loc.id + '">' + label + '</option>';
         });
         // Populate member accounts for disbursement target
         const acctSelect = document.getElementById('disburseTargetAccount');
@@ -1048,14 +1050,15 @@
       e.preventDefault();
       if (!currentLoan) return;
       const method = document.getElementById('disburseMethod').value;
-      const sourceAccountId = document.getElementById('disburseSourceAccount').value;
-      if (!sourceAccountId) { alert('Please select a funding source account.'); return; }
-      const body = { disbursement_method: method, source_account_id: sourceAccountId };
+      const sourceLocationId = document.getElementById('disburseSourceLocation').value;
+      if (!sourceLocationId) { alert('Please select a funding source (vault or bank).'); return; }
+      const body = { disbursement_method: method, source_location_id: sourceLocationId };
       if (method === 'account') body.target_account_id = document.getElementById('disburseTargetAccount').value;
       if (method === 'check') body.check_number = document.getElementById('disburseCheckNumber').value;
 
       const methodLabels = { account: 'member account', cash: 'cash', check: 'check', wire: 'wire transfer', ach: 'ACH' };
-      if (!confirm('Disburse $' + Number(currentLoan.principal_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' via ' + (methodLabels[method] || method) + '?\n\nFunds will be debited from the selected source account.')) return;
+      const sourceName = document.getElementById('disburseSourceLocation').selectedOptions[0]?.textContent || 'selected source';
+      if (!confirm('Disburse $' + Number(currentLoan.principal_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' via ' + (methodLabels[method] || method) + '?\n\nFunds will be debited from: ' + sourceName)) return;
 
       try {
         const resp = await apiFetch('/api/v1/loans/' + currentLoan.id + '/disburse', {
