@@ -904,7 +904,15 @@
         if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1rem">No schedule available.</td></tr>'; return; }
         const json = await resp.json();
         const schedule = (json.data && json.data.schedule) || [];
-        if (!schedule.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1rem">No payments scheduled.</td></tr>'; return; }
+        if (!schedule.length) {
+          const status = currentLoan ? currentLoan.status : '';
+          let msg = 'No payments scheduled.';
+          if (status === 'application') msg = 'Schedule will be generated once the loan is approved and disbursed.';
+          else if (status === 'approved') msg = 'Schedule will be generated when funds are disbursed.';
+          else if (status === 'cancelled') msg = 'This loan application was denied.';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--text-muted)">' + msg + '</td></tr>';
+          return;
+        }
         tbody.innerHTML = schedule.map((s, i) => `
           <tr>
             <td>${s.payment_number || (i + 1)}</td>

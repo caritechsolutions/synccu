@@ -307,16 +307,11 @@ final class LoanController
             return Response::error('Forbidden', 403);
         }
 
-        // Active/delinquent/paid_off loans have a stored schedule
+        // Only disbursed loans have a schedule
         if (in_array($loan['status'], ['active', 'delinquent', 'paid_off'], true)) {
             $schedule = $this->loans->getSchedule($loanId);
         } else {
-            // Pending/approved loans get a preview (not stored yet)
-            $schedule = $this->loans->calculateSchedule(
-                (float) $loan['principal_amount'],
-                (float) $loan['interest_rate'],
-                (int) $loan['term_months'],
-            );
+            $schedule = [];
         }
 
         return Response::ok([
