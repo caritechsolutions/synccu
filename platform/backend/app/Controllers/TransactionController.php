@@ -496,69 +496,116 @@ final class TransactionController
     {
         try {
             $this->transactions->ensureSchema();
+        } catch (\Throwable) {
+        }
 
-            $transactionId = $request->param('id');
-            $userId        = $request->getAttribute('user_id');
-            $role          = $request->getAttribute('role');
+        $transactionId = $request->param('id');
+        $userId        = $request->getAttribute('user_id');
+        $role          = $request->getAttribute('role');
 
-            $db = \App\Core\Database::getInstance();
-            $tenantId = $db->getTenantId();
+        $db = \App\Core\Database::getInstance();
+        $tenantId = $db->getTenantId();
 
+        try {
             $transaction = $db->fetchOne(
-                "SELECT t.*, a.account_number, a.name AS account_name, a.account_type,
-                        CONCAT(u.first_name, ' ', u.last_name) AS member_name,
-                        u.email AS member_email, u.phone AS member_phone,
-                        u.address_line_1 AS member_address, u.city AS member_city,
-                        u.state AS member_state,
-                        ra.account_number AS related_account_number,
-                        ra.name AS related_account_name,
-                        CONCAT(p.first_name, ' ', p.last_name) AS teller_name
-                 FROM transactions t
-                 LEFT JOIN accounts a ON a.id = t.account_id
-                 LEFT JOIN users u ON u.id = a.user_id
-                 LEFT JOIN accounts ra ON ra.id = t.related_account_id
-                 LEFT JOIN users p ON p.id = t.processed_by
-                 WHERE t.id = ? AND t.tenant_id = ?",
+                "SELECT * FROM transactions WHERE id = ? AND tenant_id = ?",
                 [$transactionId, $tenantId],
             );
-
-            if ($transaction === null) {
-                return Response::error('Transaction not found', 404);
-            }
-
-            // Non-admin users can only view transactions on their own accounts
-            if (!in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true)) {
-                $accountId = $transaction['account_id'] ?? null;
-                if ($accountId && !$this->accounts->verifyOwnership($accountId, $userId)) {
-                    return Response::error('Forbidden', 403);
-                }
-            }
-
-            // Fetch tenant info for receipt header (CU name and address)
-            try {
-                $tenant = $db->fetchOne(
-                    "SELECT name FROM tenants WHERE id = ?",
-                    [$tenantId],
-                );
-                $transaction['cu_name'] = $tenant['name'] ?? '';
-            } catch (\Throwable) {
-                $transaction['cu_name'] = '';
-            }
-
-            try {
-                $settings = $db->fetchOne(
-                    "SELECT setting_value FROM tenant_settings WHERE tenant_id = ? AND setting_key = 'address'",
-                    [$tenantId],
-                );
-                $transaction['cu_address'] = $settings['setting_value'] ?? '';
-            } catch (\Throwable) {
-                $transaction['cu_address'] = '';
-            }
-
-            return Response::ok($transaction);
         } catch (\Throwable $e) {
+            error_log('Transaction show query failed: ' . $e->getMessage());
             return Response::error('Failed to load transaction: ' . $e->getMessage(), 500);
         }
+
+        if ($transaction === null) {
+            return Response::error('Transaction not found', 404);
+        }
+
+        // Non-admin users can only view transactions on their own accounts
+        if (!in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true)) {
+            $accountId = $transaction['account_id'] ?? null;
+            if ($accountId && !$this->accounts->verifyOwnership($accountId, $userId)) {
+                return Response::error('Forbidden', 403);
+            }
+        }
+
+        // Enrich with account info
+        try {
+            if (!empty($transaction['account_id'])) {
+                $account = $db->fetchOne(
+                    "SELECT account_number, name, account_type FROM accounts WHERE id = ?",
+                    [$transaction['account_id']],
+                );
+                if ($account) {
+                    $transaction['account_number'] = $account['account_number'];
+                    $transaction['account_name'] = $account['name'];
+                    $transaction['account_type'] = $account['account_type'];
+
+                    $member = $db->fetchOne(
+                        "SELECT first_name, last_name, email, phone, address_line_1, city, state
+                         FROM users WHERE id = (SELECT user_id FROM accounts WHERE id = ?)",
+                        [$transaction['account_id']],
+                    );
+                    if ($member) {
+                        $transaction['member_name'] = trim($member['first_name'] . ' ' . $member['last_name']);
+                        $transaction['member_email'] = $member['email'] ?? '';
+                        $transaction['member_phone'] = $member['phone'] ?? '';
+                        $transaction['member_address'] = $member['address_line_1'] ?? '';
+                        $transaction['member_city'] = $member['city'] ?? '';
+                        $transaction['member_state'] = $member['state'] ?? '';
+                    }
+                }
+            }
+        } catch (\Throwable) {
+        }
+
+        // Enrich with related account info
+        try {
+            if (!empty($transaction['related_account_id'])) {
+                $related = $db->fetchOne(
+                    "SELECT account_number, name FROM accounts WHERE id = ?",
+                    [$transaction['related_account_id']],
+                );
+                if ($related) {
+                    $transaction['related_account_number'] = $related['account_number'];
+                    $transaction['related_account_name'] = $related['name'];
+                }
+            }
+        } catch (\Throwable) {
+        }
+
+        // Enrich with teller name
+        try {
+            if (!empty($transaction['processed_by'])) {
+                $teller = $db->fetchOne(
+                    "SELECT first_name, last_name FROM users WHERE id = ?",
+                    [$transaction['processed_by']],
+                );
+                if ($teller) {
+                    $transaction['teller_name'] = trim($teller['first_name'] . ' ' . $teller['last_name']);
+                }
+            }
+        } catch (\Throwable) {
+        }
+
+        // Tenant info for receipt header
+        try {
+            $tenant = $db->fetchOne("SELECT name FROM tenants WHERE id = ?", [$tenantId]);
+            $transaction['cu_name'] = $tenant['name'] ?? '';
+        } catch (\Throwable) {
+            $transaction['cu_name'] = '';
+        }
+
+        try {
+            $settings = $db->fetchOne(
+                "SELECT setting_value FROM tenant_settings WHERE tenant_id = ? AND setting_key = 'address'",
+                [$tenantId],
+            );
+            $transaction['cu_address'] = $settings['setting_value'] ?? '';
+        } catch (\Throwable) {
+            $transaction['cu_address'] = '';
+        }
+
+        return Response::ok($transaction);
     }
 
     /**
