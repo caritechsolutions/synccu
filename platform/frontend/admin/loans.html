@@ -836,12 +836,12 @@
       document.getElementById('detailLoanNextDue').textContent = l.next_payment_date || '-';
       document.getElementById('detailLoanPurpose').textContent = l.purpose || '-';
 
-      // Accrued interest display
+      // Accrued interest display — always show for active/delinquent loans
       const ai = l.accrued_interest || {};
       const accruedBox = document.getElementById('accruedInterestBox');
-      if (['active', 'delinquent'].includes(l.status) && ai.accrued_interest > 0) {
+      if (['active', 'delinquent'].includes(l.status)) {
         accruedBox.style.display = 'block';
-        document.getElementById('accruedAmount').textContent = '$' + Number(ai.accrued_interest).toLocaleString('en-US', { minimumFractionDigits: 2 });
+        document.getElementById('accruedAmount').textContent = '$' + Number(ai.accrued_interest || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
         document.getElementById('accruedDays').textContent = ai.days_since_last_payment || 0;
         document.getElementById('accruedPerDiem').textContent = '$' + Number(ai.per_diem || 0).toFixed(2);
         document.getElementById('accruedSince').textContent = ai.last_activity_date ? new Date(ai.last_activity_date).toLocaleDateString() : '-';
