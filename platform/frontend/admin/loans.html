@@ -347,6 +347,12 @@
             <h4 style="margin:0 0 .75rem 0;color:#065f46">Disburse Funds</h4>
             <p style="margin:0 0 1rem 0;font-size:.8rem;color:#047857">Loan approved. Choose how to disburse the funds to the member.</p>
             <form id="disburseForm" style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;align-items:end">
+              <div class="form-group" style="margin:0;grid-column:1/-1">
+                <label for="disburseSourceAccount" style="font-size:.75rem;font-weight:600">Fund From (Source Account)</label>
+                <select id="disburseSourceAccount" class="form-select" required>
+                  <option value="">Select funding source...</option>
+                </select>
+              </div>
               <div class="form-group" style="margin:0">
                 <label for="disburseMethod" style="font-size:.75rem">Disbursement Method</label>
                 <select id="disburseMethod" class="form-select" required>
@@ -358,7 +364,7 @@
                 </select>
               </div>
               <div class="form-group" style="margin:0" id="disburseAccountGroup">
-                <label for="disburseTargetAccount" style="font-size:.75rem">Member Account</label>
+                <label for="disburseTargetAccount" style="font-size:.75rem">Destination (Member Account)</label>
                 <select id="disburseTargetAccount" class="form-select" required>
                   <option value="">Select account...</option>
                 </select>
@@ -857,6 +863,14 @@
       const disburseSection = document.getElementById('disburseSection');
       if (l.status === 'approved') {
         disburseSection.style.display = 'block';
+        // Populate funding source accounts
+        const sourceSelect = document.getElementById('disburseSourceAccount');
+        sourceSelect.innerHTML = '<option value="">Select funding source...</option>';
+        (l.funding_accounts || []).forEach(a => {
+          sourceSelect.innerHTML += '<option value="' + a.id + '">' + a.account_number + ' - ' +
+            (a.member_name || '').trim() + ' / ' + (a.name || a.account_type) +
+            ' ($' + Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ')</option>';
+        });
         // Populate member accounts for disbursement target
         const acctSelect = document.getElementById('disburseTargetAccount');
         acctSelect.innerHTML = '<option value="">Select account...</option>';
@@ -1030,12 +1044,14 @@
       e.preventDefault();
       if (!currentLoan) return;
       const method = document.getElementById('disburseMethod').value;
-      const body = { disbursement_method: method };
+      const sourceAccountId = document.getElementById('disburseSourceAccount').value;
+      if (!sourceAccountId) { alert('Please select a funding source account.'); return; }
+      const body = { disbursement_method: method, source_account_id: sourceAccountId };
       if (method === 'account') body.target_account_id = document.getElementById('disburseTargetAccount').value;
       if (method === 'check') body.check_number = document.getElementById('disburseCheckNumber').value;
 
       const methodLabels = { account: 'member account', cash: 'cash', check: 'check', wire: 'wire transfer', ach: 'ACH' };
-      if (!confirm('Disburse $' + Number(currentLoan.principal_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' via ' + (methodLabels[method] || method) + '?')) return;
+      if (!confirm('Disburse $' + Number(currentLoan.principal_amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' via ' + (methodLabels[method] || method) + '?\n\nFunds will be debited from the selected source account.')) return;
 
       try {
         const resp = await apiFetch('/api/v1/loans/' + currentLoan.id + '/disburse', {

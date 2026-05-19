@@ -165,12 +165,28 @@ final class LoanController
         // Include member's non-loan accounts for disbursement/payment UI
         if (in_array($loan['status'], ['approved', 'active', 'delinquent'], true)) {
             $db = \App\Core\Database::getInstance();
+            $tenantId = $db->getTenantId();
             $loan['member_accounts'] = $db->fetchAll(
                 "SELECT id, account_number, name, account_type, balance
                  FROM accounts
                  WHERE user_id = ? AND tenant_id = ? AND account_type != 'loan' AND status = 'active'
                  ORDER BY account_type, name",
-                [$loan['user_id'], $db->getTenantId()],
+                [$loan['user_id'], $tenantId],
+            );
+        }
+
+        // Include all tenant non-loan accounts as potential funding sources for disbursement
+        if ($loan['status'] === 'approved' && in_array($role, ['admin', 'super_admin', 'manager'], true)) {
+            $db = $db ?? \App\Core\Database::getInstance();
+            $tenantId = $tenantId ?? $db->getTenantId();
+            $loan['funding_accounts'] = $db->fetchAll(
+                "SELECT a.id, a.account_number, a.name, a.account_type, a.balance,
+                        CONCAT(u.first_name, ' ', u.last_name) AS member_name
+                 FROM accounts a
+                 LEFT JOIN users u ON u.id = a.user_id AND u.tenant_id = a.tenant_id
+                 WHERE a.tenant_id = ? AND a.account_type != 'loan' AND a.status = 'active'
+                 ORDER BY a.account_type, a.name",
+                [$tenantId],
             );
         }
 
@@ -205,6 +221,7 @@ final class LoanController
         $validator = new Validator($request->all(), [
             'disbursement_method' => 'required|in:account,cash,check,wire,ach',
             'target_account_id'  => 'nullable|string',
+            'source_account_id'  => 'required|string',
             'check_number'       => 'nullable|string|max:50',
         ]);
 
