@@ -264,7 +264,6 @@
               <option value="">Select type...</option>
               <option value="deposit">Deposit</option>
               <option value="withdrawal">Withdrawal</option>
-              <option value="transfer">Transfer</option>
             </select>
           </div>
           <div class="form-group">
@@ -702,10 +701,9 @@
     // Show/hide fields based on transaction type
     txnType.addEventListener('change', () => {
       const val = txnType.value;
-      document.getElementById('txnDestGroup').style.display = val === 'transfer' ? '' : 'none';
+      document.getElementById('txnDestGroup').style.display = 'none';
       document.getElementById('txnFundingGroup').style.display = val === 'deposit' ? '' : 'none';
       document.getElementById('txnDisbursementGroup').style.display = val === 'withdrawal' ? '' : 'none';
-      document.getElementById('txnAccountLabel').textContent = val === 'transfer' ? 'From Account' : 'Account';
       updateMethodVisibility();
     });
 
@@ -855,7 +853,6 @@
       const destId = document.getElementById('txnDestId').value;
 
       if (!accountId) { alert('Please select an account from the search results.'); return; }
-      if (type === 'transfer' && !destId) { alert('Please select a destination account from the search results.'); return; }
 
       const submitBtn = document.getElementById('txnSubmitBtn');
       submitBtn.disabled = true;
@@ -867,12 +864,7 @@
         description: document.getElementById('txnDescription').value,
       };
 
-      if (type === 'transfer') {
-        payload.from_account_id = accountId;
-        payload.to_account_id = destId;
-      } else {
-        payload.account_id = accountId;
-      }
+      payload.account_id = accountId;
 
       if (type === 'deposit') {
         payload.funding_source = document.getElementById('txnFundingSource').value;
