@@ -338,12 +338,13 @@ final class LoanService
             $balance -= $principalPart;
 
             $schedule[] = [
-                'month'           => $month,
-                'payment_date'    => date('Y-m-d', strtotime("+{$month} months")),
-                'payment'         => round($payment, 2),
-                'principal'       => $principalPart,
-                'interest'        => $interest,
+                'payment_number'    => $month,
+                'due_date'          => date('Y-m-d', strtotime("+{$month} months")),
+                'payment_amount'    => round($payment, 2),
+                'principal'         => $principalPart,
+                'interest'          => $interest,
                 'remaining_balance' => round(max(0, $balance), 2),
+                'status'            => 'upcoming',
             ];
         }
 
@@ -355,10 +356,34 @@ final class LoanService
      */
     public function getSchedule(string $loanId): array
     {
-        return $this->db->fetchAll(
-            'SELECT * FROM loan_schedules WHERE loan_id = ? ORDER BY payment_number ASC',
+        $loan = $this->findById($loanId);
+        $principal = $loan ? (float) $loan['principal_amount'] : 0;
+
+        $rows = $this->db->fetchAll(
+            'SELECT payment_number, due_date, principal_amount, interest_amount,
+                    total_amount, paid_amount, status, paid_at
+             FROM loan_schedules WHERE loan_id = ? ORDER BY payment_number ASC',
             [$loanId],
         );
+
+        $balance = $principal;
+        $schedule = [];
+        foreach ($rows as $row) {
+            $balance -= (float) $row['principal_amount'];
+            $schedule[] = [
+                'payment_number'    => (int) $row['payment_number'],
+                'due_date'          => $row['due_date'],
+                'payment_amount'    => (float) $row['total_amount'],
+                'principal'         => (float) $row['principal_amount'],
+                'interest'          => (float) $row['interest_amount'],
+                'remaining_balance' => round(max(0, $balance), 2),
+                'paid_amount'       => (float) $row['paid_amount'],
+                'status'            => $row['status'] ?? 'upcoming',
+                'paid_at'           => $row['paid_at'],
+            ];
+        }
+
+        return $schedule;
     }
 
     // ------------------------------------------------------------------
@@ -729,11 +754,11 @@ final class LoanService
                 [
                     $this->generateUuid(),
                     $loanId,
-                    $row['month'],
-                    $row['payment_date'],
+                    $row['payment_number'],
+                    $row['due_date'],
                     $row['principal'],
                     $row['interest'],
-                    $row['payment'],
+                    $row['payment_amount'],
                 ],
             );
         }
