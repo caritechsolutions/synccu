@@ -468,6 +468,41 @@ CREATE TABLE IF NOT EXISTS `applications` (
   INDEX `idx_app_status` (`tenant_id`, `status`, `created_at`)
 ) ENGINE=InnoDB;
 
+-- Member portal: bill pay payees
+CREATE TABLE IF NOT EXISTS `payees` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `member_id` CHAR(36) NOT NULL,
+  `name` VARCHAR(120) NOT NULL,
+  `category` VARCHAR(50) DEFAULT NULL,
+  `account_reference` VARCHAR(80) DEFAULT NULL,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`member_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  INDEX `idx_payees_member` (`tenant_id`, `member_id`, `is_active`)
+) ENGINE=InnoDB;
+
+-- Member portal: bill payments
+CREATE TABLE IF NOT EXISTS `bill_payments` (
+  `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `tenant_id` CHAR(36) NOT NULL,
+  `member_id` CHAR(36) NOT NULL,
+  `payee_id` CHAR(36) DEFAULT NULL,
+  `from_account_id` CHAR(36) NOT NULL,
+  `amount` DECIMAL(15,2) NOT NULL,
+  `reference_number` VARCHAR(50) DEFAULT NULL,
+  `transaction_id` CHAR(36) DEFAULT NULL,
+  `status` ENUM('completed','pending','failed') NOT NULL DEFAULT 'completed',
+  `memo` VARCHAR(255) DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`member_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`payee_id`) REFERENCES `payees`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`from_account_id`) REFERENCES `accounts`(`id`) ON DELETE CASCADE,
+  INDEX `idx_billpay_member` (`tenant_id`, `member_id`, `created_at`)
+) ENGINE=InnoDB;
+
 -- Seed default tenant and super admin
 INSERT IGNORE INTO `tenants` (`id`, `name`, `slug`, `status`) VALUES
 ('00000000-0000-0000-0000-000000000001', 'Default Credit Union', 'default', 'active');

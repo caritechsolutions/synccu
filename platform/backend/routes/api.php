@@ -28,6 +28,7 @@ use App\Controllers\ReportController;
 use App\Controllers\NetworkController;
 use App\Controllers\MessageController;
 use App\Controllers\ApplicationController;
+use App\Controllers\BillPayController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\TenantMiddleware;
 use App\Middleware\RBACMiddleware;
@@ -382,6 +383,38 @@ $router->group([
     $router->get('/',  [ApplicationController::class, 'index']);
     $router->post('/', [ApplicationController::class, 'store']);
     $router->post('/{id}/cancel', [ApplicationController::class, 'cancel']);
+});
+
+// ------------------------------------------------------------------
+// Member portal — bill pay payees (authenticated, any role; controller self-scopes)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/payees',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/',     [BillPayController::class, 'payees']);
+    $router->post('/',    [BillPayController::class, 'addPayee']);
+    $router->delete('/{id}', [BillPayController::class, 'deletePayee']);
+});
+
+// ------------------------------------------------------------------
+// Member portal — bill payments (authenticated, any role; controller self-scopes, audited)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/billpay',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+        AuditMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/',  [BillPayController::class, 'history']);
+    $router->post('/', [BillPayController::class, 'pay']);
 });
 
 // ------------------------------------------------------------------
