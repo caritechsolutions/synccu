@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SyncCU Admin - Secure messaging inbox for member conversations.">
+  <title>Messages - SyncCU Admin</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="../css/app.css">
+  <script>
+    if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }
+  </script>
+</head>
+<body>
+  <!-- SVG Sprite -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+    <symbol id="icon-credit-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+    <symbol id="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+    <symbol id="icon-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></symbol>
+  </svg>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><h2>SyncCU</h2></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item"><svg class="nav-icon"><use href="#icon-dashboard"/></svg><span>Dashboard</span></a>
+      <a href="members.html" class="nav-item"><svg class="nav-icon"><use href="#icon-users"/></svg><span>Members</span></a>
+      <a href="messages.html" class="nav-item active"><svg class="nav-icon"><use href="#icon-send"/></svg><span>Messages</span></a>
+      <a href="applications.html" class="nav-item"><svg class="nav-icon"><use href="#icon-credit-card"/></svg><span>Applications</span></a>
+      <a href="accounts.html" class="nav-item"><svg class="nav-icon"><use href="#icon-wallet"/></svg><span>Accounts</span></a>
+      <a href="transactions.html" class="nav-item"><svg class="nav-icon"><use href="#icon-send"/></svg><span>Transactions</span></a>
+      <a href="loans.html" class="nav-item"><svg class="nav-icon"><use href="#icon-credit-card"/></svg><span>Loans</span></a>
+      <a href="reports.html" class="nav-item"><svg class="nav-icon"><use href="#icon-chart"/></svg><span>Reports</span></a>
+      <a href="cash-management.html" class="nav-item"><svg class="nav-icon"><use href="#icon-key"/></svg><span>Cash</span></a>
+      <a href="network.html" class="nav-item"><svg class="nav-icon"><use href="#icon-globe"/></svg><span>Network</span></a>
+      <a href="settings.html" class="nav-item"><svg class="nav-icon"><use href="#icon-settings"/></svg><span>Settings</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="#" class="nav-item" id="logoutBtn"><svg class="nav-icon"><use href="#icon-logout"/></svg><span>Logout</span></a>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu"><svg><use href="#icon-menu"/></svg></button>
+        <div class="search-box">
+          <svg class="search-icon"><use href="#icon-search"/></svg>
+          <input type="text" placeholder="Search..." aria-label="Search">
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="topbar-btn theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <svg class="icon-sun"><use href="#icon-sun"/></svg>
+          <svg class="icon-moon" style="display:none"><use href="#icon-moon"/></svg>
+        </button>
+        <button class="topbar-btn notification-btn" aria-label="Notifications">
+          <svg><use href="#icon-bell"/></svg><span class="badge">3</span>
+        </button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-avatar-btn" id="userAvatarBtn">
+            <div class="avatar">AD</div>
+            <svg class="chevron"><use href="#icon-chevron-down"/></svg>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-header"><strong>Admin User</strong><span>admin@synccu.com</span></div>
+            <div class="dropdown-divider"></div>
+            <a href="settings.html" class="dropdown-item"><svg><use href="#icon-settings"/></svg> Settings</a>
+            <a href="#" class="dropdown-item" id="logoutBtn2"><svg><use href="#icon-logout"/></svg> Logout</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <main class="main-content">
+      <!-- Conversations List View -->
+      <div id="listView">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Messages</h1>
+            <p class="page-subtitle">Member secure-messaging conversations.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Email</th>
+                  <th>Messages</th>
+                  <th>Unread</th>
+                  <th>Last Activity</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="conversationsBody">
+                <tr><td colspan="6" style="text-align:center;padding:2rem">Loading conversations...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thread View -->
+      <div id="threadView" style="display:none">
+        <div class="page-header">
+          <div>
+            <button class="btn btn-secondary" id="backToList"><svg><use href="#icon-arrow-left"/></svg> Back to Inbox</button>
+            <h1 class="page-title" id="threadTitle" style="margin-top:0.75rem">Conversation</h1>
+            <p class="page-subtitle" id="threadEmail"></p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <div id="threadMessages" class="admin-msg-thread">
+              <p style="text-align:center;padding:2rem;color:var(--color-text-muted)">Loading messages...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:1.5rem">
+          <div class="card-header"><h3 class="card-title">Reply</h3></div>
+          <div class="card-body">
+            <form id="replyForm">
+              <div class="form-group">
+                <label for="replySubject">Subject</label>
+                <input type="text" id="replySubject" class="form-input" placeholder="Reply subject" maxlength="200" required>
+              </div>
+              <div class="form-group">
+                <label for="replyBody">Message</label>
+                <textarea id="replyBody" class="form-input form-textarea" rows="4" placeholder="Type your reply..." required></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary" id="sendReplyBtn"><svg><use href="#icon-send"/></svg> Send Reply</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <style>
+    .admin-msg-thread { display: flex; flex-direction: column; gap: 1rem; }
+    .admin-msg-bubble {
+      max-width: 75%;
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      border: 1px solid var(--border-color, #e5e7eb);
+    }
+    .admin-msg-bubble--member { align-self: flex-start; background: var(--bg-tertiary, #f3f4f6); }
+    .admin-msg-bubble--staff { align-self: flex-end; background: var(--primary-light, #e0eaff); border-color: transparent; }
+    .admin-msg-meta {
+      display: flex; justify-content: space-between; gap: 1rem;
+      font-size: 0.75rem; color: var(--color-text-muted, #6b7280); margin-bottom: 0.25rem;
+    }
+    .admin-msg-subject { font-weight: 600; margin-bottom: 0.25rem; }
+    .admin-msg-body { white-space: pre-wrap; word-break: break-word; }
+  </style>
+
+  <script src="../js/admin-common.js"></script>
+  <script>
+    const listView = document.getElementById('listView');
+    const threadView = document.getElementById('threadView');
+    let currentMemberId = null;
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str == null ? '' : String(str);
+      return div.innerHTML;
+    }
+
+    function fmtDate(d) {
+      if (!d) return '-';
+      try { return new Date(d).toLocaleString(); } catch (e) { return '-'; }
+    }
+
+    async function loadConversations() {
+      const tbody = document.getElementById('conversationsBody');
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem">Loading...</td></tr>';
+      try {
+        const resp = await apiFetch('/api/v1/admin/messages');
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:red">API error ' + resp.status + ': ' + (err.message || err.error || 'Unknown') + '</td></tr>';
+          return;
+        }
+        const json = await resp.json();
+        const convos = (json.data && json.data.conversations) || [];
+        if (!convos.length) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--color-text-muted)">No conversations yet</td></tr>';
+          return;
+        }
+        tbody.innerHTML = convos.map(c => {
+          const unread = Number(c.unread || 0);
+          const unreadBadge = unread > 0
+            ? '<span class="badge badge-danger">' + unread + '</span>'
+            : '<span class="badge badge-muted">0</span>';
+          return '<tr>' +
+            '<td>' + escapeHtml(c.member_name || '-') + '</td>' +
+            '<td>' + escapeHtml(c.email || '-') + '</td>' +
+            '<td>' + Number(c.total || 0) + '</td>' +
+            '<td>' + unreadBadge + '</td>' +
+            '<td>' + escapeHtml(fmtDate(c.last_at)) + '</td>' +
+            '<td><button class="btn btn-secondary btn-sm" onclick="openThread(\'' + escapeHtml(c.member_id) + '\', \'' + escapeHtml((c.member_name || '').replace(/'/g, "")) + '\', \'' + escapeHtml((c.email || '').replace(/'/g, "")) + '\')">Open</button></td>' +
+            '</tr>';
+        }).join('');
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:red">Failed to load: ' + escapeHtml(e.message) + '</td></tr>';
+      }
+    }
+
+    async function openThread(memberId, name, email) {
+      currentMemberId = memberId;
+      document.getElementById('threadTitle').textContent = name || 'Conversation';
+      document.getElementById('threadEmail').textContent = email || '';
+      listView.style.display = 'none';
+      threadView.style.display = '';
+      const container = document.getElementById('threadMessages');
+      container.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--color-text-muted)">Loading messages...</p>';
+      // Reflect in URL for shareable/deep-link
+      try { history.replaceState(null, '', '?member_id=' + encodeURIComponent(memberId)); } catch (e) {}
+
+      try {
+        const resp = await apiFetch('/api/v1/admin/messages/' + memberId);
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          container.innerHTML = '<p style="text-align:center;padding:2rem;color:red">Error: ' + (err.message || err.error || 'Failed to load') + '</p>';
+          return;
+        }
+        const json = await resp.json();
+        const messages = (json.data && json.data.messages) || [];
+        if (!messages.length) {
+          container.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--color-text-muted)">No messages in this conversation</p>';
+          return;
+        }
+        container.innerHTML = messages.map(m => {
+          const isStaff = m.sender === 'staff';
+          const who = isStaff ? (m.staff_name || 'Staff') : (name || 'Member');
+          return '<div class="admin-msg-bubble admin-msg-bubble--' + (isStaff ? 'staff' : 'member') + '">' +
+            '<div class="admin-msg-meta"><span>' + escapeHtml(who) + '</span><span>' + escapeHtml(fmtDate(m.created_at)) + '</span></div>' +
+            (m.subject ? '<div class="admin-msg-subject">' + escapeHtml(m.subject) + '</div>' : '') +
+            '<div class="admin-msg-body">' + escapeHtml(m.body) + '</div>' +
+            '</div>';
+        }).join('');
+      } catch (e) {
+        container.innerHTML = '<p style="text-align:center;padding:2rem;color:red">' + escapeHtml(e.message) + '</p>';
+      }
+    }
+    window.openThread = openThread;
+
+    document.getElementById('backToList').addEventListener('click', () => {
+      threadView.style.display = 'none';
+      listView.style.display = '';
+      currentMemberId = null;
+      try { history.replaceState(null, '', location.pathname); } catch (e) {}
+      loadConversations();
+    });
+
+    document.getElementById('replyForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentMemberId) return;
+      const subject = document.getElementById('replySubject').value.trim();
+      const body = document.getElementById('replyBody').value.trim();
+      if (!subject || !body) { alert('Please enter a subject and message'); return; }
+
+      const btn = document.getElementById('sendReplyBtn');
+      btn.disabled = true;
+      const original = btn.innerHTML;
+      btn.textContent = 'Sending...';
+      try {
+        const resp = await apiFetch('/api/v1/admin/messages/' + currentMemberId, {
+          method: 'POST',
+          body: JSON.stringify({ subject, body })
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          alert(err.message || err.error || 'Failed to send reply');
+          return;
+        }
+        document.getElementById('replyForm').reset();
+        const name = document.getElementById('threadTitle').textContent;
+        const email = document.getElementById('threadEmail').textContent;
+        await openThread(currentMemberId, name, email);
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    });
+
+    // Initial load: deep-link to a thread if member_id present
+    (function init() {
+      const memberId = new URLSearchParams(location.search).get('member_id');
+      loadConversations();
+      if (memberId) openThread(memberId, '', '');
+    })();
+  </script>
+</body>
+</html>

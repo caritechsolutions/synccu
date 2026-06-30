@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SyncCU - Secure Messages">
+    <title>Messages - SyncCU</title>
+    <link rel="stylesheet" href="../css/app.css">
+    <script>if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }</script>
+</head>
+<body class="portal-body">
+
+<!-- SVG Icon Sprite -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-logo" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-home" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-1M3 7a2 2 0 012-2h12a2 2 0 012 2M3 7h16m-3 4h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-transfer" viewBox="0 0 24 24"><path d="M8 7h12l-4-4M16 17H4l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-loan" viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 00-5-5.917V4a1 1 0 10-2 0v1.083A6 6 0 006 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-file-text" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM14 2v6h6M16 13H8M16 17H8M10 9H8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+</svg>
+
+<!-- Top Navigation Bar -->
+<nav class="portal-nav">
+    <div class="portal-nav-inner">
+        <div class="portal-nav-left">
+            <button class="portal-mobile-toggle" id="mobileMenuToggle" aria-label="Toggle menu">
+                <svg class="icon icon-md"><use href="#icon-menu"/></svg>
+            </button>
+            <a href="dashboard.html" class="portal-logo">
+                <svg class="icon icon-lg"><use href="#icon-logo"/></svg>
+                <span class="portal-logo-text">SyncCU</span>
+            </a>
+            <div class="portal-nav-links" id="navLinks">
+                <a href="dashboard.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-home"/></svg> Dashboard
+                </a>
+                <a href="accounts.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-wallet"/></svg> Accounts
+                </a>
+                <a href="transfer.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-transfer"/></svg> Transfer
+                </a>
+                <a href="loans.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-loan"/></svg> Loans
+                </a>
+                <a href="messages.html" class="portal-nav-link active">
+                    <svg class="icon icon-sm"><use href="#icon-send"/></svg> Messages
+                </a>
+                <a href="apply.html" class="portal-nav-link">
+                    <svg class="icon icon-sm"><use href="#icon-file-text"/></svg> Apply
+                </a>
+            </div>
+        </div>
+        <div class="portal-nav-right">
+            <button class="portal-nav-icon-btn theme-toggle" aria-label="Toggle theme">
+                <svg class="icon icon-sm theme-icon-light"><use href="#icon-moon"/></svg>
+                <svg class="icon icon-sm theme-icon-dark"><use href="#icon-sun"/></svg>
+            </button>
+            <button class="portal-nav-icon-btn portal-notification-btn" aria-label="Notifications">
+                <svg class="icon icon-sm"><use href="#icon-bell"/></svg>
+            </button>
+            <div class="portal-user-menu" id="userMenu">
+                <button class="portal-user-trigger" id="userMenuTrigger">
+                    <span class="portal-avatar" id="userAvatar">--</span>
+                    <span class="portal-user-name" id="userName">Member</span>
+                    <svg class="icon icon-xs"><use href="#icon-chevron-down"/></svg>
+                </button>
+                <div class="portal-user-dropdown" id="userDropdown">
+                    <a href="profile.html" class="portal-dropdown-item">
+                        <svg class="icon icon-sm"><use href="#icon-user"/></svg> Profile
+                    </a>
+                    <a href="profile.html#security" class="portal-dropdown-item">
+                        <svg class="icon icon-sm"><use href="#icon-settings"/></svg> Settings
+                    </a>
+                    <hr class="portal-dropdown-divider">
+                    <button class="portal-dropdown-item portal-dropdown-logout" id="logoutBtn">
+                        <svg class="icon icon-sm"><use href="#icon-logout"/></svg> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<main class="portal-main">
+    <div class="portal-container portal-container--narrow">
+
+        <h1 class="portal-page-title">Secure Messages</h1>
+        <p class="portal-welcome-date">Send and receive secure messages with our team.</p>
+
+        <!-- New Message -->
+        <section class="portal-card card">
+            <div class="portal-card-header card-header">
+                <h3 class="portal-card-title card-title">New Message</h3>
+            </div>
+            <div class="portal-card-body card-body">
+                <form id="messageForm">
+                    <div class="form-group">
+                        <label class="form-label" for="msgSubject">Subject</label>
+                        <input type="text" class="form-input" id="msgSubject" placeholder="What is your message about?" maxlength="200" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="msgBody">Message</label>
+                        <textarea class="form-input form-textarea" id="msgBody" rows="4" placeholder="Type your message..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="sendMessageBtn">
+                        <svg class="icon icon-sm"><use href="#icon-send"/></svg> Send Message
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Conversation -->
+        <section class="portal-card card" style="margin-top:1.5rem">
+            <div class="portal-card-header card-header">
+                <h3 class="portal-card-title card-title">Conversation</h3>
+            </div>
+            <div class="portal-card-body card-body">
+                <div id="messageThread" class="message-thread">
+                    <p class="portal-empty-state">Loading messages...</p>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</main>
+
+<style>
+    .message-thread { display: flex; flex-direction: column; gap: 1rem; }
+    .msg-bubble {
+        max-width: 75%;
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius-lg, 12px);
+        border: 1px solid var(--border-color, #e5e7eb);
+    }
+    .msg-bubble--member {
+        align-self: flex-end;
+        background: var(--primary-light, #e0eaff);
+        color: var(--text-primary, #111);
+        border-color: transparent;
+    }
+    .msg-bubble--staff {
+        align-self: flex-start;
+        background: var(--bg-tertiary, #f3f4f6);
+        color: var(--text-primary, #111);
+    }
+    .msg-bubble-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        font-size: var(--text-xs, 0.75rem);
+        color: var(--text-muted, #6b7280);
+        margin-bottom: 0.25rem;
+    }
+    .msg-bubble-subject { font-weight: 600; margin-bottom: 0.25rem; }
+    .msg-bubble-body { white-space: pre-wrap; word-break: break-word; }
+</style>
+
+<script src="../js/app.js"></script>
+<script src="../js/auth.js"></script>
+<script>
+(function() {
+    // Auth check
+    api.loadTokens();
+    if (!auth.requireAuth(['member'])) return;
+
+    // Navigation helpers
+    const mobileToggle = document.getElementById('mobileMenuToggle');
+    const navLinks = document.getElementById('navLinks');
+    mobileToggle.addEventListener('click', () => navLinks.classList.toggle('open'));
+
+    const userMenuTrigger = document.getElementById('userMenuTrigger');
+    const userDropdown = document.getElementById('userDropdown');
+    userMenuTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        userDropdown.classList.toggle('open');
+    });
+    document.addEventListener('click', () => userDropdown.classList.remove('open'));
+    document.getElementById('logoutBtn').addEventListener('click', () => auth.logout());
+
+    // Load user info
+    async function loadUser() {
+        try {
+            const user = await auth.getCurrentUser();
+            if (user) {
+                document.getElementById('userName').textContent = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Member';
+                document.getElementById('userAvatar').textContent = Format.initials(user.first_name, user.last_name);
+            }
+        } catch (err) {}
+    }
+    loadUser();
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str == null ? '' : String(str);
+        return div.innerHTML;
+    }
+
+    const thread = document.getElementById('messageThread');
+
+    // Load and render the conversation thread
+    async function loadThread() {
+        try {
+            const resp = await api.get('/messages');
+            const messages = (resp.data && resp.data.messages) || [];
+
+            if (!messages.length) {
+                thread.innerHTML = '<p class="portal-empty-state">No messages yet. Start the conversation above.</p>';
+                return;
+            }
+
+            thread.innerHTML = messages.map(m => {
+                const isMember = m.sender === 'member';
+                const who = isMember ? 'You' : (m.staff_name || 'SyncCU Team');
+                const when = m.created_at ? Format.relative(m.created_at) : '';
+                return `
+                    <div class="msg-bubble msg-bubble--${isMember ? 'member' : 'staff'}">
+                        <div class="msg-bubble-meta">
+                            <span>${escapeHtml(who)}</span>
+                            <span>${escapeHtml(when)}</span>
+                        </div>
+                        ${m.subject ? `<div class="msg-bubble-subject">${escapeHtml(m.subject)}</div>` : ''}
+                        <div class="msg-bubble-body">${escapeHtml(m.body)}</div>
+                    </div>`;
+            }).join('');
+        } catch (err) {
+            thread.innerHTML = '<p class="portal-empty-state">Unable to load messages.</p>';
+        }
+    }
+    loadThread();
+
+    // Submit a new message
+    const form = document.getElementById('messageForm');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const subject = document.getElementById('msgSubject').value.trim();
+        const body = document.getElementById('msgBody').value.trim();
+
+        if (!subject || !body) {
+            toast.error('Please enter a subject and message');
+            return;
+        }
+
+        const btn = document.getElementById('sendMessageBtn');
+        btn.disabled = true;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner spinner-sm"></span> Sending...';
+
+        try {
+            await api.post('/messages', { subject, body });
+            toast.success('Message sent');
+            form.reset();
+            await loadThread();
+        } catch (err) {
+            toast.error(err.message || 'Failed to send message');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    });
+})();
+</script>
+</body>
+</html>
