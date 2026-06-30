@@ -147,7 +147,14 @@ member-login provisioning.
 - Config: `APP_NODE_ROLE = member | admin`, per-node secrets in `.env`
 - Define the `CoreGateway` interface
 
-### Phase 1 — Member application layer (single-box, dev gateway)
+### Phase 1 — Member application layer (single-box, dev gateway) — ✅ MEMBER FEATURES BUILT
+> Built on the existing platform (single box) against the live DB. Accounts /
+> transactions / transfer / loan-apply already existed and are member-scoped.
+> Added: secure **messaging** (member↔staff + admin inbox), **applications**
+> (loan/service + admin review), and **bill pay** (payees + payments via the
+> ledger). Still outstanding in this phase: the dedicated member login page +
+> `force_password_change` flow, and admin **member-login provisioning** UI.
+
 - Split login: **`portal/login.html`** (member-only) separate from staff login
 - Member-only API route group (loads only on `role=member` deployments)
 - Finish/verify **accounts**, **transactions**, **transfer**, **loans** pages
@@ -211,8 +218,8 @@ member-login provisioning.
 
 ## 9. Open items to confirm before/while building
 
-1. **Member credentials:** new `member_credentials` table vs reuse `users` with `role='member'`? (Recommend a dedicated table so staff and member auth never share a row, and the public node only ever holds member hashes.)
-2. **Primary API:** confirm member features go on **PHP `/api/v1`** (current live) vs Python `/api/v2`.
+1. **Member credentials:** ✅ DECIDED — reuse the existing `users` table with `role='member'` (the table already has 2FA, lockout, `force_password_change`, status). No parallel table. The public node's projection only carries `role='member'` rows, so staff hashes never land on the public box.
+2. **Primary API:** ✅ DECIDED — member features are on **PHP `/api/v1`** (the live API the frontend already calls). The Python `/api/v2` service is left as-is.
 3. **Sync transport:** poll interval / event-trigger target for write latency (e.g. ≤5s) and balance-freshness SLA.
 4. **PII on public node:** which fields may the projection store vs must be masked/tokenized.
 5. **Bill pay semantics:** internal payees settled by staff externally (recommended first version) vs an external payment rail later.
