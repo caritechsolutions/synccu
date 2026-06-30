@@ -26,6 +26,8 @@ use App\Controllers\TenantController;
 use App\Controllers\DocumentController;
 use App\Controllers\ReportController;
 use App\Controllers\NetworkController;
+use App\Controllers\MessageController;
+use App\Controllers\ApplicationController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\TenantMiddleware;
 use App\Middleware\RBACMiddleware;
@@ -349,6 +351,72 @@ $router->group([
     $router->get('/settlements/{id}',       [NetworkController::class, 'showSettlement']);
     $router->put('/settlements/{id}/approve',   [NetworkController::class, 'approveSettlement']);
     $router->put('/settlements/{id}/status',    [NetworkController::class, 'updateSettlementStatus']);
+});
+
+// ------------------------------------------------------------------
+// Member portal — messaging (authenticated, any role; controller self-scopes)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/messages',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/',  [MessageController::class, 'index']);
+    $router->post('/', [MessageController::class, 'store']);
+});
+
+// ------------------------------------------------------------------
+// Member portal — applications (authenticated, any role; controller self-scopes)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/applications',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/',  [ApplicationController::class, 'index']);
+    $router->post('/', [ApplicationController::class, 'store']);
+    $router->post('/{id}/cancel', [ApplicationController::class, 'cancel']);
+});
+
+// ------------------------------------------------------------------
+// Member portal — staff messaging (admin/manager/teller, audited)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/admin/messages',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+        RBACMiddleware::class . ':admin,manager,teller',
+        AuditMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/', [MessageController::class, 'conversations']);
+    $router->get('/{memberId}', [MessageController::class, 'thread']);
+    $router->post('/{memberId}', [MessageController::class, 'reply']);
+});
+
+// ------------------------------------------------------------------
+// Member portal — staff applications (admin/manager/teller, audited)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/admin/applications',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+        RBACMiddleware::class . ':admin,manager,teller',
+        AuditMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/', [ApplicationController::class, 'adminIndex']);
+    $router->put('/{id}', [ApplicationController::class, 'adminUpdate']);
 });
 
 // ------------------------------------------------------------------
