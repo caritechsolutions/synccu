@@ -27,11 +27,14 @@ CREATE TABLE IF NOT EXISTS `tenants` (
 -- Users table with RBAC
 CREATE TABLE IF NOT EXISTS `users` (
   `id` CHAR(36) NOT NULL PRIMARY KEY,
+  `member_number` VARCHAR(20) DEFAULT NULL,
   `tenant_id` CHAR(36) NOT NULL,
   `email` VARCHAR(255) NOT NULL,
   `password_hash` VARCHAR(255) NOT NULL,
   `first_name` VARCHAR(100) NOT NULL,
   `last_name` VARCHAR(100) NOT NULL,
+  `national_id` VARCHAR(30) DEFAULT NULL,
+  `date_of_birth` DATE DEFAULT NULL,
   `phone` VARCHAR(20) DEFAULT NULL,
   `address_line_1` VARCHAR(255) DEFAULT NULL,
   `address_line_2` VARCHAR(255) DEFAULT NULL,
@@ -52,6 +55,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY `unique_tenant_email` (`tenant_id`, `email`),
+  UNIQUE KEY `unique_tenant_member_number` (`tenant_id`, `member_number`),
   FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON DELETE CASCADE,
   INDEX `idx_users_tenant` (`tenant_id`),
   INDEX `idx_users_role` (`role`),
