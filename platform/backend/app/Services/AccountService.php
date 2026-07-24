@@ -195,6 +195,14 @@ final class AccountService
         if (isset($data['name'])) {
             $updatable['name'] = $data['name'];
         }
+        if (array_key_exists('purpose', $data)) {
+            // Purpose tags are only meaningful on regular_shares accounts
+            // (e.g. "Christmas Savings", "Birthday Plan").
+            if ($account['account_type'] !== 'regular_shares') {
+                throw new RuntimeException('A purpose can only be set on a regular shares account.', 422);
+            }
+            $updatable['purpose'] = ($data['purpose'] === '' ? null : $data['purpose']);
+        }
         if (isset($data['status'])) {
             $this->validateStatusTransition($account['status'], $data['status']);
             $updatable['status'] = $data['status'];

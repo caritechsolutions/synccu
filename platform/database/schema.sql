@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS `accounts` (
   `account_type` ENUM('savings','checking','permanent_shares','regular_shares','loan') NOT NULL,
   `account_product_id` CHAR(36) DEFAULT NULL,
   `name` VARCHAR(100) NOT NULL,
+  `purpose` VARCHAR(100) DEFAULT NULL,
   `balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `available_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `currency` CHAR(3) DEFAULT 'USD',

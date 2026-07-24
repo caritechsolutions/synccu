@@ -245,6 +245,7 @@ final class AccountController
 
         $validator = new Validator($request->all(), [
             'name'          => 'nullable|string|max:100',
+            'purpose'       => 'nullable|string|max:100',
             'status'        => 'nullable|in:active,frozen,dormant,closed',
             'interest_rate' => 'nullable|string|max:10',
         ]);
