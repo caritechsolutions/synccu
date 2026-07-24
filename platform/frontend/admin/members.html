@@ -443,9 +443,11 @@
         html += '<p style="color:var(--color-text-muted);font-size:0.875rem">No accounts</p>';
       } else {
         html += '<div class="table-responsive"><table class="data-table data-table-sm"><thead><tr><th>Account</th><th>Type</th><th>Balance</th><th>Status</th></tr></thead><tbody>';
+        var escPurpose = function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
         accounts.forEach(function(a) {
           var aStatus = a.status === 'active' ? 'badge-success' : 'badge-muted';
-          html += '<tr><td>' + (a.account_number || '') + ' <small style="color:var(--color-text-muted)">' + (a.name || '') + '</small></td>';
+          var purposeTag = (a.account_type === 'regular_shares' && a.purpose) ? ' <span class="badge badge-info" title="Account purpose">' + escPurpose(a.purpose) + '</span>' : '';
+          html += '<tr><td>' + (a.account_number || '') + ' <small style="color:var(--color-text-muted)">' + (a.name || '') + '</small>' + purposeTag + '</td>';
           html += '<td>' + (a.account_type || '') + '</td>';
           html += '<td>$' + Number(a.balance || 0).toLocaleString(undefined, {minimumFractionDigits:2}) + '</td>';
           html += '<td><span class="badge ' + aStatus + '">' + (a.status || '') + '</span></td></tr>';
