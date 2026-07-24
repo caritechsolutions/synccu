@@ -239,7 +239,9 @@ final class AccountController
             return Response::error('Account not found', 404);
         }
 
-        if (!in_array($role, ['admin', 'super_admin'], true) && $account['user_id'] !== $userId) {
+        // Back-office staff or the account owner may edit an account.
+        $isStaff = in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true);
+        if (!$isStaff && $account['user_id'] !== $userId) {
             return Response::error('Forbidden', 403);
         }
 
@@ -254,18 +256,26 @@ final class AccountController
             return Response::validationError($validator->errors());
         }
 
-        // Only admins can change status
-        if ($request->has('status') && !in_array($role, ['admin', 'super_admin'], true)) {
-            return Response::error('Only administrators can change account status', 403);
-        }
-
         try {
             $data = $validator->validated();
+
+            // A submitted-but-unchanged status is a no-op: drop it so routine
+            // saves don't require admin rights or trigger a transition check.
+            if (isset($data['status']) && $data['status'] === $account['status']) {
+                unset($data['status']);
+            }
+            // Only administrators may CHANGE account status.
+            if (isset($data['status']) && !in_array($role, ['admin', 'super_admin'], true)) {
+                return Response::error('Only administrators can change account status', 403);
+            }
 
             // Convert interest rate from percentage to decimal
             if (isset($data['interest_rate'])) {
                 $data['interest_rate'] = (float) $data['interest_rate'] / 100;
             }
+
+            // Snapshot the pre-update state so the audit log records before -> after.
+            $request->setAttribute('audit_old', $account);
 
             $updated = $this->accounts->update($accountId, $data);
             return Response::ok($updated, 'Account updated successfully');

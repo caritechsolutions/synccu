@@ -60,6 +60,13 @@ final class AuditMiddleware
         $oldValues    = null;
         $newValues    = null;
 
+        // A controller may stash the pre-change snapshot on the request so the
+        // log records before -> after (e.g. account edits).
+        $auditOld = $request->getAttribute('audit_old');
+        if ($auditOld !== null) {
+            $oldValues = json_encode($auditOld, JSON_UNESCAPED_UNICODE);
+        }
+
         // Attempt to capture new values from a successful response
         if (is_array($responseBody)) {
             $newValues = $responseBody['data'] ?? $responseBody;
