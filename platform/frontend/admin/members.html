@@ -421,11 +421,19 @@
       html += '<span class="badge ' + statusClass + '">' + (m.status || 'unknown') + '</span> ';
       html += '<span class="badge badge-info">' + (m.role || 'member') + '</span></div></div>';
 
+      // Total Share Balance = sum of balances across share accounts
+      const memberAccounts = m.accounts || [];
+      const totalShares = memberAccounts
+        .filter(function(a) { return a.account_type === 'regular_shares' || a.account_type === 'permanent_shares'; })
+        .reduce(function(sum, a) { return sum + Number(a.balance || 0); }, 0);
+      const totalSharesFmt = '$' + totalShares.toLocaleString(undefined, {minimumFractionDigits:2});
+
       html += '<div class="member-detail-grid">';
       html += '<div class="detail-item"><label>Email</label><span>' + (m.email || '-') + '</span></div>';
       html += '<div class="detail-item"><label>Phone</label><span>' + (m.phone || '-') + '</span></div>';
       html += '<div class="detail-item"><label>Last Login</label><span>' + (m.last_login_at ? new Date(m.last_login_at).toLocaleDateString() : 'Never') + '</span></div>';
       html += '<div class="detail-item"><label>Member Since</label><span>' + (m.created_at ? new Date(m.created_at).toLocaleDateString() : '-') + '</span></div>';
+      html += '<div class="detail-item"><label>Total Share Balance</label><span>' + totalSharesFmt + '</span></div>';
       html += '</div>';
 
       // Accounts

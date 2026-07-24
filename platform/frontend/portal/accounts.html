@@ -6,6 +6,31 @@
     <meta name="description" content="SyncCU - Account Details">
     <title>Accounts - SyncCU</title>
     <link rel="stylesheet" href="../css/app.css">
+    <style>
+        /* Total Share Balance summary tile */
+        .portal-share-summary {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 1rem; padding: 1rem 1.25rem; margin-bottom: 1.25rem;
+            background: var(--primary-light, #dbeafe);
+            border: 1px solid var(--primary, #1a56db);
+            border-radius: 12px;
+        }
+        .portal-share-summary-label { font-weight: 600; color: var(--primary-dark, #1e3a8a); }
+        .portal-share-summary-amount { font-size: 1.5rem; font-weight: 700; color: var(--primary-dark, #1e3a8a); }
+        /* Purpose tag / editor on regular_shares accounts */
+        .portal-account-purpose { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+        .portal-account-purpose-label {
+            font-size: .8125rem; padding: .15rem .5rem; border-radius: 999px;
+            background: var(--primary-light, #dbeafe); color: var(--primary-dark, #1e3a8a);
+        }
+        .portal-account-purpose-label--empty { background: var(--gray-100, #f3f4f6); color: var(--gray-500, #6b7280); font-style: italic; }
+        .portal-purpose-edit {
+            background: none; border: none; padding: 0; font-size: .8125rem;
+            color: var(--primary, #1a56db); cursor: pointer; text-decoration: underline;
+        }
+        .portal-purpose-input { flex: 1 1 auto; min-width: 0; }
+        .portal-purpose-actions { display: flex; gap: .375rem; }
+    </style>
     <script>if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }</script>
 </head>
 <body class="portal-body">
@@ -115,6 +140,11 @@
             </div>
 
             <h1 class="portal-page-title">Your Accounts</h1>
+
+            <div class="portal-share-summary" id="shareSummary" style="display:none">
+                <span class="portal-share-summary-label">Total Share Balance</span>
+                <span class="portal-share-summary-amount" id="totalShareBalance">$0.00</span>
+            </div>
 
             <div class="portal-account-cards" id="accountListCards">
                 <div class="portal-skeleton-card"></div>
@@ -244,7 +274,23 @@
     let currentAccountId = null;
     let allTransactions = [];
     let displayedCount = 0;
+    let accountsCache = [];
     const perPage = 20;
+
+    // Escape helper for user-provided values rendered into markup
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = value == null ? '' : String(value);
+        return div.innerHTML;
+    }
+
+    const accountTypeConfig = {
+        savings: { icon: 'savings', color: 'blue', label: 'Savings' },
+        checking: { icon: 'checking', color: 'green', label: 'Checking' },
+        regular_shares: { icon: 'savings', color: 'blue', label: 'Regular Shares' },
+        permanent_shares: { icon: 'savings', color: 'teal', label: 'Permanent Shares' },
+        loan: { icon: 'loan', color: 'purple', label: 'Loan' }
+    };
 
     // Check URL for account ID
     const urlParams = new URLSearchParams(window.location.search);
@@ -267,19 +313,38 @@
             const accounts = response.accounts || response.data || response || [];
 
             if (!Array.isArray(accounts) || accounts.length === 0) {
+                accountsCache = [];
+                document.getElementById('shareSummary').style.display = 'none';
                 container.innerHTML = '<div class="portal-empty-state">No accounts found</div>';
                 return;
             }
 
-            const typeConfig = {
-                savings: { icon: 'savings', color: 'blue', label: 'Savings' },
-                checking: { icon: 'checking', color: 'green', label: 'Checking' },
-                loan: { icon: 'loan', color: 'purple', label: 'Loan' }
-            };
+            accountsCache = accounts;
+            renderAccountCards();
+            updateShareSummary();
+        } catch (err) {
+            document.getElementById('shareSummary').style.display = 'none';
+            container.innerHTML = '<div class="portal-empty-state">Unable to load accounts</div>';
+        }
+    }
 
-            container.innerHTML = accounts.map(acc => {
-                const config = typeConfig[acc.account_type] || typeConfig.savings;
-                return `
+    // Render the account cards from the cache
+    function renderAccountCards() {
+        const container = document.getElementById('accountListCards');
+        container.innerHTML = accountsCache.map(acc => {
+            const config = accountTypeConfig[acc.account_type] || accountTypeConfig.savings;
+
+            let purposeBlock = '';
+            if (acc.account_type === 'regular_shares') {
+                const hasPurpose = acc.purpose != null && String(acc.purpose).trim() !== '';
+                purposeBlock = `
+                        <div class="portal-account-purpose" data-account-id="${escapeHtml(acc.id)}">
+                            <span class="portal-account-purpose-label${hasPurpose ? '' : ' portal-account-purpose-label--empty'}">${hasPurpose ? escapeHtml(acc.purpose) : '— Add a purpose —'}</span>
+                            <button type="button" class="portal-purpose-edit" data-purpose-edit="${escapeHtml(acc.id)}">Edit purpose</button>
+                        </div>`;
+            }
+
+            return `
                     <a href="accounts.html?id=${acc.id}" class="portal-account-card portal-account-card--${config.color} portal-account-card--clickable">
                         <div class="portal-account-card-top">
                             <span class="portal-account-type-badge portal-badge--${config.color}">${config.label}</span>
@@ -288,12 +353,83 @@
                         <h4 class="portal-account-name">${acc.name || config.label + ' Account'}</h4>
                         <p class="portal-account-number">${Format.accountNumber(acc.account_number || '')}</p>
                         <p class="portal-account-balance">${Format.currency(acc.balance || 0)}</p>
+                        ${purposeBlock}
                     </a>`;
-            }).join('');
+        }).join('');
+    }
+
+    // Total Share Balance = sum of balances of share accounts
+    function updateShareSummary() {
+        const total = accountsCache
+            .filter(a => a.account_type === 'regular_shares' || a.account_type === 'permanent_shares')
+            .reduce((sum, a) => sum + Number(a.balance || 0), 0);
+        document.getElementById('totalShareBalance').textContent = Format.currency(total);
+        document.getElementById('shareSummary').style.display = '';
+    }
+
+    // Reveal the inline purpose editor for a regular_shares account
+    function openPurposeEditor(id) {
+        const acc = accountsCache.find(a => String(a.id) === String(id));
+        const block = document.querySelector('.portal-account-purpose[data-account-id="' + (window.CSS && CSS.escape ? CSS.escape(String(id)) : id) + '"]');
+        if (!acc || !block) return;
+        const current = acc.purpose != null ? String(acc.purpose) : '';
+        block.innerHTML = `
+                            <input type="text" class="form-input form-input-sm portal-purpose-input" maxlength="100" value="${escapeHtml(current)}" placeholder="e.g. Christmas Savings">
+                            <div class="portal-purpose-actions">
+                                <button type="button" class="btn btn-primary btn-sm" data-purpose-save="${escapeHtml(id)}">Save</button>
+                                <button type="button" class="btn btn-ghost btn-sm" data-purpose-cancel="${escapeHtml(id)}">Cancel</button>
+                            </div>`;
+        const input = block.querySelector('.portal-purpose-input');
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+        input.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') { e.preventDefault(); savePurpose(id, input.value); }
+            else if (e.key === 'Escape') { e.preventDefault(); renderAccountCards(); }
+        });
+    }
+
+    // Persist the purpose (only allowed on regular_shares by the server)
+    async function savePurpose(id, value) {
+        const purpose = (value || '').trim();
+        try {
+            await api.put('/accounts/' + id, { purpose });
+            const acc = accountsCache.find(a => String(a.id) === String(id));
+            if (acc) acc.purpose = purpose;
+            renderAccountCards();
+            toast.success('Purpose updated');
         } catch (err) {
-            container.innerHTML = '<div class="portal-empty-state">Unable to load accounts</div>';
+            toast.error(err.message || 'Failed to update purpose');
         }
     }
+
+    // Delegated handling for purpose controls (cards are re-rendered via innerHTML)
+    document.getElementById('accountListCards').addEventListener('click', (e) => {
+        const editBtn = e.target.closest('[data-purpose-edit]');
+        if (editBtn) {
+            e.preventDefault(); e.stopPropagation();
+            openPurposeEditor(editBtn.getAttribute('data-purpose-edit'));
+            return;
+        }
+        const saveBtn = e.target.closest('[data-purpose-save]');
+        if (saveBtn) {
+            e.preventDefault(); e.stopPropagation();
+            const wrap = saveBtn.closest('.portal-account-purpose');
+            const input = wrap && wrap.querySelector('.portal-purpose-input');
+            savePurpose(saveBtn.getAttribute('data-purpose-save'), input ? input.value : '');
+            return;
+        }
+        const cancelBtn = e.target.closest('[data-purpose-cancel]');
+        if (cancelBtn) {
+            e.preventDefault(); e.stopPropagation();
+            renderAccountCards();
+            return;
+        }
+        // Keep clicks inside the (open) editor from navigating the parent card link
+        if (e.target.closest('.portal-purpose-input')) {
+            e.preventDefault(); e.stopPropagation();
+        }
+    });
 
     // Show account detail
     async function showAccountDetail(accountId) {
