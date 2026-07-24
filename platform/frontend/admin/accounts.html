@@ -358,6 +358,10 @@
               <label>Account Name</label>
               <input type="text" id="editAccName" name="name" class="form-input" maxlength="100">
             </div>
+            <div class="form-group" id="editAccPurposeGroup" style="display:none">
+              <label>Purpose <small style="color:var(--text-muted)">(regular shares only)</small></label>
+              <input type="text" id="editAccPurpose" name="purpose" class="form-input" maxlength="100" placeholder="e.g. Christmas Savings" disabled>
+            </div>
             <div class="form-group">
               <label>Status</label>
               <select id="editAccStatus" name="status" class="form-select">
@@ -496,12 +500,26 @@
     accountSlideOver.addEventListener('click', (e) => { if (e.target === accountSlideOver) closeSlideOverFn(); });
 
     document.getElementById('editAccountBtn').addEventListener('click', () => {
-      const accName = document.getElementById('detailAccNum').dataset.name || '';
+      const numEl = document.getElementById('detailAccNum');
+      const accName = numEl.dataset.name || '';
+      const accType = numEl.dataset.type || '';
+      const accPurpose = numEl.dataset.purpose || '';
       const accStatus = document.getElementById('detailAccStatus').dataset.value || 'active';
       const accRate = document.getElementById('detailAccRate').dataset.value || '0';
       document.getElementById('editAccName').value = accName;
       document.getElementById('editAccStatus').value = accStatus;
       document.getElementById('editAccRate').value = accRate;
+      const purposeGroup = document.getElementById('editAccPurposeGroup');
+      const purposeInput = document.getElementById('editAccPurpose');
+      if (accType === 'regular_shares') {
+        purposeGroup.style.display = '';
+        purposeInput.disabled = false;
+        purposeInput.value = accPurpose;
+      } else {
+        purposeGroup.style.display = 'none';
+        purposeInput.disabled = true;
+        purposeInput.value = '';
+      }
       showEditView();
     });
     document.getElementById('cancelEditBtn').addEventListener('click', showDetailView);
@@ -677,6 +695,8 @@
         const numEl = document.getElementById('detailAccNum');
         numEl.textContent = a.account_number || '-';
         numEl.dataset.name = a.name || '';
+        numEl.dataset.type = a.account_type || '';
+        numEl.dataset.purpose = a.purpose || '';
         document.getElementById('detailAccType').textContent = TYPE_LABELS[a.account_type] || a.account_type || '-';
         document.getElementById('detailAccMember').textContent = a.member_name || a.name || '-';
         document.getElementById('detailAccBalance').textContent = '$' + Number(a.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
