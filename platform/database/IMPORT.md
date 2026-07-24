@@ -44,6 +44,31 @@ The importer is **idempotent** — re-running skips members/accounts that alread
 exist (matched by `member_number` / `account_number`), so a partial run is safe
 to repeat.
 
+## Wiping test data before a clean re-import
+
+To empty all member/client data (keeping staff logins) and re-import from
+scratch, use `reset_member_data.php` — it **defaults to a dry run** and only
+deletes with `--confirm`:
+
+```bash
+# 0. back up first
+mysqldump synccu | gzip > /root/synccu-before-reset.sql.gz
+
+# 1. see exactly what would be removed (nothing is deleted)
+php platform/database/reset_member_data.php
+
+# 2. wipe member data (KEEPS super_admin/admin/manager/teller logins)
+php platform/database/reset_member_data.php --confirm
+
+# 3. re-import
+php platform/database/import_legacy_report.php /root/REPORT.TXT --commit
+```
+
+It deletes, for the tenant: all accounts, transactions, loans, loan_schedules,
+bill_payments, payees, applications, member_messages, documents, notifications,
+member refresh_tokens, and all `role='member'` users. It refuses to run if no
+staff login would remain.
+
 ## Options
 
 | Flag | Default | Purpose |
