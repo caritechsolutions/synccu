@@ -29,6 +29,7 @@ use App\Controllers\NetworkController;
 use App\Controllers\MessageController;
 use App\Controllers\ApplicationController;
 use App\Controllers\BillPayController;
+use App\Controllers\LoanTypeController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\TenantMiddleware;
 use App\Middleware\RBACMiddleware;
@@ -450,6 +451,25 @@ $router->group([
 ], function ($router) {
     $router->get('/', [ApplicationController::class, 'adminIndex']);
     $router->put('/{id}', [ApplicationController::class, 'adminUpdate']);
+});
+
+// ------------------------------------------------------------------
+// Loan type reference codes (admin/manager, audited)
+// ------------------------------------------------------------------
+$router->group([
+    'prefix'     => '/api/v1/admin/loan-types',
+    'middleware'  => [
+        RateLimitMiddleware::class,
+        AuthMiddleware::class,
+        TenantMiddleware::class,
+        RBACMiddleware::class . ':admin,manager',
+        AuditMiddleware::class,
+    ],
+], function ($router) {
+    $router->get('/', [LoanTypeController::class, 'index']);
+    $router->post('/', [LoanTypeController::class, 'store']);
+    $router->put('/{id}', [LoanTypeController::class, 'update']);
+    $router->delete('/{id}', [LoanTypeController::class, 'destroy']);
 });
 
 // ------------------------------------------------------------------
