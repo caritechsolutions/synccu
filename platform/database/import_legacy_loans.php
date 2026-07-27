@@ -94,10 +94,20 @@ function pdate(string $s): ?string {   // MM/DD/YY -> Y-m-d (PHP pivot: 00-68 =>
 $loans = []; $warnings = [];
 foreach (file($file, FILE_IGNORE_NEW_LINES) as $line) {
     if (trim($line) === '') continue;
-    $p = preg_split('/\s+/', trim($line));
-    if (count($p) !== 11) { $warnings[] = "unexpected column count (" . count($p) . "): " . trim($line); continue; }
+    // Fields are separated by 2+ spaces (any text field may contain single spaces).
+    $p = preg_split('/\s{2,}/', trim($line));
+    if (count($p) !== 11) {
+        $warnings[] = "expected 11 columns, got " . count($p)
+            . " — wrong export? this importer needs the loan-terms file (amount, first-payment date, APR, payment, #payments; no names/addresses): "
+            . trim($line);
+        continue;
+    }
     [$member, $seq, $loanNo, $bal, $code, $amt, $dLoan, $dFirst, $apr, $sched, $npay] = $p;
-    $code = strtoupper($code);
+    $code = strtoupper(trim($code));
+    if (!preg_match('/^[A-O]$/', $code) || !is_numeric(trim($apr)) || !is_numeric(trim($npay))) {
+        $warnings[] = "loan {$loanNo}: fields don't look like the loan-terms layout (type='{$code}', apr='{$apr}', #pay='{$npay}') — skipped";
+        continue;
+    }
     if (!isset($TYPES[$code])) { $warnings[] = "loan {$loanNo}: unknown type code '{$code}' -> Other"; $code = 'O'; }
     [$category, $desc] = $TYPES[$code];
     $outstanding = (float) $bal;
