@@ -44,6 +44,25 @@ The importer is **idempotent** — re-running skips members/accounts that alread
 exist (matched by `member_number` / `account_number`), so a partial run is safe
 to repeat.
 
+## Importing loans (TEMP01.DAT)
+
+Run **after** the member/shares import (loans attach to members by member
+number). Each row becomes a `loans` record **and** a linked loan account
+(`account_type=loan`, numbered with the legacy loan number e.g. `1011A`);
+balance/outstanding = the file's current balance; status `active` (balance > 0)
+or `paid_off` ($0). The loan type code A–O maps to a platform category plus a
+human description stored in `loans.purpose` (see the `loan_types` table, seeded
+by migration 009). A loan whose member is not in `users` is skipped (e.g. 1347,
+whose account was closed when the loan was paid off).
+
+```bash
+php platform/database/import_legacy_loans.php /root/TEMP01.DAT            # dry run
+php platform/database/import_legacy_loans.php /root/TEMP01.DAT --commit   # import
+```
+
+Idempotent (skips loans whose `loan_number` already exists). Expected for this
+file: 99 parsed, 98 imported (1347 skipped), 30 active / 68 paid-off.
+
 ## Wiping test data before a clean re-import
 
 To empty all member/client data (keeping staff logins) and re-import from
