@@ -63,6 +63,11 @@ php platform/database/import_legacy_loans.php /root/TEMP01.DAT --commit   # impo
 Idempotent (skips loans whose `loan_number` already exists). Expected for this
 file: 99 parsed, 98 imported (1347 skipped), 30 active / 68 paid-off.
 
+Pass `--as-of=YYYY-MM-DD` (default: today) for the date the file's balances are
+current to. Interest on imported loans accrues from that date, and the
+amortisation schedule is generated from it the first time the loan is viewed or
+paid. Without it, the platform would count interest from the original loan date.
+
 ## Wiping test data before a clean re-import
 
 To empty all member/client data (keeping staff logins) and re-import from

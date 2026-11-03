@@ -30,6 +30,9 @@ declare(strict_types=1);
  *   php import_legacy_loans.php /path/to/TEMP01.DAT            # DRY RUN (default)
  *   php import_legacy_loans.php /path/to/TEMP01.DAT --commit   # write to DB
  *   Options: --tenant=UUID  --currency=USD  --env=/path/.env
+ *            --as-of=YYYY-MM-DD  date the file's balances are current to (default: today).
+ *                                Interest on imported loans accrues from this date, not
+ *                                from the original loan date.
  */
 
 $argvv = $argv; array_shift($argvv);
@@ -39,6 +42,7 @@ $opts = [
     'tenant'   => '00000000-0000-0000-0000-000000000001',
     'currency' => 'USD',
     'env'      => __DIR__ . '/../backend/.env',
+    'as-of'    => date('Y-m-d'),
 ];
 foreach ($argvv as $arg) {
     if ($arg === '--commit') { $opts['commit'] = true; continue; }
@@ -188,6 +192,8 @@ try {
         $totalPaid = max(0, $l['principal'] - $l['outstanding']);
         $meta = json_encode([
             'source' => 'legacy_import', 'type_code' => $l['code'], 'first_payment_date' => $l['date_first'],
+            // Balance is current as of this date: accrual and the schedule start here
+            'last_payment_date' => $opts['as-of'],
         ]);
         $insLoan->execute([
             uuid(), $tenant, $userId, $acctId, $l['loan_number'], $l['category'], $l['principal'],

@@ -36,7 +36,7 @@ final class LoanService
     public function apply(array $data, string $tenantId, string $userId): array
     {
         $loanId = $this->generateUuid();
-        $now    = date('Y-m-d H:i:s');
+        $now    = $data['application_date'] ?? date('Y-m-d H:i:s');
         $amount = (float) $data['amount'];
         $rate   = (float) $data['interest_rate'];
         $term   = (int) $data['term_months'];
@@ -50,12 +50,17 @@ final class LoanService
         );
         $accountId = $userAccount ? $userAccount['id'] : null;
 
+        $metadata = null;
+        if (!empty($data['backdate'])) {
+            $metadata = json_encode(['application_backdate' => $data['backdate']]);
+        }
+
         $this->db->query(
             'INSERT INTO loans
-                (id, tenant_id, user_id, account_id, loan_number, loan_type,
+                (id, tenant_id, user_id, account_id, loan_number, loan_type, loan_type_code,
                  principal_amount, interest_rate, term_months, monthly_payment,
-                 outstanding_balance, status, purpose, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                 outstanding_balance, status, purpose, metadata, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $loanId,
                 $tenantId,
@@ -63,6 +68,7 @@ final class LoanService
                 $accountId,
                 $loanNumber,
                 $data['loan_type'],
+                $data['loan_type_code'] ?? null,
                 $amount,
                 $rate,
                 $term,
@@ -70,6 +76,7 @@ final class LoanService
                 $amount,
                 'application',
                 $data['purpose'] ?? null,
+                $metadata,
                 $now,
                 $now,
             ],
@@ -88,7 +95,7 @@ final class LoanService
      * Creates a dedicated loan account (type='loan') with balance = principal,
      * records the disbursement transaction, and generates the amortisation schedule.
      */
-    public function approve(string $loanId, string $approvedBy): array
+    public function approve(string $loanId, string $approvedBy, ?array $backdate = null): array
     {
         $loan = $this->findById($loanId);
         if ($loan === null) {
@@ -99,8 +106,12 @@ final class LoanService
             throw new RuntimeException('Only pending/application loans can be approved.', 422);
         }
 
-        return $this->db->transaction(function () use ($loanId, $loan, $approvedBy) {
-            $now = date('Y-m-d H:i:s');
+        if ($backdate !== null && $backdate['date'] < substr((string) $loan['created_at'], 0, 10)) {
+            throw new RuntimeException('Approval date cannot be before the application date (' . substr((string) $loan['created_at'], 0, 10) . ').', 422);
+        }
+
+        return $this->db->transaction(function () use ($loanId, $loan, $approvedBy, $backdate) {
+            $now = $backdate['datetime'] ?? date('Y-m-d H:i:s');
             $principal = (float) $loan['principal_amount'];
 
             $monthlyPayment = $this->calculateMonthlyPayment(
@@ -116,18 +127,37 @@ final class LoanService
                 'interest_rate' => $loan['interest_rate'],
             ], $loan['tenant_id'], $principal);
 
-            $this->db->updateScoped('loans', [
+            $updates = [
                 'status'              => 'approved',
                 'account_id'          => $loanAccount['id'],
                 'approved_by'         => $approvedBy,
                 'approved_at'         => $now,
                 'monthly_payment'     => $monthlyPayment,
                 'outstanding_balance' => $principal,
-                'updated_at'          => $now,
-            ], ['id' => $loanId]);
+                'updated_at'          => date('Y-m-d H:i:s'),
+            ];
+            if ($backdate !== null) {
+                $updates['metadata'] = $this->mergeMetadata($loan, ['approval_backdate' => $backdate]);
+            }
+            $this->db->updateScoped('loans', $updates, ['id' => $loanId]);
 
             return $this->findById($loanId);
         });
+    }
+
+    /**
+     * Merge keys into a loan's metadata JSON and return the encoded string.
+     */
+    private function mergeMetadata(array $loan, array $extra): string
+    {
+        $meta = [];
+        if (!empty($loan['metadata'])) {
+            $decoded = is_array($loan['metadata']) ? $loan['metadata'] : json_decode((string) $loan['metadata'], true);
+            if (is_array($decoded)) {
+                $meta = $decoded;
+            }
+        }
+        return json_encode(array_merge($meta, $extra));
     }
 
     /**
@@ -150,39 +180,23 @@ final class LoanService
         $method = $options['disbursement_method'] ?? 'cash';
         $targetAccountId = $options['target_account_id'] ?? null;
         $sourceLocationId = $options['source_location_id'] ?? null;
+        $backdate = $options['backdate'] ?? null;
 
-        if (!$sourceLocationId) {
+        // A historical (backdated) disbursement may skip the fund movement:
+        // the cash left the CU long ago and today's vault/bank balances already reflect it.
+        $historical = $backdate !== null && ($sourceLocationId === 'none' || $sourceLocationId === null || $sourceLocationId === '');
+        if (!$historical && !$sourceLocationId) {
             throw new RuntimeException('A funding source (vault/bank) is required for disbursement.', 422);
         }
+        if ($backdate !== null && !empty($loan['approved_at']) && $backdate['date'] < substr((string) $loan['approved_at'], 0, 10)) {
+            throw new RuntimeException('Disbursement date cannot be before the approval date (' . substr((string) $loan['approved_at'], 0, 10) . ').', 422);
+        }
 
-        return $this->db->transaction(function () use ($loanId, $loan, $disbursedBy, $method, $targetAccountId, $sourceLocationId, $options) {
-            $now = date('Y-m-d H:i:s');
+        return $this->db->transaction(function () use ($loanId, $loan, $disbursedBy, $method, $targetAccountId, $sourceLocationId, $options, $backdate, $historical) {
+            $now = $backdate['datetime'] ?? date('Y-m-d H:i:s');
             $principal = (float) $loan['principal_amount'];
             $termMonths = (int) $loan['term_months'];
             $tenantId = $loan['tenant_id'];
-
-            // Validate and debit the funding source location (vault/bank)
-            $sourceLocation = $this->db->fetchOne(
-                'SELECT * FROM fund_locations WHERE id = ? AND tenant_id = ?',
-                [$sourceLocationId, $tenantId],
-            );
-            if (!$sourceLocation) {
-                throw new RuntimeException('Funding source location not found.', 404);
-            }
-            if ((float) $sourceLocation['balance'] < $principal) {
-                throw new RuntimeException(
-                    'Insufficient funds in ' . $sourceLocation['name'] . '. Available: $'
-                    . number_format((float) $sourceLocation['balance'], 2)
-                    . ', Required: $' . number_format($principal, 2),
-                    422,
-                );
-            }
-
-            // Debit the fund location
-            $this->db->query(
-                'UPDATE fund_locations SET balance = balance - ?, updated_at = ? WHERE id = ? AND tenant_id = ?',
-                [$principal, $now, $sourceLocationId, $tenantId],
-            );
 
             // Look up the member name for the movement record
             $member = $this->db->fetchOne(
@@ -197,32 +211,60 @@ final class LoanService
             $methodLabel = $methodLabels[$method] ?? $method;
             $description = "{$loan['loan_number']} — {$memberName} via {$methodLabel}";
 
-            // Record cash movement
-            $movementId = $this->generateUuid();
-            $reference = 'LF-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
-            $this->db->query(
-                'INSERT INTO cash_movements
-                    (id, tenant_id, type, from_location_id, amount, reference_number,
-                     performed_by, description, metadata, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [
-                    $movementId,
-                    $tenantId,
-                    'loan_disbursement',
-                    $sourceLocationId,
-                    $principal,
-                    $reference,
-                    $disbursedBy,
-                    $description,
-                    json_encode([
-                        'loan_id' => $loanId,
-                        'member_name' => $memberName,
-                        'disbursement_method' => $method,
-                        'target_account_id' => $targetAccountId,
-                    ]),
-                    $now,
-                ],
-            );
+            if (!$historical) {
+                // Validate and debit the funding source location (vault/bank/drawer)
+                $sourceLocation = $this->db->fetchOne(
+                    'SELECT * FROM fund_locations WHERE id = ? AND tenant_id = ?',
+                    [$sourceLocationId, $tenantId],
+                );
+                if (!$sourceLocation) {
+                    throw new RuntimeException('Funding source location not found.', 404);
+                }
+                if ((float) $sourceLocation['balance'] < $principal) {
+                    throw new RuntimeException(
+                        'Insufficient funds in ' . $sourceLocation['name'] . '. Available: $'
+                        . number_format((float) $sourceLocation['balance'], 2)
+                        . ', Required: $' . number_format($principal, 2),
+                        422,
+                    );
+                }
+
+                // Debit the fund location
+                $this->db->query(
+                    'UPDATE fund_locations SET balance = balance - ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?',
+                    [$principal, $sourceLocationId, $tenantId],
+                );
+
+                // Record cash movement
+                $movementId = $this->generateUuid();
+                $reference = 'LF-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
+                $this->db->query(
+                    'INSERT INTO cash_movements
+                        (id, tenant_id, type, from_location_id, amount, reference_number,
+                         performed_by, description, metadata, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        $movementId,
+                        $tenantId,
+                        'loan_disbursement',
+                        $sourceLocationId,
+                        $principal,
+                        $reference,
+                        $disbursedBy,
+                        $description,
+                        json_encode([
+                            'loan_id' => $loanId,
+                            'member_name' => $memberName,
+                            'disbursement_method' => $method,
+                            'target_account_id' => $targetAccountId,
+                            'backdate' => $backdate,
+                        ]),
+                        $now,
+                    ],
+                );
+            } else {
+                $sourceLocationId = null;
+            }
 
             // If disbursing to a member account, credit that account
             if ($method === 'account' && $targetAccountId) {
@@ -254,7 +296,7 @@ final class LoanService
                         $newBalance,
                         $disbursedBy,
                         "Loan disbursement - {$loan['loan_type']} #{$loan['loan_number']}",
-                        json_encode(['source' => 'loan_disbursement', 'loan_id' => $loanId, 'funded_from_location' => $sourceLocationId]),
+                        json_encode(['source' => 'loan_disbursement', 'loan_id' => $loanId, 'funded_from_location' => $sourceLocationId, 'historical' => $historical, 'backdate' => $backdate]),
                         $now,
                     ],
                 );
@@ -283,23 +325,30 @@ final class LoanService
                         'target_account_id'   => $targetAccountId,
                         'source_location_id'  => $sourceLocationId,
                         'check_number'        => $options['check_number'] ?? null,
+                        'historical'          => $historical,
+                        'backdate'            => $backdate,
                     ]),
                     $now,
                 ],
             );
 
-            // Generate the amortization schedule starting from today
+            // Generate the amortization schedule starting from the disbursement date
             $this->generateSchedule($loanId, $loan, $now);
 
             // Activate the loan
-            $this->db->updateScoped('loans', [
+            $disbursedDate = substr($now, 0, 10);
+            $updates = [
                 'status'            => 'active',
                 'disbursed_at'      => $now,
                 'disbursed_amount'  => $principal,
-                'next_payment_date' => date('Y-m-d', strtotime('+1 month')),
-                'maturity_date'     => date('Y-m-d', strtotime("+{$termMonths} months")),
-                'updated_at'        => $now,
-            ], ['id' => $loanId]);
+                'next_payment_date' => date('Y-m-d', strtotime('+1 month', strtotime($disbursedDate))),
+                'maturity_date'     => date('Y-m-d', strtotime("+{$termMonths} months", strtotime($disbursedDate))),
+                'updated_at'        => date('Y-m-d H:i:s'),
+            ];
+            if ($backdate !== null) {
+                $updates['metadata'] = $this->mergeMetadata($loan, ['disbursement_backdate' => $backdate, 'historical' => $historical]);
+            }
+            $this->db->updateScoped('loans', $updates, ['id' => $loanId]);
 
             return $this->findById($loanId);
         });
@@ -340,7 +389,20 @@ final class LoanService
      * Payment is applied interest-first, remainder to principal.
      * Both the loan record and the loan account balance are updated.
      */
-    public function makePayment(string $loanId, float $amount, ?string $fromAccountId = null, ?string $userId = null): array
+    /**
+     * Post a loan payment.
+     *
+     * Options:
+     *   payment_date  Y-m-d (supervisor-authorized backdate; must not precede the last activity)
+     *   backdate      array from SupervisorAuthService::resolveBackdate (audit trail)
+     *   method        cash | account | check | wire | ach  (default: account when from_account_id, else cash)
+     *   drawer_id     teller drawer to credit for cash payments
+     *   denominations denomination breakdown for the drawer movement
+     *   skip_cash     true when a batch handles the drawer movement itself
+     *   description   free-text note
+     *   batch_id      links payments posted as part of a multi-line batch
+     */
+    public function makePayment(string $loanId, float $amount, ?string $fromAccountId = null, ?string $userId = null, array $options = []): array
     {
         if ($amount <= 0) {
             throw new RuntimeException('Payment amount must be positive.', 422);
@@ -355,16 +417,55 @@ final class LoanService
             throw new RuntimeException('Loan is not in a payable state.', 422);
         }
 
-        return $this->db->transaction(function () use ($loanId, $loan, $amount, $fromAccountId, $userId) {
-            $now = date('Y-m-d H:i:s');
+        if ($fromAccountId !== null && $fromAccountId !== '') {
+            $source = $this->accounts->findById($fromAccountId);
+            if ($source === null) {
+                throw new RuntimeException('Source account not found.', 404);
+            }
+            if ($source['account_type'] === 'loan') {
+                throw new RuntimeException('Cannot pay a loan from a loan account.', 422);
+            }
+            if ((float) $source['available_balance'] < $amount) {
+                throw new RuntimeException('Insufficient funds in ' . $source['account_number'] . '.', 422);
+            }
+        } else {
+            $fromAccountId = null;
+            $source = null;
+        }
+
+        $paymentDate = $options['payment_date'] ?? date('Y-m-d');
+        $backdate    = $options['backdate'] ?? null;
+        $method      = $options['method'] ?? ($fromAccountId ? 'account' : 'cash');
+
+        // Cash service schema check must happen before the transaction opens (DDL auto-commits in MySQL)
+        $cashService = null;
+        if ($method === 'cash' && !empty($options['drawer_id']) && empty($options['skip_cash'])) {
+            $cashService = new CashManagementService();
+            $cashService->ensureSchema();
+        }
+
+        // Make sure the loan has a schedule to work against (imported loans may not)
+        $this->ensureScheduleExists($loanId, $loan);
+
+        // Payments must be entered in chronological order so interest accrues correctly
+        $lastActivityDate = substr($this->getLastActivityDate($loanId, $loan), 0, 10);
+        if ($paymentDate < $lastActivityDate) {
+            throw new RuntimeException(
+                "Payment date {$paymentDate} is before the last activity on this loan ({$lastActivityDate}). "
+                . 'Historical payments must be entered in date order.',
+                422,
+            );
+        }
+
+        return $this->db->transaction(function () use ($loanId, $loan, $amount, $fromAccountId, $source, $userId, $options, $paymentDate, $backdate, $method, $lastActivityDate, $cashService) {
+            $now = ($backdate['datetime'] ?? null) ?: ($paymentDate === date('Y-m-d') ? date('Y-m-d H:i:s') : $paymentDate . ' ' . date('H:i:s'));
             $outstandingBalance = (float) $loan['outstanding_balance'];
             $annualRate = (float) $loan['interest_rate'];
 
-            // Calculate accrued interest based on days since last activity
-            $lastActivityDate = $this->getLastActivityDate($loanId, $loan);
+            // Accrued interest = days between the previous activity and this payment's date
             $lastDate = new \DateTimeImmutable($lastActivityDate);
-            $today = new \DateTimeImmutable('today');
-            $daysSince = max(0, (int) $today->diff($lastDate)->days);
+            $payDate  = new \DateTimeImmutable($paymentDate);
+            $daysSince = max(0, (int) $payDate->diff($lastDate)->days);
 
             $dailyRate = $annualRate / 100 / 365;
             $accruedInterest = round($outstandingBalance * $dailyRate * $daysSince, 2);
@@ -382,9 +483,33 @@ final class LoanService
             $principalPortion = $amount - $interestPortion;
             $newBalance = round($outstandingBalance - $principalPortion, 2);
 
-            // Debit source account if specified
-            if ($fromAccountId !== null) {
+            $paymentRef = 'LP-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            $txnId = $this->generateUuid();
+
+            // Debit source account if specified, and record it on that account's history
+            if ($fromAccountId !== null && $source !== null) {
                 $this->accounts->updateBalance($fromAccountId, -$amount);
+                $this->db->query(
+                    'INSERT INTO transactions
+                        (id, tenant_id, reference_number, type, status, amount,
+                         account_id, related_account_id, balance_after, processed_by, description, metadata, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        $this->generateUuid(),
+                        $loan['tenant_id'],
+                        $paymentRef,
+                        'withdrawal',
+                        'completed',
+                        $amount,
+                        $fromAccountId,
+                        $loan['account_id'],
+                        (float) $source['balance'] - $amount,
+                        $userId,
+                        "Loan payment - {$loan['loan_number']}",
+                        json_encode(['source' => 'loan_payment', 'loan_id' => $loanId, 'loan_payment_id' => $txnId, 'batch_id' => $options['batch_id'] ?? null, 'backdate' => $backdate]),
+                        $now,
+                    ],
+                );
             }
 
             // Update loan account balance: subtract principal portion
@@ -396,8 +521,8 @@ final class LoanService
             $updates = [
                 'outstanding_balance' => max(0, $newBalance),
                 'total_paid'          => (float) ($loan['total_paid'] ?? 0) + $amount,
-                'next_payment_date'   => $newBalance > 0.01 ? date('Y-m-d', strtotime('+1 month')) : null,
-                'updated_at'          => $now,
+                'next_payment_date'   => $newBalance > 0.01 ? date('Y-m-d', strtotime('+1 month', strtotime($paymentDate))) : null,
+                'updated_at'          => date('Y-m-d H:i:s'),
             ];
 
             if ($newBalance <= 0.01) {
@@ -417,34 +542,54 @@ final class LoanService
             $this->db->updateScoped('loans', $updates, ['id' => $loanId]);
 
             // Record transaction linked to the loan account
-            $txnId = $this->generateUuid();
             $balanceAfter = max(0, $newBalance);
+            $description = trim((string) ($options['description'] ?? '')) ?: "Loan payment - {$loan['loan_number']}";
             $this->db->query(
                 'INSERT INTO transactions
                     (id, tenant_id, reference_number, type, status, amount,
-                     account_id, balance_after, processed_by, description, metadata, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     account_id, related_account_id, balance_after, processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId,
                     $loan['tenant_id'],
-                    'LP-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4))),
+                    $paymentRef,
                     'loan_payment',
                     'completed',
                     $amount,
                     $loan['account_id'],
+                    $fromAccountId,
                     $balanceAfter,
                     $userId,
-                    "Loan payment - {$loan['loan_number']}",
+                    $description,
                     json_encode([
-                        'principal'    => $principalPortion,
-                        'interest'     => $interestPortion,
-                        'loan_id'      => $loanId,
-                        'days_accrued' => $daysSince,
-                        'daily_rate'   => $dailyRate,
+                        'principal'       => $principalPortion,
+                        'interest'        => $interestPortion,
+                        'loan_id'         => $loanId,
+                        'days_accrued'    => $daysSince,
+                        'daily_rate'      => $dailyRate,
+                        'payment_date'    => $paymentDate,
+                        'method'          => $method,
+                        'from_account_id' => $fromAccountId,
+                        'drawer_id'       => $options['drawer_id'] ?? null,
+                        'batch_id'        => $options['batch_id'] ?? null,
+                        'backdate'        => $backdate,
                     ]),
                     $now,
                 ],
             );
+
+            // Cash received at the counter goes into the teller's drawer
+            if ($cashService !== null) {
+                $cashService->recordDepositCash(
+                    $loan['tenant_id'],
+                    $options['drawer_id'],
+                    $amount,
+                    is_array($options['denominations'] ?? null) ? $options['denominations'] : [],
+                    $txnId,
+                    $userId ?? '',
+                    "Loan payment - {$loan['loan_number']}",
+                );
+            }
 
             // Mark the next upcoming schedule row as paid
             $nextRow = $this->db->fetchOne(
@@ -458,10 +603,10 @@ final class LoanService
                 );
             }
 
-            // Recalculate remaining schedule based on new balance
+            // Recalculate remaining schedule based on new balance, from the payment date
             $updatedLoan = $this->findById($loanId);
             if ($updatedLoan && (float) $updatedLoan['outstanding_balance'] > 0.01) {
-                $this->recalculateSchedule($loanId, $updatedLoan);
+                $this->recalculateSchedule($loanId, $updatedLoan, $paymentDate);
             } else {
                 // Loan paid off — remove remaining upcoming rows
                 $this->db->query(
@@ -472,14 +617,37 @@ final class LoanService
 
             return [
                 'payment_id'   => $txnId,
+                'reference'    => $paymentRef,
                 'amount'       => $amount,
                 'principal'    => $principalPortion,
                 'interest'     => $interestPortion,
                 'days_accrued' => $daysSince,
+                'payment_date' => $paymentDate,
                 'new_balance'  => max(0, $newBalance),
                 'loan'         => $this->findById($loanId),
             ];
         });
+    }
+
+    /**
+     * Imported / legacy loans may be active with no schedule rows. Build one
+     * from the current balance so payments and the Schedule tab work.
+     */
+    public function ensureScheduleExists(string $loanId, ?array $loan = null): void
+    {
+        $loan = $loan ?? $this->findById($loanId);
+        if ($loan === null || !in_array($loan['status'], ['active', 'delinquent'], true)) {
+            return;
+        }
+        if ((float) $loan['outstanding_balance'] <= 0.01) {
+            return;
+        }
+        $count = (int) $this->db->fetchColumn('SELECT COUNT(*) FROM loan_schedules WHERE loan_id = ?', [$loanId]);
+        if ($count > 0) {
+            return;
+        }
+        $start = substr($this->getLastActivityDate($loanId, $loan), 0, 10);
+        $this->recalculateSchedule($loanId, $loan, $start);
     }
 
     // ------------------------------------------------------------------
@@ -489,10 +657,12 @@ final class LoanService
     /**
      * Calculate the amortisation schedule for a loan.
      */
-    public function calculateSchedule(float $principal, float $annualRate, int $termMonths, ?string $startDate = null, int $startNumber = 1): array
+    public function calculateSchedule(float $principal, float $annualRate, int $termMonths, ?string $startDate = null, int $startNumber = 1, ?float $fixedPayment = null): array
     {
         $monthlyRate = $annualRate / 100 / 12;
-        $payment     = $this->calculateMonthlyPayment($principal, $annualRate, $termMonths);
+        $payment     = ($fixedPayment !== null && $fixedPayment > 0)
+            ? $fixedPayment
+            : $this->calculateMonthlyPayment($principal, $annualRate, $termMonths);
         $balance     = $principal;
         $schedule    = [];
         $baseDate    = $startDate ?? date('Y-m-d');
@@ -501,8 +671,8 @@ final class LoanService
             $interest       = round($balance * $monthlyRate, 2);
             $principalPart  = round($payment - $interest, 2);
 
-            // Last payment adjustment for rounding
-            if ($month === $termMonths) {
+            // Last payment adjustment for rounding (or the balance is cleared early)
+            if ($month === $termMonths || $principalPart >= $balance) {
                 $principalPart = round($balance, 2);
                 $payment       = $principalPart + $interest;
             }
@@ -518,6 +688,10 @@ final class LoanService
                 'remaining_balance' => round(max(0, $balance), 2),
                 'status'            => 'upcoming',
             ];
+
+            if ($balance <= 0.005) {
+                break;
+            }
         }
 
         return $schedule;
@@ -531,6 +705,12 @@ final class LoanService
         $loan = $this->findById($loanId);
         if (!$loan) {
             return [];
+        }
+
+        try {
+            $this->ensureScheduleExists($loanId, $loan);
+        } catch (\Throwable $e) {
+            error_log('Schedule backfill failed for loan ' . $loanId . ': ' . $e->getMessage());
         }
 
         $rows = $this->db->fetchAll(
@@ -884,6 +1064,7 @@ final class LoanService
             'ALTER TABLE `loans` ADD COLUMN `purpose` TEXT DEFAULT NULL',
             'ALTER TABLE `loans` ADD COLUMN `denial_reason` TEXT DEFAULT NULL',
             'ALTER TABLE `loans` ADD COLUMN `co_signer_id` CHAR(36) DEFAULT NULL',
+            'ALTER TABLE `loans` ADD COLUMN `loan_type_code` VARCHAR(2) DEFAULT NULL',
             'ALTER TABLE `loan_schedules` ADD COLUMN `late_fee` DECIMAL(15,2) DEFAULT 0.00',
         ];
 
@@ -933,6 +1114,14 @@ final class LoanService
             );
             if ($lastPayment && $lastPayment['last_date']) {
                 return $lastPayment['last_date'];
+            }
+        }
+
+        // Legacy imports can carry a last-payment date in metadata
+        if (!empty($loan['metadata'])) {
+            $meta = is_array($loan['metadata']) ? $loan['metadata'] : json_decode((string) $loan['metadata'], true);
+            if (is_array($meta) && !empty($meta['last_payment_date'])) {
+                return (string) $meta['last_payment_date'];
             }
         }
 
@@ -996,7 +1185,7 @@ final class LoanService
      * Keeps paid rows intact, replaces upcoming rows with a new schedule
      * based on the current outstanding balance.
      */
-    private function recalculateSchedule(string $loanId, array $loan): void
+    private function recalculateSchedule(string $loanId, array $loan, ?string $fromDate = null): void
     {
         $newBalance = (float) $loan['outstanding_balance'];
         if ($newBalance <= 0.01) {
@@ -1008,11 +1197,16 @@ final class LoanService
         }
 
         $annualRate = (float) $loan['interest_rate'];
-        $originalPayment = $this->calculateMonthlyPayment(
-            (float) $loan['principal_amount'],
-            $annualRate,
-            (int) $loan['term_months'],
-        );
+        // Keep the contracted payment amount (imported loans carry theirs from the legacy file)
+        $originalPayment = (float) ($loan['monthly_payment'] ?? 0);
+        if ($originalPayment <= 0) {
+            $originalPayment = $this->calculateMonthlyPayment(
+                (float) $loan['principal_amount'],
+                $annualRate,
+                (int) $loan['term_months'],
+            );
+        }
+        $fromDate = $fromDate ?: date('Y-m-d');
 
         // Count how many payments have been made (paid rows)
         $paidCount = (int) $this->db->fetchColumn(
@@ -1020,15 +1214,18 @@ final class LoanService
             [$loanId],
         );
 
-        // Calculate remaining months at the original payment amount
+        // Calculate remaining months at the contracted payment amount
         $monthlyRate = $annualRate / 100 / 12;
+        $fixedPayment = $originalPayment;
         if ($monthlyRate > 0) {
             // n = -log(1 - B*r/P) / log(1+r)
             $ratio = $newBalance * $monthlyRate / $originalPayment;
             if ($ratio < 1) {
                 $remainingMonths = (int) ceil(-log(1 - $ratio) / log(1 + $monthlyRate));
             } else {
-                $remainingMonths = (int) $loan['term_months'] - $paidCount;
+                // Payment no longer covers interest; fall back to a re-amortised payment
+                $remainingMonths = max(1, (int) $loan['term_months'] - $paidCount);
+                $fixedPayment = null;
             }
         } else {
             $remainingMonths = (int) ceil($newBalance / $originalPayment);
@@ -1045,8 +1242,9 @@ final class LoanService
             $newBalance,
             $annualRate,
             $remainingMonths,
-            date('Y-m-d'),
+            $fromDate,
             $paidCount + 1,
+            $fixedPayment,
         );
 
         foreach ($schedule as $row) {
@@ -1066,13 +1264,16 @@ final class LoanService
             );
         }
 
-        // Update maturity date and monthly payment on the loan
+        // Update the maturity date; the contracted monthly payment stays as-is
         $lastRow = end($schedule);
-        $this->db->updateScoped('loans', [
-            'maturity_date'   => $lastRow['due_date'],
-            'monthly_payment' => $schedule[0]['payment_amount'],
-            'updated_at'      => date('Y-m-d H:i:s'),
-        ], ['id' => $loanId]);
+        $updates = [
+            'maturity_date' => $lastRow['due_date'],
+            'updated_at'    => date('Y-m-d H:i:s'),
+        ];
+        if ($fixedPayment === null) {
+            $updates['monthly_payment'] = $schedule[0]['payment_amount'];
+        }
+        $this->db->updateScoped('loans', $updates, ['id' => $loanId]);
     }
 
     private function delinquencyCategory(int $daysPastDue): string

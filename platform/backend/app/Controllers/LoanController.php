@@ -8,6 +8,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Validator;
 use App\Services\LoanService;
+use App\Services\SupervisorAuthService;
 
 /**
  * Loan REST controller.
@@ -15,10 +16,12 @@ use App\Services\LoanService;
 final class LoanController
 {
     private LoanService $loans;
+    private SupervisorAuthService $supervisor;
 
     public function __construct()
     {
         $this->loans = new LoanService();
+        $this->supervisor = new SupervisorAuthService();
     }
 
     /**
@@ -103,13 +106,36 @@ final class LoanController
         $role = $request->getAttribute('role');
         $isAdmin = in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true);
 
-        $validator = new Validator($request->all(), [
-            'user_id'       => $isAdmin ? 'required|string' : 'nullable|string',
-            'loan_type'     => 'required|in:personal,auto,mortgage,business,education,credit_line',
-            'amount'        => 'required|numeric|positive',
-            'interest_rate' => 'required|numeric',
-            'term_months'   => 'required|integer|min:1|max:360',
-            'purpose'       => 'nullable|string|max:500',
+        $input = $request->all();
+
+        // A loan type code (A-O from the loan_types table) resolves to a platform category
+        $typeCode = strtoupper(trim((string) ($input['loan_type_code'] ?? '')));
+        $typeRow = null;
+        if ($typeCode !== '') {
+            $db = \App\Core\Database::getInstance();
+            try {
+                $typeRow = $db->fetchOne(
+                    'SELECT code, description, category FROM loan_types WHERE tenant_id = ? AND code = ? AND is_active = 1',
+                    [$db->getTenantId(), $typeCode],
+                );
+            } catch (\Throwable) {
+                $typeRow = null;
+            }
+            if ($typeRow === null) {
+                return Response::error("Unknown loan type code '{$typeCode}'.", 422);
+            }
+            $input['loan_type'] = $typeRow['category'];
+        }
+
+        $validator = new Validator($input, [
+            'user_id'          => $isAdmin ? 'required|string' : 'nullable|string',
+            'loan_type'        => 'required|in:personal,auto,mortgage,business,education,credit_line',
+            'loan_type_code'   => 'nullable|string|max:2',
+            'amount'           => 'required|numeric|positive',
+            'interest_rate'    => 'required|numeric',
+            'term_months'      => 'required|integer|min:1|max:360',
+            'purpose'          => 'nullable|string|max:500',
+            'application_date' => 'nullable|string|max:19',
         ]);
 
         if ($validator->fails()) {
@@ -122,6 +148,24 @@ final class LoanController
                 ? $data['user_id']
                 : $request->getAttribute('user_id');
             unset($data['user_id']);
+
+            if ($typeRow !== null) {
+                $data['loan_type_code'] = $typeRow['code'];
+                $desc = trim((string) ($data['purpose'] ?? ''));
+                $data['purpose'] = $desc === '' ? $typeRow['description'] : $desc;
+            } else {
+                unset($data['loan_type_code']);
+            }
+
+            // Backdated application (supervisor override required; staff only)
+            unset($data['application_date']);
+            if ($isAdmin) {
+                $backdate = $this->supervisor->resolveBackdate($input, 'application_date');
+                if ($backdate !== null) {
+                    $data['application_date'] = $backdate['datetime'];
+                    $data['backdate'] = $backdate;
+                }
+            }
 
             $loan = $this->loans->apply(
                 $data,
@@ -206,7 +250,8 @@ final class LoanController
         $approvedBy = $request->getAttribute('user_id');
 
         try {
-            $loan = $this->loans->approve($loanId, $approvedBy);
+            $backdate = $this->supervisor->resolveBackdate($request->all(), 'approval_date');
+            $loan = $this->loans->approve($loanId, $approvedBy, $backdate);
             return Response::ok($loan, 'Loan approved');
         } catch (\RuntimeException $e) {
             return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
@@ -223,8 +268,9 @@ final class LoanController
         $validator = new Validator($request->all(), [
             'disbursement_method' => 'required|in:account,cash,check,wire,ach',
             'target_account_id'  => 'nullable|string',
-            'source_location_id' => 'required|string',
+            'source_location_id' => 'nullable|string',
             'check_number'       => 'nullable|string|max:50',
+            'disbursement_date'  => 'nullable|string|max:19',
         ]);
 
         if ($validator->fails()) {
@@ -240,6 +286,14 @@ final class LoanController
         }
 
         try {
+            $backdate = $this->supervisor->resolveBackdate($request->all(), 'disbursement_date');
+            if ($backdate !== null) {
+                $data['backdate'] = $backdate;
+            } elseif (empty($data['source_location_id']) || $data['source_location_id'] === 'none') {
+                return Response::error('A funding source (vault/bank/drawer) is required for disbursement.', 422);
+            }
+            unset($data['disbursement_date']);
+
             $loan = $this->loans->disburse($loanId, $disbursedBy, $data);
             return Response::ok($loan, 'Loan disbursed successfully');
         } catch (\RuntimeException $e) {
@@ -283,6 +337,11 @@ final class LoanController
         $validator = new Validator($request->all(), [
             'amount'          => 'required|numeric|positive',
             'from_account_id' => 'nullable|string',
+            'method'          => 'nullable|in:cash,account,check,wire,ach',
+            'drawer_id'       => 'nullable|string',
+            'denominations'   => 'nullable',
+            'description'     => 'nullable|string|max:255',
+            'payment_date'    => 'nullable|string|max:19',
         ]);
 
         if ($validator->fails()) {
@@ -291,13 +350,39 @@ final class LoanController
 
         $loanId = $request->param('id');
         $userId = $request->getAttribute('user_id');
+        $role   = $request->getAttribute('role');
+        $isStaff = in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true);
+
+        // Members may only pay their own loans, from their own accounts, today
+        if (!$isStaff) {
+            $loan = $this->loans->findById($loanId);
+            if ($loan === null || $loan['user_id'] !== $userId) {
+                return Response::error('Forbidden', 403);
+            }
+        }
 
         try {
+            $fromAccountId = $request->input('from_account_id') ?: null;
+            $options = [
+                'method'        => $request->input('method') ?: ($fromAccountId ? 'account' : 'cash'),
+                'description'   => $request->input('description', ''),
+            ];
+            if ($isStaff) {
+                $options['drawer_id']     = $request->input('drawer_id') ?: null;
+                $options['denominations'] = $request->input('denominations');
+                $backdate = $this->supervisor->resolveBackdate($request->all(), 'payment_date');
+                if ($backdate !== null) {
+                    $options['payment_date'] = $backdate['date'];
+                    $options['backdate']     = $backdate;
+                }
+            }
+
             $result = $this->loans->makePayment(
                 $loanId,
                 (float) $request->input('amount'),
-                $request->input('from_account_id'),
+                $fromAccountId,
                 $userId,
+                $options,
             );
 
             return Response::created($result, 'Payment processed');
