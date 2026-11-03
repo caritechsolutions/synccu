@@ -373,6 +373,98 @@ final class ReportController
         ]);
     }
 
+    /**
+     * GET /api/v1/reports/members-register
+     *
+     * Register of Members: one row per member with share, deposit and loan
+     * balances, plus a totals row. Mirrors the legacy "Members Report".
+     */
+    public function membersRegister(Request $request): Response
+    {
+        $data = $this->buildMembersRegister($request->query('status'));
+        return Response::ok($data);
+    }
+
+    private function buildMembersRegister(?string $status = null): array
+    {
+        $tenantId = $this->db->getTenantId();
+
+        // Make sure loans.loan_type_code exists (added lazily by LoanService)
+        try { new \App\Services\LoanService(); } catch (\Throwable) {}
+
+        // "Special" loans are any loan type whose description says so
+        $specialCodes = [];
+        try {
+            $rows = $this->db->fetchAll(
+                "SELECT code FROM loan_types WHERE tenant_id = ? AND LOWER(description) LIKE '%special%'",
+                [$tenantId],
+            );
+            $specialCodes = array_values(array_filter(array_map(fn($r) => (string) $r['code'], $rows)));
+        } catch (\Throwable) {
+            $specialCodes = [];
+        }
+
+        $params = [$tenantId];
+        $where = "WHERE u.tenant_id = ? AND u.role = 'member'";
+        if ($status !== null && $status !== '' && $status !== 'all') {
+            $where .= ' AND u.status = ?';
+            $params[] = $status;
+        }
+
+        if ($specialCodes) {
+            $in = implode(',', array_fill(0, count($specialCodes), '?'));
+            $spCond  = "l.loan_type_code IN ({$in})";
+            $regCond = "(l.loan_type_code IS NULL OR l.loan_type_code NOT IN ({$in}))";
+            $spParams = $specialCodes;
+        } else {
+            $spCond  = '1 = 0';
+            $regCond = '1 = 1';
+            $spParams = [];
+        }
+
+        $activeLoan = "l.user_id = u.id AND l.tenant_id = u.tenant_id AND l.status IN ('active','delinquent','default')";
+        $openAcct   = "a.user_id = u.id AND a.tenant_id = u.tenant_id AND a.status <> 'closed'";
+
+        $sql = "SELECT u.id, u.member_number, u.first_name, u.last_name, u.email, u.phone, u.status,
+                       u.address_line_1, u.address_line_2, u.city, u.state AS parish,
+                       DATE(u.created_at) AS date_admitted,
+                       COALESCE((SELECT SUM(a.balance) FROM accounts a WHERE {$openAcct} AND a.account_type = 'permanent_shares'), 0) AS p_shares,
+                       COALESCE((SELECT SUM(a.balance) FROM accounts a WHERE {$openAcct} AND a.account_type IN ('savings','checking')), 0) AS deposits,
+                       COALESCE((SELECT SUM(a.balance) FROM accounts a WHERE {$openAcct} AND a.account_type = 'regular_shares'), 0) AS shares,
+                       COALESCE((SELECT SUM(l.outstanding_balance) FROM loans l WHERE {$activeLoan} AND l.loan_type <> 'credit_line' AND {$regCond}), 0) AS reg_loan,
+                       COALESCE((SELECT SUM(l.outstanding_balance) FROM loans l WHERE {$activeLoan} AND l.loan_type = 'credit_line'), 0) AS loc,
+                       COALESCE((SELECT SUM(l.outstanding_balance) FROM loans l WHERE {$activeLoan} AND l.loan_type <> 'credit_line' AND {$spCond}), 0) AS sp_loan
+                FROM users u
+                {$where}
+                ORDER BY u.last_name ASC, u.first_name ASC";
+
+        // Parameter order follows placeholder order: regCond (sp codes), spCond (sp codes), then WHERE params
+        $allParams = array_merge($spParams, $spParams, $params);
+        $members = $this->db->fetchAll($sql, $allParams);
+
+        $totals = ['members' => count($members), 'p_shares' => 0.0, 'deposits' => 0.0, 'shares' => 0.0, 'reg_loan' => 0.0, 'loc' => 0.0, 'sp_loan' => 0.0];
+        foreach ($members as &$m) {
+            foreach (['p_shares', 'deposits', 'shares', 'reg_loan', 'loc', 'sp_loan'] as $k) {
+                $m[$k] = round((float) $m[$k], 2);
+                $totals[$k] += $m[$k];
+            }
+            $m['member_name'] = trim(strtoupper((string) $m['last_name']) . ' ' . $m['first_name']);
+            $m['address'] = trim(implode(', ', array_filter([$m['address_line_1'], $m['address_line_2'], $m['city']])));
+        }
+        unset($m);
+        foreach ($totals as $k => $v) {
+            if (is_float($v)) {
+                $totals[$k] = round($v, 2);
+            }
+        }
+
+        return [
+            'as_of'   => date('Y-m-d'),
+            'members' => $members,
+            'totals'  => $totals,
+        ];
+    }
+
     // ------------------------------------------------------------------
     // CSV Export
     // ------------------------------------------------------------------
@@ -575,6 +667,28 @@ final class ReportController
                 foreach ($rows as $r) {
                     $csv .= "{$r['month']},{$r['new_members']}\n";
                 }
+                break;
+
+            case 'members-register':
+                $reg = $this->buildMembersRegister($request->query('status'));
+                $q = fn($v) => '"' . str_replace('"', '""', (string) ($v ?? '')) . '"';
+                $csv = "Book,Member,Address,Email,Date Admitted,Parish,P_Shares,Deposits,Shares,Reg Loan,L.O.C,SpLoan\n";
+                foreach ($reg['members'] as $m) {
+                    $csv .= implode(',', [
+                        $q($m['member_number']), $q($m['member_name']), $q($m['address']), $q($m['email']),
+                        $m['date_admitted'] ?? '', $q($m['parish']),
+                        number_format($m['p_shares'], 2, '.', ''), number_format($m['deposits'], 2, '.', ''),
+                        number_format($m['shares'], 2, '.', ''), number_format($m['reg_loan'], 2, '.', ''),
+                        number_format($m['loc'], 2, '.', ''), number_format($m['sp_loan'], 2, '.', ''),
+                    ]) . "\n";
+                }
+                $t = $reg['totals'];
+                $csv .= implode(',', [
+                    '"TOTAL"', '"' . $t['members'] . ' members"', '', '', '', '',
+                    number_format($t['p_shares'], 2, '.', ''), number_format($t['deposits'], 2, '.', ''),
+                    number_format($t['shares'], 2, '.', ''), number_format($t['reg_loan'], 2, '.', ''),
+                    number_format($t['loc'], 2, '.', ''), number_format($t['sp_loan'], 2, '.', ''),
+                ]) . "\n";
                 break;
 
             default:

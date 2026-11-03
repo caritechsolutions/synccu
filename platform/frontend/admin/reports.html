@@ -135,6 +135,11 @@
           <h4>Member Growth</h4>
           <p>Membership and account trends</p>
         </button>
+        <button class="report-card" data-report="members-register">
+          <div class="report-card-icon"><svg><use href="#icon-users"/></svg></div>
+          <h4>Register of Members</h4>
+          <p>Every member with shares, deposits and loans</p>
+        </button>
       </div>
 
       <!-- Date Range & Actions -->
@@ -221,6 +226,7 @@
           case 'loan-portfolio':   await renderLoanPortfolio(); break;
           case 'delinquency':      await renderDelinquency(); break;
           case 'member-growth':      await renderMemberGrowth(from, to); break;
+          case 'members-register':   await renderMembersRegister(); break;
           default: el.innerHTML = '<p style="text-align:center;padding:2rem">Unknown report type.</p>';
         }
       } catch (e) {
@@ -518,6 +524,59 @@
       if (!members.length && !accounts.length) {
         html += '<p style="text-align:center;padding:2rem;color:var(--text-muted)">No growth data for this period.</p>';
       }
+      el.innerHTML = html;
+    }
+
+    // === REGISTER OF MEMBERS ===
+    async function renderMembersRegister() {
+      const resp = await apiFetch('/api/v1/reports/members-register');
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.error || json.message || 'Failed');
+      const d = json.data || {};
+      const members = d.members || [];
+      const t = d.totals || {};
+      const el = document.getElementById('reportContent');
+      document.getElementById('reportDateRange').textContent = 'As of ' + new Date((d.as_of || '') + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      const money = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+      const R = 'style="text-align:right;white-space:nowrap"';
+
+      let html = `<div class="report-summary-grid">
+        <div class="report-summary-card report-summary-blue"><span class="report-summary-label">Members</span><span class="report-summary-value">${t.members || 0}</span></div>
+        <div class="report-summary-card report-summary-green"><span class="report-summary-label">Total Shares</span><span class="report-summary-value">${fmt((t.shares || 0) + (t.p_shares || 0))}</span></div>
+        <div class="report-summary-card report-summary-green"><span class="report-summary-label">Total Deposits</span><span class="report-summary-value">${fmt(t.deposits)}</span></div>
+        <div class="report-summary-card report-summary-red"><span class="report-summary-label">Total Loans</span><span class="report-summary-value">${fmt((t.reg_loan || 0) + (t.loc || 0) + (t.sp_loan || 0))}</span></div>
+      </div>
+      <div class="table-responsive" style="margin-top:1.5rem">
+        <table class="data-table data-table-sm" style="font-size:.8rem">
+          <thead><tr>
+            <th>Book</th><th>Member</th><th>Address</th><th>Email</th><th>Date Admitted</th><th>Parish</th>
+            <th ${R}>P_Shares</th><th ${R}>Deposits</th><th ${R}>Shares</th><th ${R}>Reg Loan</th><th ${R}>L.O.C</th><th ${R}>SpLoan</th>
+          </tr></thead><tbody>`;
+      if (!members.length) {
+        html += '<tr><td colspan="12" style="text-align:center;padding:2rem;color:var(--text-muted)">No members found.</td></tr>';
+      }
+      members.forEach(m => {
+        html += `<tr>
+          <td class="font-mono">${esc(m.member_number)}</td>
+          <td>${esc(m.member_name)}</td>
+          <td>${esc(m.address)}</td>
+          <td style="font-size:.75rem">${esc(m.email)}</td>
+          <td>${esc(m.date_admitted)}</td>
+          <td>${esc(m.parish)}</td>
+          <td ${R}>${money(m.p_shares)}</td>
+          <td ${R}>${money(m.deposits)}</td>
+          <td ${R}>${money(m.shares)}</td>
+          <td ${R}>${money(m.reg_loan)}</td>
+          <td ${R}>${money(m.loc)}</td>
+          <td ${R}>${money(m.sp_loan)}</td>
+        </tr>`;
+      });
+      html += `<tr style="border-top:3px double var(--border);font-weight:700;background:var(--bg-secondary)">
+          <td colspan="6">TOTAL (${t.members || 0} members)</td>
+          <td ${R}>${money(t.p_shares)}</td><td ${R}>${money(t.deposits)}</td><td ${R}>${money(t.shares)}</td>
+          <td ${R}>${money(t.reg_loan)}</td><td ${R}>${money(t.loc)}</td><td ${R}>${money(t.sp_loan)}</td>
+        </tr></tbody></table></div>`;
       el.innerHTML = html;
     }
 
