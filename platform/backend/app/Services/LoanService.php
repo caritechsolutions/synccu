@@ -425,6 +425,9 @@ final class LoanService
             if ($source['account_type'] === 'loan') {
                 throw new RuntimeException('Cannot pay a loan from a loan account.', 422);
             }
+            if ($source['user_id'] !== $loan['user_id']) {
+                throw new RuntimeException('The source account does not belong to this loan\'s member.', 422);
+            }
             if ((float) $source['available_balance'] < $amount) {
                 throw new RuntimeException('Insufficient funds in ' . $source['account_number'] . '.', 422);
             }
@@ -720,8 +723,19 @@ final class LoanService
             [$loanId],
         );
 
-        // Build running balance: start from principal, subtract each row's principal
-        $balance = (float) $loan['principal_amount'];
+        // Build running balance backwards from the current outstanding balance:
+        // start = outstanding + principal already paid on 'paid' rows, then subtract
+        // each row. (Imported loans have schedules built from outstanding, not principal.)
+        $balance = (float) $loan['outstanding_balance'];
+        foreach ($rows as $row) {
+            if ($row['status'] === 'paid') {
+                if ((float) $row['paid_amount'] > 0) {
+                    $balance += (float) $row['paid_amount'] - min((float) $row['interest_amount'], (float) $row['paid_amount']);
+                } else {
+                    $balance += (float) $row['principal_amount'];
+                }
+            }
+        }
         $schedule = [];
         foreach ($rows as $row) {
             $principalAmt = (float) $row['principal_amount'];

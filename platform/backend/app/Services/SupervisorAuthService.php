@@ -18,6 +18,8 @@ use RuntimeException;
 final class SupervisorAuthService
 {
     public const ROLES = ['super_admin', 'admin', 'manager'];
+    private const MAX_FAILED_ATTEMPTS = 5;
+    private const LOCKOUT_MINUTES = 15;
 
     private Database $db;
 
@@ -39,13 +41,32 @@ final class SupervisorAuthService
         }
 
         $user = $this->db->fetchOne(
-            'SELECT id, email, first_name, last_name, role, status, password_hash
+            'SELECT id, email, first_name, last_name, role, status, password_hash,
+                    failed_login_attempts, locked_until
              FROM users WHERE tenant_id = ? AND email = ? LIMIT 1',
             [$this->db->getTenantId(), $email],
         );
 
+        // Lockout: repeated failures lock the supervisor account for a while
+        if ($user !== null && !empty($user['locked_until']) && strtotime((string) $user['locked_until']) > time()) {
+            throw new RuntimeException('That supervisor account is temporarily locked after too many failed attempts.', 429);
+        }
+
         if ($user === null || !password_verify($password, $user['password_hash'])) {
+            if ($user !== null) {
+                $attempts = (int) ($user['failed_login_attempts'] ?? 0) + 1;
+                $lock = $attempts >= self::MAX_FAILED_ATTEMPTS
+                    ? date('Y-m-d H:i:s', time() + self::LOCKOUT_MINUTES * 60)
+                    : null;
+                $this->db->execute(
+                    'UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?',
+                    [$lock ? 0 : $attempts, $lock, $user['id']],
+                );
+            }
             throw new RuntimeException('Supervisor authorization failed: invalid email or password.', 403);
+        }
+        if ((int) ($user['failed_login_attempts'] ?? 0) > 0 || !empty($user['locked_until'])) {
+            $this->db->execute('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?', [$user['id']]);
         }
         if (($user['status'] ?? 'active') !== 'active') {
             throw new RuntimeException('Supervisor account is not active.', 403);

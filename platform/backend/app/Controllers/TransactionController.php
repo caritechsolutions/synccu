@@ -181,6 +181,9 @@ final class TransactionController
             $fromAccountId = null;
         }
 
+        // Schema checks (DDL) must run before any transaction opens
+        $this->transactions->ensureSchema();
+
         try {
             $options = [
                 'method'        => $method,
@@ -303,6 +306,7 @@ final class TransactionController
         $loans    = new LoanService();
 
         // Schema checks (DDL) must run before the transaction opens
+        $this->transactions->ensureSchema();
         $cash = null;
         if ($drawerId !== null) {
             $cash = new CashManagementService();

@@ -267,8 +267,8 @@ final class TransactionService
             $this->accounts->updateBalance($fromAccountId, -$amount);
             $this->accounts->updateBalance($toAccountId, $amount);
 
-            $this->applyIso20022Fields($txnId, 'transfer', $fromAccountId, $toAccountId);
-            $this->applyIso20022Fields($relatedTxnId, 'transfer', $toAccountId, $fromAccountId);
+            $this->applyIso20022Fields($txnId, 'transfer', $fromAccountId, $toAccountId, $metadata);
+            $this->applyIso20022Fields($relatedTxnId, 'transfer', $toAccountId, $fromAccountId, $metadata);
 
             return $this->findById($txnId);
         });
@@ -773,7 +773,8 @@ final class TransactionService
 
         $e2eId = $this->generateEndToEndId();
         $purposeCode = self::mapPurposeCode($type, $metadata);
-        $settlementDate = date('Y-m-d');
+        // Backdated postings settle on their effective date
+        $settlementDate = substr($this->effectiveDate($metadata), 0, 10);
 
         $debtorName = null;
         $debtorAccount = null;

@@ -78,6 +78,7 @@ $router->group([
     $router->post('/logout',          [AuthController::class, 'logout']);
     $router->post('/change-password', [AuthController::class, 'changePassword']);
     $router->post('/verify-supervisor', [AuthController::class, 'verifySupervisor'], [
+        RateLimitMiddleware::class . ':10',
         RBACMiddleware::class . ':admin,manager,teller',
     ]);
 });

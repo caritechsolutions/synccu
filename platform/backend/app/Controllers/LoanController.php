@@ -37,7 +37,7 @@ final class LoanController
         $perPage = min(100, max(1, (int) ($request->query('per_page', '20'))));
         $status  = $request->query('status');
 
-        if (in_array($role, ['admin', 'super_admin', 'manager'], true)) {
+        if (in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true)) {
             $result = $this->adminListLoans($request, $page, $perPage);
         } else {
             $result = $this->loans->getByUser($userId, $page, $perPage);
@@ -353,18 +353,34 @@ final class LoanController
         $role   = $request->getAttribute('role');
         $isStaff = in_array($role, ['admin', 'super_admin', 'manager', 'teller'], true);
 
+        $fromAccountId = $request->input('from_account_id') ?: null;
+        $method = $request->input('method') ?: ($fromAccountId ? 'account' : 'cash');
+
         // Members may only pay their own loans, from their own accounts, today
         if (!$isStaff) {
             $loan = $this->loans->findById($loanId);
             if ($loan === null || $loan['user_id'] !== $userId) {
                 return Response::error('Forbidden', 403);
             }
+            if (!$fromAccountId) {
+                return Response::error('Select one of your accounts to pay from.', 422);
+            }
+            if (!(new \App\Services\AccountService())->verifyOwnership($fromAccountId, $userId)) {
+                return Response::error('You can only pay from your own accounts.', 403);
+            }
+            $method = 'account';
+        }
+
+        // Only an account-funded payment debits an account
+        if ($method !== 'account') {
+            $fromAccountId = null;
+        } elseif (!$fromAccountId) {
+            return Response::error('Select the member account to pay from.', 422);
         }
 
         try {
-            $fromAccountId = $request->input('from_account_id') ?: null;
             $options = [
-                'method'        => $request->input('method') ?: ($fromAccountId ? 'account' : 'cash'),
+                'method'        => $method,
                 'description'   => $request->input('description', ''),
             ];
             if ($isStaff) {
