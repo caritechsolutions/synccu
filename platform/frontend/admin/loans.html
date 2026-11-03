@@ -441,7 +441,7 @@
                 <select id="paymentDrawer" class="form-select"><option value="">No drawer movement</option></select>
               </div>
               <div class="form-group" style="margin:0;grid-column:1/-1">
-                <label for="paymentDate" style="font-size:.75rem">Payment Date <span style="font-weight:400;color:var(--text-muted)">(backdating requires supervisor; enter historical payments in date order)</span></label>
+                <label for="paymentDate" style="font-size:.75rem">Payment Date <span style="font-weight:400;color:var(--text-muted)">(backdating requires supervisor; a date earlier than later payments re-computes everything after it)</span></label>
                 <div style="display:flex;gap:.5rem;align-items:center">
                   <input type="date" id="paymentDate" class="form-input" style="flex:1" disabled>
                   <button type="button" class="btn btn-secondary btn-sm" id="paymentDateUnlock">Unlock</button>
@@ -1004,7 +1004,7 @@
         });
         paymentDateField.reset();
         const ai = l.accrued_interest || {};
-        if (ai.last_activity_date) paymentDateField.input.min = String(ai.last_activity_date).slice(0, 10);
+        if (l.disbursed_at) paymentDateField.input.min = String(l.disbursed_at).slice(0, 10);
         updatePaymentMethodUI();
       } else {
         paymentSection.style.display = 'none';
@@ -1259,7 +1259,14 @@
         if (drawer) body.drawer_id = drawer;
       }
       paymentDateField.attachTo(body, 'payment_date');
-      if (body.payment_date && !confirm('Post this payment dated ' + body.payment_date + '?\n\nInterest will be calculated from the last activity date up to ' + body.payment_date + ', and the schedule will continue from there.')) return;
+      if (body.payment_date) {
+        const lastAct = ((currentLoan.accrued_interest || {}).last_activity_date || '').slice(0, 10);
+        const earlier = lastAct && body.payment_date < lastAct;
+        const note = earlier
+          ? 'This date is earlier than the latest activity (' + lastAct + '). The payment will be inserted at ' + body.payment_date + ' and every later payment\'s interest, principal and balance will be re-computed from it.'
+          : 'Interest will be calculated from the last activity date up to ' + body.payment_date + ', and the schedule will continue from there.';
+        if (!confirm('Post this payment dated ' + body.payment_date + '?\n\n' + note)) return;
+      }
       try {
         const resp = await apiFetch('/api/v1/loans/' + currentLoan.id + '/payment', {
           method: 'POST',
@@ -1273,7 +1280,8 @@
           '\nPrincipal: $' + Number(d.principal || 0).toFixed(2) +
           '\nInterest: $' + Number(d.interest || 0).toFixed(2) +
           (d.days_accrued ? '\nDays accrued: ' + d.days_accrued : '') +
-          '\nNew balance: $' + Number(d.new_balance || 0).toFixed(2);
+          '\nBalance after this payment: $' + Number(d.new_balance || 0).toFixed(2) +
+          (d.out_of_order ? '\n\nInserted out of sequence: ' + (d.adjusted_payments || 0) + ' later payment(s) re-computed. Loan balance now $' + Number(d.loan_balance || 0).toFixed(2) + '.' : '');
         alert(msg);
         const keepDate = paymentDateField.isBackdated();
         document.getElementById('paymentForm').reset();

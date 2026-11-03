@@ -450,41 +450,49 @@ final class LoanService
         // Make sure the loan has a schedule to work against (imported loans may not)
         $this->ensureScheduleExists($loanId, $loan);
 
-        // Payments must be entered in chronological order so interest accrues correctly
+        // A payment dated before the latest activity is a missed/late entry: it is
+        // inserted at its date and every later payment is re-computed from it.
         $lastActivityDate = substr($this->getLastActivityDate($loanId, $loan), 0, 10);
-        if ($paymentDate < $lastActivityDate) {
-            throw new RuntimeException(
-                "Payment date {$paymentDate} is before the last activity on this loan ({$lastActivityDate}). "
-                . 'Historical payments must be entered in date order.',
-                422,
-            );
+        $outOfOrder = $paymentDate < $lastActivityDate;
+        if ($outOfOrder) {
+            $baseDate = substr($this->getBasePoint($loanId, $loan)['date'], 0, 10);
+            if ($paymentDate < $baseDate) {
+                throw new RuntimeException("Payment date {$paymentDate} is before the loan started ({$baseDate}).", 422);
+            }
         }
 
-        return $this->db->transaction(function () use ($loanId, $loan, $amount, $fromAccountId, $source, $userId, $options, $paymentDate, $backdate, $method, $lastActivityDate, $cashService) {
+        return $this->db->transaction(function () use ($loanId, $loan, $amount, $fromAccountId, $source, $userId, $options, $paymentDate, $backdate, $method, $lastActivityDate, $cashService, $outOfOrder) {
             $now = ($backdate['datetime'] ?? null) ?: ($paymentDate === date('Y-m-d') ? date('Y-m-d H:i:s') : $paymentDate . ' ' . date('H:i:s'));
             $outstandingBalance = (float) $loan['outstanding_balance'];
             $annualRate = (float) $loan['interest_rate'];
-
-            // Accrued interest = days between the previous activity and this payment's date
-            $lastDate = new \DateTimeImmutable($lastActivityDate);
-            $payDate  = new \DateTimeImmutable($paymentDate);
-            $daysSince = max(0, (int) $payDate->diff($lastDate)->days);
-
             $dailyRate = $annualRate / 100 / 365;
-            $accruedInterest = round($outstandingBalance * $dailyRate * $daysSince, 2);
 
-            // Total owed = principal balance + accrued interest
-            $totalOwed = $outstandingBalance + $accruedInterest;
+            if ($outOfOrder) {
+                // Provisional figures; the replay below computes the real split
+                $daysSince = 0;
+                $interestPortion = 0.0;
+                $principalPortion = $amount;
+                $newBalance = $outstandingBalance;
+            } else {
+                // Accrued interest = days between the previous activity and this payment's date
+                $lastDate = new \DateTimeImmutable($lastActivityDate);
+                $payDate  = new \DateTimeImmutable($paymentDate);
+                $daysSince = max(0, (int) $payDate->diff($lastDate)->days);
+                $accruedInterest = round($outstandingBalance * $dailyRate * $daysSince, 2);
 
-            // Cap payment at total owed
-            if ($amount > $totalOwed) {
-                $amount = $totalOwed;
+                // Total owed = principal balance + accrued interest
+                $totalOwed = $outstandingBalance + $accruedInterest;
+
+                // Cap payment at total owed
+                if ($amount > $totalOwed) {
+                    $amount = $totalOwed;
+                }
+
+                // Split: interest first, remainder to principal
+                $interestPortion = min($accruedInterest, $amount);
+                $principalPortion = $amount - $interestPortion;
+                $newBalance = round($outstandingBalance - $principalPortion, 2);
             }
-
-            // Split: interest first, remainder to principal
-            $interestPortion = min($accruedInterest, $amount);
-            $principalPortion = $amount - $interestPortion;
-            $newBalance = round($outstandingBalance - $principalPortion, 2);
 
             $paymentRef = 'LP-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
             $txnId = $this->generateUuid();
@@ -515,34 +523,36 @@ final class LoanService
                 );
             }
 
-            // Update loan account balance: subtract principal portion
-            if ($loan['account_id']) {
-                $this->accounts->updateBalance($loan['account_id'], -$principalPortion);
-            }
-
-            // Update loan record
-            $updates = [
-                'outstanding_balance' => max(0, $newBalance),
-                'total_paid'          => (float) ($loan['total_paid'] ?? 0) + $amount,
-                'next_payment_date'   => $newBalance > 0.01 ? date('Y-m-d', strtotime('+1 month', strtotime($paymentDate))) : null,
-                'updated_at'          => date('Y-m-d H:i:s'),
-            ];
-
-            if ($newBalance <= 0.01) {
-                $updates['status'] = 'paid_off';
-                $updates['outstanding_balance'] = 0;
-                // Close loan account
+            if (!$outOfOrder) {
+                // Update loan account balance: subtract principal portion
                 if ($loan['account_id']) {
-                    $this->db->execute(
-                        'UPDATE accounts SET balance = 0, available_balance = 0, status = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?',
-                        ['closed', $loan['account_id'], $loan['tenant_id']],
-                    );
+                    $this->accounts->updateBalance($loan['account_id'], -$principalPortion);
                 }
-            } else {
-                $updates['status'] = 'active';
-            }
 
-            $this->db->updateScoped('loans', $updates, ['id' => $loanId]);
+                // Update loan record
+                $updates = [
+                    'outstanding_balance' => max(0, $newBalance),
+                    'total_paid'          => (float) ($loan['total_paid'] ?? 0) + $amount,
+                    'next_payment_date'   => $newBalance > 0.01 ? date('Y-m-d', strtotime('+1 month', strtotime($paymentDate))) : null,
+                    'updated_at'          => date('Y-m-d H:i:s'),
+                ];
+
+                if ($newBalance <= 0.01) {
+                    $updates['status'] = 'paid_off';
+                    $updates['outstanding_balance'] = 0;
+                    // Close loan account
+                    if ($loan['account_id']) {
+                        $this->db->execute(
+                            'UPDATE accounts SET balance = 0, available_balance = 0, status = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?',
+                            ['closed', $loan['account_id'], $loan['tenant_id']],
+                        );
+                    }
+                } else {
+                    $updates['status'] = 'active';
+                }
+
+                $this->db->updateScoped('loans', $updates, ['id' => $loanId]);
+            }
 
             // Record transaction linked to the loan account
             $balanceAfter = max(0, $newBalance);
@@ -594,6 +604,36 @@ final class LoanService
                 );
             }
 
+            if ($outOfOrder) {
+                // Re-run every payment from the loan's starting point so this one
+                // takes its place in sequence and all later splits/balances follow.
+                $replay = $this->replayPayments($loanId);
+                $mine = null;
+                $adjusted = 0;
+                foreach ($replay['payments'] as $p) {
+                    if ($mine !== null) {
+                        $adjusted++;
+                    }
+                    if ($p['id'] === $txnId) {
+                        $mine = $p;
+                    }
+                }
+                return [
+                    'payment_id'        => $txnId,
+                    'reference'         => $paymentRef,
+                    'amount'            => $amount,
+                    'principal'         => $mine['principal'] ?? $principalPortion,
+                    'interest'          => $mine['interest'] ?? $interestPortion,
+                    'days_accrued'      => $mine['days_accrued'] ?? $daysSince,
+                    'payment_date'      => $paymentDate,
+                    'new_balance'       => $mine['balance_after'] ?? $newBalance,
+                    'out_of_order'      => true,
+                    'adjusted_payments' => $adjusted,
+                    'loan_balance'      => $replay['outstanding_balance'],
+                    'loan'              => $this->findById($loanId),
+                ];
+            }
+
             // Mark the next upcoming schedule row as paid
             $nextRow = $this->db->fetchOne(
                 "SELECT id FROM loan_schedules WHERE loan_id = ? AND status IN ('upcoming', 'due') ORDER BY payment_number ASC LIMIT 1",
@@ -630,6 +670,165 @@ final class LoanService
                 'loan'         => $this->findById($loanId),
             ];
         });
+    }
+
+    /**
+     * Where the payment history starts: the disbursement (balance = principal)
+     * or, for imported loans, the as-of date whose balance was loaded from the
+     * legacy file (balance = current outstanding + principal paid since).
+     *
+     * @return array{date: string, balance: float, base_total_paid: float, payments: array}
+     */
+    private function getBasePoint(string $loanId, array $loan): array
+    {
+        $tenantId = $loan['tenant_id'];
+        $payments = [];
+        if ($loan['account_id']) {
+            $payments = $this->db->fetchAll(
+                "SELECT id, amount, balance_after, metadata, created_at
+                 FROM transactions
+                 WHERE tenant_id = ? AND account_id = ? AND type = 'loan_payment' AND status = 'completed'
+                 ORDER BY created_at ASC, id ASC",
+                [$tenantId, $loan['account_id']],
+            );
+        }
+        $paidAmount = 0.0;
+        $paidPrincipal = 0.0;
+        foreach ($payments as $p) {
+            $paidAmount += (float) $p['amount'];
+            $m = json_decode((string) ($p['metadata'] ?? ''), true);
+            $paidPrincipal += isset($m['principal']) ? (float) $m['principal'] : (float) $p['amount'];
+        }
+
+        $disb = $loan['account_id'] ? $this->db->fetchOne(
+            "SELECT created_at FROM transactions
+             WHERE tenant_id = ? AND account_id = ? AND type = 'loan_disbursement'
+             ORDER BY created_at ASC LIMIT 1",
+            [$tenantId, $loan['account_id']],
+        ) : null;
+
+        if ($disb) {
+            $balance = (float) ($loan['disbursed_amount'] ?: $loan['principal_amount']);
+            $date = (string) $disb['created_at'];
+        } else {
+            // Imported: reconstruct the as-of balance from what has been paid since
+            $balance = round((float) $loan['outstanding_balance'] + $paidPrincipal, 2);
+            $meta = is_array($loan['metadata'] ?? null) ? $loan['metadata'] : (json_decode((string) ($loan['metadata'] ?? ''), true) ?: []);
+            $date = (string) ($meta['last_payment_date'] ?? $loan['disbursed_at'] ?? $loan['approved_at'] ?? $loan['created_at']);
+        }
+
+        return [
+            'date'            => $date,
+            'balance'         => $balance,
+            'base_total_paid' => max(0.0, round((float) ($loan['total_paid'] ?? 0) - $paidAmount, 2)),
+            'payments'        => $payments,
+        ];
+    }
+
+    /**
+     * Re-run every payment on a loan in date order from its starting point,
+     * re-computing each interest/principal split and balance, then rebuild the
+     * schedule. Used when a payment is entered out of sequence.
+     */
+    public function replayPayments(string $loanId): array
+    {
+        $loan = $this->findById($loanId);
+        if ($loan === null) {
+            throw new RuntimeException('Loan not found.', 404);
+        }
+
+        $base = $this->getBasePoint($loanId, $loan);
+        $dailyRate = (float) $loan['interest_rate'] / 100 / 365;
+        $balance = $base['balance'];
+        $lastDate = new \DateTimeImmutable(substr($base['date'], 0, 10));
+        $totalPaid = $base['base_total_paid'];
+        $rows = [];
+        $replayedAt = date('Y-m-d H:i:s');
+
+        // Rebuild the schedule from scratch: one 'paid' row per payment, then upcoming rows
+        $this->db->query('DELETE FROM loan_schedules WHERE loan_id = ?', [$loanId]);
+
+        foreach ($base['payments'] as $i => $p) {
+            $pDate = new \DateTimeImmutable(substr((string) $p['created_at'], 0, 10));
+            $days = $pDate < $lastDate ? 0 : (int) $pDate->diff($lastDate)->days;
+            $interest = $balance > 0 ? round($balance * $dailyRate * $days, 2) : 0.0;
+            $amount = (float) $p['amount'];
+            $interestPortion = round(min($interest, $amount), 2);
+            $principalPortion = round($amount - $interestPortion, 2);
+            $overpayment = 0.0;
+            if ($principalPortion > $balance) {
+                $overpayment = round($principalPortion - $balance, 2);
+                $principalPortion = round($balance, 2);
+            }
+            $balance = round(max(0, $balance - $principalPortion), 2);
+            $totalPaid += $amount;
+
+            $meta = json_decode((string) ($p['metadata'] ?? ''), true) ?: [];
+            $meta = array_merge($meta, [
+                'principal'    => $principalPortion,
+                'interest'     => $interestPortion,
+                'days_accrued' => $days,
+                'daily_rate'   => $dailyRate,
+                'payment_date' => $pDate->format('Y-m-d'),
+                'overpayment'  => $overpayment,
+                'replayed_at'  => $replayedAt,
+            ]);
+            $this->db->query(
+                'UPDATE transactions SET balance_after = ?, metadata = ? WHERE id = ?',
+                [$balance, json_encode($meta), $p['id']],
+            );
+
+            $this->db->query(
+                "INSERT INTO loan_schedules
+                    (id, loan_id, payment_number, due_date, principal_amount, interest_amount, total_amount, paid_amount, status, paid_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'paid', ?, NOW())",
+                [$this->generateUuid(), $loanId, $i + 1, $pDate->format('Y-m-d'), $principalPortion, $interestPortion, $amount, $amount, $p['created_at']],
+            );
+
+            $rows[] = [
+                'id'            => $p['id'],
+                'payment_date'  => $pDate->format('Y-m-d'),
+                'amount'        => $amount,
+                'days_accrued'  => $days,
+                'interest'      => $interestPortion,
+                'principal'     => $principalPortion,
+                'overpayment'   => $overpayment,
+                'balance_after' => $balance,
+            ];
+            if ($pDate > $lastDate) {
+                $lastDate = $pDate;
+            }
+        }
+
+        // Loan record and tracking account
+        $paidOff = $balance <= 0.01;
+        $updates = [
+            'outstanding_balance' => $paidOff ? 0 : $balance,
+            'total_paid'          => round($totalPaid, 2),
+            'next_payment_date'   => $paidOff ? null : $lastDate->modify('+1 month')->format('Y-m-d'),
+            'status'              => $paidOff ? 'paid_off' : ($loan['status'] === 'delinquent' ? 'delinquent' : 'active'),
+            'updated_at'          => date('Y-m-d H:i:s'),
+        ];
+        $this->db->updateScoped('loans', $updates, ['id' => $loanId]);
+        if ($loan['account_id']) {
+            $this->db->execute(
+                'UPDATE accounts SET balance = ?, available_balance = ?, status = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?',
+                [$updates['outstanding_balance'], $updates['outstanding_balance'], $paidOff ? 'closed' : 'active', $loan['account_id'], $loan['tenant_id']],
+            );
+        }
+
+        if (!$paidOff) {
+            $this->recalculateSchedule($loanId, $this->findById($loanId), $lastDate->format('Y-m-d'));
+        }
+
+        return [
+            'base_date'           => substr($base['date'], 0, 10),
+            'base_balance'        => $base['balance'],
+            'payments'            => $rows,
+            'outstanding_balance' => $updates['outstanding_balance'],
+            'total_paid'          => $updates['total_paid'],
+            'status'              => $updates['status'],
+        ];
     }
 
     /**

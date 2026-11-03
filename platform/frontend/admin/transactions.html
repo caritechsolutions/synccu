@@ -1153,7 +1153,8 @@
           alert('Loan payment posted: $' + Number(p.amount || 0).toFixed(2) +
             '\nInterest: $' + Number(p.interest || 0).toFixed(2) + ' (' + (p.days_accrued || 0) + ' days)' +
             '\nPrincipal: $' + Number(p.principal || 0).toFixed(2) +
-            '\nNew balance: $' + Number(p.new_balance || 0).toFixed(2));
+            '\nBalance after this payment: $' + Number(p.new_balance || 0).toFixed(2) +
+            (p.out_of_order ? '\n\nInserted out of sequence: ' + (p.adjusted_payments || 0) + ' later payment(s) re-computed. Loan balance now $' + Number(p.loan_balance || 0).toFixed(2) + '.' : ''));
         }
 
         txnModal.classList.remove('active');
