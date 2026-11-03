@@ -176,6 +176,25 @@
             <label for="memberPhone">Phone Number</label>
             <input type="tel" id="memberPhone" name="phone" class="form-input" placeholder="(555) 000-0000">
           </div>
+          <div class="form-group">
+            <label for="memberAddress1">Address</label>
+            <input type="text" id="memberAddress1" name="address_line_1" class="form-input" placeholder="Street / house, e.g. #8 Brittons Park" maxlength="255">
+          </div>
+          <div class="form-group">
+            <input type="text" id="memberAddress2" name="address_line_2" class="form-input" placeholder="Address line 2 (optional)" maxlength="255" aria-label="Address line 2">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="memberCity">City / Town / District</label>
+              <input type="text" id="memberCity" name="city" class="form-input" placeholder="e.g. Brittons Hill" maxlength="100">
+            </div>
+            <div class="form-group">
+              <label for="memberParish">Parish</label>
+              <select id="memberParish" name="state" class="form-select">
+                <option value="">Select parish...</option>
+              </select>
+            </div>
+          </div>
           <div class="form-group" id="passwordGroup">
             <label for="memberPassword">Password</label>
             <div style="display:flex;gap:.5rem">
@@ -246,6 +265,14 @@
     let currentPage = 1;
     let editingMemberId = null;
 
+    // Parish picker (codes stored in users.state)
+    (function fillParishes() {
+      const sel = document.getElementById('memberParish');
+      Object.entries(window.PARISHES || {}).forEach(([code, name]) => {
+        sel.innerHTML += '<option value="' + code + '">' + name + '</option>';
+      });
+    })();
+
     function generatePassword() {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
       let pw = '';
@@ -261,6 +288,10 @@
         document.getElementById('lastName').value = member.last_name || '';
         document.getElementById('memberEmail').value = member.email || '';
         document.getElementById('memberPhone').value = member.phone || '';
+        document.getElementById('memberAddress1').value = member.address_line_1 || '';
+        document.getElementById('memberAddress2').value = member.address_line_2 || '';
+        document.getElementById('memberCity').value = member.city || '';
+        document.getElementById('memberParish').value = member.state || '';
         document.getElementById('memberRole').value = member.role || 'member';
         document.getElementById('memberStatus').value = member.status || 'active';
         document.getElementById('memberPassword').value = '';
@@ -432,6 +463,9 @@
       html += '<div class="member-detail-grid">';
       html += '<div class="detail-item"><label>Email</label><span>' + (m.email || '-') + '</span></div>';
       html += '<div class="detail-item"><label>Phone</label><span>' + (m.phone || '-') + '</span></div>';
+      var addrParts = [m.address_line_1, m.address_line_2, m.city, window.parishName(m.state)].filter(function(p){ return p && String(p).trim(); });
+      html += '<div class="detail-item"><label>Address</label><span>' + (addrParts.length ? addrParts.map(function(p){ return String(p).replace(/</g,'&lt;'); }).join(', ') : '-') + '</span></div>';
+      if (m.member_number) html += '<div class="detail-item"><label>Member #</label><span>' + m.member_number + '</span></div>';
       html += '<div class="detail-item"><label>Last Login</label><span>' + (m.last_login_at ? new Date(m.last_login_at).toLocaleDateString() : 'Never') + '</span></div>';
       html += '<div class="detail-item"><label>Member Since</label><span>' + (m.created_at ? new Date(m.created_at).toLocaleDateString() : '-') + '</span></div>';
       html += '<div class="detail-item"><label>Total Share Balance</label><span>' + totalSharesFmt + '</span></div>';

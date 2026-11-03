@@ -563,7 +563,7 @@
           <td>${esc(m.address)}</td>
           <td style="font-size:.75rem">${esc(m.email)}</td>
           <td>${esc(m.date_admitted)}</td>
-          <td>${esc(m.parish)}</td>
+          <td>${esc(window.parishName ? window.parishName(m.parish) : m.parish)}</td>
           <td ${R}>${money(m.p_shares)}</td>
           <td ${R}>${money(m.deposits)}</td>
           <td ${R}>${money(m.shares)}</td>

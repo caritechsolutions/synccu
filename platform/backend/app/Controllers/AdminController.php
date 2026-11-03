@@ -209,6 +209,7 @@ final class AdminController
 
         $members = $this->db->fetchAll(
             "SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.role, u.status,
+                    u.member_number, u.address_line_1, u.address_line_2, u.city, u.state, u.zip_code,
                     u.last_login_at, u.created_at,
                     (SELECT COUNT(*) FROM accounts a WHERE a.user_id = u.id AND a.tenant_id = u.tenant_id) AS accounts_count,
                     (SELECT GROUP_CONCAT(a2.account_number ORDER BY a2.created_at SEPARATOR ', ')
@@ -239,6 +240,11 @@ final class AdminController
             'first_name'            => 'required|string|max:100',
             'last_name'             => 'required|string|max:100',
             'phone'                 => 'nullable|string|max:20',
+            'address_line_1'        => 'nullable|string|max:255',
+            'address_line_2'        => 'nullable|string|max:255',
+            'city'                  => 'nullable|string|max:100',
+            'state'                 => 'nullable|string|max:2',
+            'zip_code'              => 'nullable|string|max:10',
             'password'              => 'nullable|string|min:8|max:128',
             'role'                  => 'nullable|in:member,teller,manager,admin',
             'status'                => 'nullable|in:active,inactive',
@@ -251,6 +257,9 @@ final class AdminController
 
         $data = $validator->validated();
         $tenantId = $this->db->getTenantId();
+        foreach (['address_line_1', 'address_line_2', 'city', 'state', 'zip_code'] as $f) {
+            $data[$f] = isset($data[$f]) && trim((string) $data[$f]) !== '' ? trim((string) $data[$f]) : null;
+        }
 
         // Check for duplicate email
         $existing = $this->db->fetchOne(
@@ -274,12 +283,15 @@ final class AdminController
         $forceChange = ($data['force_password_change'] ?? '0') === '1' ? 1 : 0;
 
         $this->db->execute(
-            'INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, phone, role, status, force_password_change, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, phone,
+                                address_line_1, address_line_2, city, state, zip_code,
+                                role, status, force_password_change, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $id, $tenantId, $data['email'], $passwordHash,
                 $data['first_name'], $data['last_name'],
                 $data['phone'] ?? null,
+                $data['address_line_1'], $data['address_line_2'], $data['city'], $data['state'], $data['zip_code'],
                 $data['role'] ?? 'member',
                 $data['status'] ?? 'active',
                 $forceChange,
@@ -435,6 +447,7 @@ final class AdminController
 
         $users = $this->db->fetchAll(
             "SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.role, u.status,
+                    u.member_number, u.address_line_1, u.address_line_2, u.city, u.state, u.zip_code,
                     u.last_login_at, u.created_at,
                     (SELECT COUNT(*) FROM accounts a WHERE a.user_id = u.id AND a.tenant_id = u.tenant_id) AS accounts_count
              FROM users u {$where}
@@ -465,6 +478,11 @@ final class AdminController
             'first_name'            => 'nullable|string|max:100',
             'last_name'             => 'nullable|string|max:100',
             'phone'                 => 'nullable|string|max:20',
+            'address_line_1'        => 'nullable|string|max:255',
+            'address_line_2'        => 'nullable|string|max:255',
+            'city'                  => 'nullable|string|max:100',
+            'state'                 => 'nullable|string|max:2',
+            'zip_code'              => 'nullable|string|max:10',
             'password'              => 'nullable|string|min:8|max:128',
             'role'                  => 'nullable|in:admin,manager,teller,member',
             'status'                => 'nullable|in:active,inactive,suspended',
@@ -478,6 +496,12 @@ final class AdminController
         $data = $validator->validated();
         if (empty($data)) {
             return Response::error('No fields to update', 422);
+        }
+        // Blank address fields clear the stored value
+        foreach (['address_line_1', 'address_line_2', 'city', 'state', 'zip_code'] as $f) {
+            if (array_key_exists($f, $data) && trim((string) $data[$f]) === '') {
+                $data[$f] = null;
+            }
         }
 
         $user = $this->db->findScoped('users', ['id' => $userId]);

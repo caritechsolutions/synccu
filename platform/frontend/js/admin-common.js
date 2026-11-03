@@ -25,6 +25,13 @@ async function apiFetch(url, options = {}) {
   return resp;
 }
 
+/** Parish codes (stored in users.state) → display names. */
+window.PARISHES = {
+  CC: 'Christ Church', SA: 'St. Andrew', SG: 'St. George', SJ: 'St. James', SN: 'St. John',
+  SO: 'St. Joseph', SL: 'St. Lucy', SM: 'St. Michael', SP: 'St. Peter', SH: 'St. Philip', ST: 'St. Thomas',
+};
+window.parishName = function (code) { return (code && window.PARISHES[code]) || code || ''; };
+
 /**
  * Supervisor (user-of-authority) override.
  *
