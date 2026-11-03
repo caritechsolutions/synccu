@@ -7,6 +7,31 @@
   <title>Reports - SyncCU Admin</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="../css/app.css">
+  <style media="print">
+    /* Print only the generated report: no sidebar, topbar, cards or filters */
+    @page { margin: 12mm; }
+    @page landscape { size: landscape; }
+    html, body { background: #fff !important; color: #000 !important; height: auto !important; overflow: visible !important; }
+    .sidebar, .sidebar-overlay, .topbar, .page-header, .report-cards, #reportControls, .btn, .notification-btn, #userDropdown { display: none !important; }
+    .main-wrapper, .main-content { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
+    #reportArea { box-shadow: none !important; border: none !important; margin: 0 !important; border-radius: 0 !important; }
+    #reportArea > div:first-child { border-bottom: 2px solid #000 !important; padding: 0 0 .5rem 0 !important; }
+    #reportContent { padding: .75rem 0 !important; }
+    #printHeader { display: block !important; margin-bottom: .5rem; }
+    #printHeader h2 { margin: 0; font-size: 16pt; }
+    #printHeader .print-sub { font-size: 9pt; color: #333; }
+    .report-summary-grid { display: flex !important; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .report-summary-card { border: 1px solid #999 !important; padding: .35rem .6rem !important; background: #fff !important; color: #000 !important; }
+    .report-summary-card * { color: #000 !important; }
+    .table-responsive { overflow: visible !important; max-height: none !important; }
+    table.data-table { width: 100% !important; border-collapse: collapse !important; font-size: 8.5pt !important; color: #000 !important; }
+    table.data-table th, table.data-table td { border: 1px solid #bbb !important; padding: 2px 4px !important; color: #000 !important; background: #fff !important; }
+    table.data-table thead th { background: #eee !important; font-weight: 700 !important; }
+    table.data-table thead { display: table-header-group; }
+    table.data-table tr { page-break-inside: avoid; }
+    .badge { border: 1px solid #000 !important; color: #000 !important; background: #fff !important; }
+    body.print-landscape { page: landscape; }
+  </style>
   <script>
     if (!localStorage.getItem('synccu-token')) { window.location.href = '../index.html'; }
   </script>
@@ -143,7 +168,7 @@
       </div>
 
       <!-- Date Range & Actions -->
-      <div class="card" style="margin-top:1.5rem;padding:1rem">
+      <div class="card" id="reportControls" style="margin-top:1.5rem;padding:1rem">
         <div style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end">
           <div class="form-group" style="margin:0">
             <label for="reportDateFrom" style="font-size:.75rem">From</label>
@@ -166,6 +191,10 @@
 
       <!-- Report Display Area -->
       <div class="card" id="reportArea" style="margin-top:1rem">
+        <div id="printHeader" style="display:none">
+          <h2 id="printCuName">SyncCU</h2>
+          <div class="print-sub"><span id="printReportTitle"></span> &middot; <span id="printReportRange"></span> &middot; Printed <span id="printedAt"></span></div>
+        </div>
         <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
           <h3 id="reportTitle" style="margin:0">Income Statement</h3>
           <span class="text-muted" id="reportDateRange"></span>
@@ -581,7 +610,17 @@
     }
 
     // === PRINT ===
-    document.getElementById('printReportBtn').addEventListener('click', () => window.print());
+    const WIDE_REPORTS = ['members-register', 'general-ledger', 'transactions'];
+    document.getElementById('printReportBtn').addEventListener('click', () => {
+      let cuName = 'SyncCU';
+      try { cuName = (JSON.parse(localStorage.getItem('synccu-branding') || '{}').name) || cuName; } catch (e) {}
+      document.getElementById('printCuName').textContent = cuName;
+      document.getElementById('printReportTitle').textContent = document.getElementById('reportTitle').textContent;
+      document.getElementById('printReportRange').textContent = document.getElementById('reportDateRange').textContent;
+      document.getElementById('printedAt').textContent = new Date().toLocaleString();
+      document.body.classList.toggle('print-landscape', WIDE_REPORTS.includes(currentReport));
+      window.print();
+    });
 
     // === EXPORT CSV ===
     document.getElementById('exportReportBtn').addEventListener('click', async () => {
