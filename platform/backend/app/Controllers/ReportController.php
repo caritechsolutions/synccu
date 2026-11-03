@@ -425,8 +425,22 @@ final class ReportController
         $activeLoan = "l.user_id = u.id AND l.tenant_id = u.tenant_id AND l.status IN ('active','delinquent','default')";
         $openAcct   = "a.user_id = u.id AND a.tenant_id = u.tenant_id AND a.status <> 'closed'";
 
-        $sql = "SELECT u.id, u.member_number, u.first_name, u.last_name, u.email, u.phone, u.status,
-                       u.address_line_1, u.address_line_2, u.city, u.state AS parish,
+        // Older installs may not have the address columns yet (migration 010 adds them)
+        $optional = ['member_number', 'address_line_1', 'address_line_2', 'city', 'state'];
+        $have = [];
+        try {
+            $rows = $this->db->fetchAll(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME IN ('member_number','address_line_1','address_line_2','city','state')",
+            );
+            $have = array_map(fn($r) => $r['COLUMN_NAME'], $rows);
+        } catch (\Throwable) {
+            $have = $optional;
+        }
+        $col = fn(string $name, string $alias = '') => (in_array($name, $have, true) ? "u.{$name}" : 'NULL') . ' AS ' . ($alias ?: $name);
+
+        $sql = "SELECT u.id, {$col('member_number')}, u.first_name, u.last_name, u.email, u.phone, u.status,
+                       {$col('address_line_1')}, {$col('address_line_2')}, {$col('city')}, {$col('state', 'parish')},
                        DATE(u.created_at) AS date_admitted,
                        COALESCE((SELECT SUM(a.balance) FROM accounts a WHERE {$openAcct} AND a.account_type = 'permanent_shares'), 0) AS p_shares,
                        COALESCE((SELECT SUM(a.balance) FROM accounts a WHERE {$openAcct} AND a.account_type IN ('savings','checking')), 0) AS deposits,
