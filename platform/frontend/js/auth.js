@@ -45,7 +45,7 @@ class AuthManager {
             // Continue with local logout even if server call fails
         }
         this.clearSession();
-        window.location.href = '/index.html';
+        window.location.href = '/portal/login.html';
     }
 
     async getCurrentUser() {
@@ -83,14 +83,14 @@ class AuthManager {
 
     requireAuth(allowedRoles = null) {
         if (!this.isAuthenticated()) {
-            window.location.href = '/index.html';
+            window.location.href = '/portal/login.html';
             return false;
         }
         if (allowedRoles) {
             const role = this.getRole();
             if (!allowedRoles.includes(role)) {
                 toast.error('Access denied');
-                window.location.href = '/index.html';
+                window.location.href = '/portal/login.html';
                 return false;
             }
         }

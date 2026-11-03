@@ -415,7 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
     api.loadTokens();
     api.onUnauthorized = () => {
         toast.warning('Session expired. Please log in again.');
-        setTimeout(() => window.location.href = '/index.html', 1500);
+        setTimeout(() => window.location.href = '/portal/login.html', 1500);
     };
 
     ModalManager.init();

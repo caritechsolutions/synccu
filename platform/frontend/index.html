@@ -455,6 +455,7 @@
       </form>
 
       <div class="login-footer">
+        Staff sign-in &middot; <a href="/portal/login.html" style="color:inherit">Member online banking</a><br>
         &copy; 2026 SyncCU. Secure banking platform.
       </div>
     </div>
@@ -538,6 +539,16 @@
             return;
           }
 
+          // This page is the staff (back-office) login. Members use the portal login.
+          const role = (data.user && data.user.role) || 'member';
+          if (!['super_admin', 'admin', 'manager', 'teller'].includes(role)) {
+            errorMsg.innerHTML = 'Members sign in through the <a href="/portal/login.html" style="color:inherit;text-decoration:underline">online banking portal</a>.';
+            errorBox.classList.add('visible');
+            btn.disabled = false;
+            btn.textContent = 'Sign In';
+            return;
+          }
+
           // Store tokens (localStorage so they persist across tabs)
           localStorage.setItem('synccu-token', data.access_token);
           localStorage.setItem('synccu-refresh', data.refresh_token);
@@ -549,13 +560,7 @@
             return;
           }
 
-          // Redirect based on role
-          const role = data.user.role;
-          if (['super_admin', 'admin', 'manager', 'teller'].includes(role)) {
-            window.location.href = '/admin/dashboard.html';
-          } else {
-            window.location.href = '/portal/dashboard.html';
-          }
+          window.location.href = '/admin/dashboard.html';
         } catch (err) {
           showError(err.message || 'Connection error. Please try again.');
           btn.disabled = false;

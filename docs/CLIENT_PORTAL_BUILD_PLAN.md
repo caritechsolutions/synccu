@@ -152,8 +152,11 @@ member-login provisioning.
 > transactions / transfer / loan-apply already existed and are member-scoped.
 > Added: secure **messaging** (member↔staff + admin inbox), **applications**
 > (loan/service + admin review), and **bill pay** (payees + payments via the
-> ledger). Still outstanding in this phase: the dedicated member login page +
-> `force_password_change` flow, and admin **member-login provisioning** UI.
+> ledger). The dedicated member login (`portal/login.html`, member-only; the
+> staff login at `index.html` now rejects members) and the
+> `force_password_change` flow are in place. Member-login provisioning is done
+> from the admin Members screen (set/generate password + force change on next
+> login).
 
 - Split login: **`portal/login.html`** (member-only) separate from staff login
 - Member-only API route group (loads only on `role=member` deployments)
