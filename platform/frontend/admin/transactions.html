@@ -148,6 +148,9 @@
           <button class="btn btn-secondary" id="unifiedTransferBtn">
             <svg><use href="#icon-send"/></svg> Transfer
           </button>
+          <button class="btn btn-secondary" id="batchTransactionBtn" title="Several transactions for one member in one go">
+            <svg><use href="#icon-plus"/></svg> Batch (Multi-line)
+          </button>
           <button class="btn btn-primary" id="newTransactionBtn">
             <svg><use href="#icon-plus"/></svg> New Transaction
           </button>
@@ -265,13 +268,46 @@
               <option value="">Select type...</option>
               <option value="deposit">Deposit</option>
               <option value="withdrawal">Withdrawal</option>
+              <option value="loan_payment">Loan Payment</option>
             </select>
           </div>
+          <!-- Transaction date (locked to today; supervisor can unlock to backdate) -->
           <div class="form-group">
+            <label for="txnDate">Transaction Date <span style="font-weight:400;color:var(--text-muted);font-size:var(--text-xs)">(backdating requires supervisor)</span></label>
+            <div style="display:flex;gap:.5rem;align-items:center">
+              <input type="date" id="txnDate" class="form-input" style="flex:1" disabled>
+              <button type="button" class="btn btn-secondary btn-sm" id="txnDateUnlock">Unlock</button>
+            </div>
+            <small id="txnDateBadge" class="badge badge-warning" style="display:none;margin-top:.35rem"></small>
+          </div>
+          <div class="form-group" id="txnAccountGroup">
             <label for="txnAccountSearch" id="txnAccountLabel">Account</label>
             <input type="text" id="txnAccountSearch" class="form-input" placeholder="Search account by number or member..." autocomplete="off" required>
             <input type="hidden" id="txnAccountId" name="account_id">
             <div class="search-results" id="txnAccountResults"></div>
+          </div>
+          <!-- Loan payment fields -->
+          <div class="form-group" id="txnLoanGroup" style="display:none">
+            <label for="txnLoanSearch">Loan</label>
+            <input type="text" id="txnLoanSearch" class="form-input" placeholder="Search by loan number or member name..." autocomplete="off">
+            <input type="hidden" id="txnLoanId">
+            <input type="hidden" id="txnLoanMemberId">
+            <div class="search-results" id="txnLoanResults"></div>
+            <div id="txnLoanInfo" style="display:none;margin-top:.4rem;font-size:var(--text-xs);color:var(--text-muted)"></div>
+          </div>
+          <div class="form-group" id="txnLoanMethodGroup" style="display:none">
+            <label for="txnLoanMethod">Payment Method</label>
+            <select id="txnLoanMethod" class="form-select">
+              <option value="cash">Cash</option>
+              <option value="account">From Member Account</option>
+              <option value="check">Check</option>
+              <option value="wire">Wire Transfer</option>
+              <option value="ach">ACH / Electronic</option>
+            </select>
+          </div>
+          <div class="form-group" id="txnLoanFromAccountGroup" style="display:none">
+            <label for="txnLoanFromAccount">Pay From Account</label>
+            <select id="txnLoanFromAccount" class="form-select"><option value="">Select account...</option></select>
           </div>
           <div class="form-group" id="txnDestGroup" style="display:none">
             <label for="txnDestSearch">Destination Account</label>
@@ -372,6 +408,76 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="cancelTxnBtn">Cancel</button>
           <button type="submit" class="btn btn-primary" id="txnSubmitBtn">Process Transaction</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Batch (Multi-line) Transaction Modal -->
+  <div class="modal-overlay" id="batchModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>Batch Transaction — One Member, Several Lines</h3>
+        <button class="icon-btn modal-close" id="closeBatchModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <form id="batchForm">
+        <div class="modal-body">
+          <p style="font-size:var(--text-sm);color:var(--text-muted);margin:0 0 var(--space-3) 0">
+            Example: take $100 from the member, put $20 in savings and $80 against their loan. All lines post together and one net cash movement goes to the drawer.
+          </p>
+          <div class="form-row">
+            <div class="form-group" style="flex:2;position:relative">
+              <label for="batchMemberSearch">Member</label>
+              <input type="text" id="batchMemberSearch" class="form-input" placeholder="Search member by name, email, or member #..." autocomplete="off">
+              <input type="hidden" id="batchMemberId">
+              <div class="search-results" id="batchMemberResults"></div>
+              <div id="batchMemberInfo" style="display:none;margin-top:.4rem;font-size:var(--text-xs);color:var(--text-muted)"></div>
+            </div>
+            <div class="form-group" style="flex:1">
+              <label for="batchDate">Transaction Date</label>
+              <div style="display:flex;gap:.5rem;align-items:center">
+                <input type="date" id="batchDate" class="form-input" style="flex:1" disabled>
+                <button type="button" class="btn btn-secondary btn-sm" id="batchDateUnlock">Unlock</button>
+              </div>
+              <small id="batchDateBadge" class="badge badge-warning" style="display:none;margin-top:.35rem"></small>
+            </div>
+          </div>
+
+          <div class="table-responsive" style="margin-top:var(--space-2)">
+            <table class="data-table data-table-sm" id="batchLinesTable">
+              <thead>
+                <tr><th style="width:150px">Type</th><th>Account / Loan</th><th style="width:130px">Amount</th><th>Note</th><th style="width:36px"></th></tr>
+              </thead>
+              <tbody id="batchLinesBody"></tbody>
+            </table>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="batchAddLineBtn" style="margin-top:var(--space-2)" disabled>+ Add Line</button>
+
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);margin-top:var(--space-4);padding:var(--space-3);background:var(--bg-secondary);border-radius:var(--radius-md)">
+            <div><div style="font-size:var(--text-xs);color:var(--text-muted)">Cash In (deposits + loan payments)</div><div id="batchCashIn" style="font-weight:700;color:#059669">$0.00</div></div>
+            <div><div style="font-size:var(--text-xs);color:var(--text-muted)">Cash Out (withdrawals)</div><div id="batchCashOut" style="font-weight:700;color:#dc2626">$0.00</div></div>
+            <div><div style="font-size:var(--text-xs);color:var(--text-muted)">Net Cash to Drawer</div><div id="batchNet" style="font-weight:700">$0.00</div></div>
+          </div>
+
+          <div id="batchDrawerGroup" style="margin-top:var(--space-3)">
+            <div class="form-group">
+              <label for="batchDrawerId">Cash Drawer <span style="font-weight:400;color:var(--text-muted);font-size:var(--text-xs)">(for the net cash)</span></label>
+              <select id="batchDrawerId" class="form-select"><option value="">No drawer movement</option></select>
+            </div>
+            <div class="form-group" id="batchDenomGroup" style="display:none">
+              <label>Denominations (net cash)</label>
+              <div id="batchDenomGrid"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="batchDescription">Batch Note</label>
+            <input type="text" id="batchDescription" class="form-input" placeholder="Optional note applied to every line without its own note">
+          </div>
+          <div id="batchResult" style="display:none;margin-top:var(--space-3);padding:var(--space-3);border-radius:var(--radius-md);background:#ecfdf5;color:#065f46;font-size:var(--text-sm)"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelBatchBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="batchSubmitBtn" disabled>Post Batch</button>
         </div>
       </form>
     </div>
@@ -699,17 +805,28 @@
     document.getElementById('closeTxnDetailBtn').addEventListener('click', () => txnDetailModal.classList.remove('active'));
     txnDetailModal.addEventListener('click', (e) => { if (e.target === txnDetailModal) txnDetailModal.classList.remove('active'); });
 
+    // Protected transaction date (supervisor unlock to backdate)
+    const txnDateField = SupervisorAuth.bindDateField('txnDate', 'txnDateUnlock', 'txnDateBadge',
+      'Backdating a transaction requires a manager or administrator to authorize it.');
+
     // Show/hide fields based on transaction type
     txnType.addEventListener('change', () => {
       const val = txnType.value;
+      const isLoan = val === 'loan_payment';
       document.getElementById('txnDestGroup').style.display = 'none';
       document.getElementById('txnFundingGroup').style.display = val === 'deposit' ? '' : 'none';
       document.getElementById('txnDisbursementGroup').style.display = val === 'withdrawal' ? '' : 'none';
+      document.getElementById('txnAccountGroup').style.display = isLoan ? 'none' : '';
+      document.getElementById('txnAccountSearch').required = !isLoan;
+      document.getElementById('txnLoanGroup').style.display = isLoan ? '' : 'none';
+      document.getElementById('txnLoanMethodGroup').style.display = isLoan ? '' : 'none';
+      document.getElementById('txnLoanSearch').required = isLoan;
       updateMethodVisibility();
     });
 
     document.getElementById('txnFundingSource').addEventListener('change', updateMethodVisibility);
     document.getElementById('txnDisbursement').addEventListener('change', updateMethodVisibility);
+    document.getElementById('txnLoanMethod').addEventListener('change', updateMethodVisibility);
 
     function updateMethodVisibility() {
       const val = txnType.value;
@@ -717,9 +834,12 @@
       const isWithdrawCheck = val === 'withdrawal' && document.getElementById('txnDisbursement').value === 'check';
       const isDepositCash = val === 'deposit' && document.getElementById('txnFundingSource').value === 'cash';
       const isWithdrawCash = val === 'withdrawal' && document.getElementById('txnDisbursement').value === 'cash';
+      const loanMethod = document.getElementById('txnLoanMethod').value;
+      const isLoanCash = val === 'loan_payment' && loanMethod === 'cash';
+      document.getElementById('txnLoanFromAccountGroup').style.display = (val === 'loan_payment' && loanMethod === 'account') ? '' : 'none';
       document.getElementById('txnChecksGroup').style.display = isDepositCheck ? '' : 'none';
       document.getElementById('txnWdCheckGroup').style.display = isWithdrawCheck ? '' : 'none';
-      document.getElementById('txnCashDrawerGroup').style.display = (isDepositCash || isWithdrawCash) ? '' : 'none';
+      document.getElementById('txnCashDrawerGroup').style.display = (isDepositCash || isWithdrawCash || isLoanCash) ? '' : 'none';
       const amtInput = document.getElementById('txnAmount');
       if (isDepositCheck) {
         amtInput.readOnly = true;
@@ -846,14 +966,82 @@
     setupAccountSearch('txnAccountSearch', 'txnAccountResults', 'txnAccountId', { excludeLoanAccounts: true });
     setupAccountSearch('txnDestSearch', 'txnDestResults', 'txnDestId');
 
+    // --- Loan Search Autocomplete (payable loans only) ---
+    const PAYABLE_STATUSES = ['active', 'delinquent', 'approved'];
+    function loanLabel(l) {
+      return l.loan_number + ' - ' + (l.member_name || 'Unknown') +
+        ' (' + (l.loan_type || '') + ', owes $' + Number(l.outstanding_balance || 0).toLocaleString('en-US', {minimumFractionDigits:2}) + ')';
+    }
+    async function loadMemberAccountsInto(selectEl, memberId, opts) {
+      selectEl.innerHTML = '<option value="">Select account...</option>';
+      if (!memberId) return [];
+      try {
+        const resp = await apiFetch('/api/v1/members/' + memberId);
+        if (!resp.ok) return [];
+        const json = await resp.json();
+        const accts = ((json.data && json.data.accounts) || []).filter(a => a.account_type !== 'loan' && a.status === 'active');
+        accts.forEach(a => {
+          selectEl.innerHTML += '<option value="' + a.id + '">' + a.account_number + ' - ' + (a.name || a.account_type) +
+            ' ($' + Number(a.balance || 0).toLocaleString('en-US', {minimumFractionDigits:2}) + ')</option>';
+        });
+        return accts;
+      } catch (e) { return []; }
+    }
+    (function setupLoanSearch() {
+      const input = document.getElementById('txnLoanSearch');
+      const results = document.getElementById('txnLoanResults');
+      const hidden = document.getElementById('txnLoanId');
+      const memberHidden = document.getElementById('txnLoanMemberId');
+      const info = document.getElementById('txnLoanInfo');
+      let timeout;
+      input.addEventListener('input', () => {
+        clearTimeout(timeout);
+        hidden.value = ''; memberHidden.value = ''; info.style.display = 'none';
+        const q = input.value.trim();
+        if (q.length < 2) { results.innerHTML = ''; return; }
+        timeout = setTimeout(async () => {
+          try {
+            const resp = await apiFetch('/api/v1/loans?search=' + encodeURIComponent(q) + '&per_page=20');
+            if (!resp.ok) return;
+            const json = await resp.json();
+            const loans = (json.data || []).filter(l => PAYABLE_STATUSES.includes(l.status));
+            if (!loans.length) { results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted)">No payable loans found</div>'; return; }
+            const byId = {};
+            loans.forEach(l => byId[l.id] = l);
+            results.innerHTML = loans.map(l => '<div class="search-result-item" data-id="' + l.id + '">' + loanLabel(l) + '</div>').join('');
+            results.querySelectorAll('.search-result-item[data-id]').forEach(item => {
+              item.addEventListener('click', async () => {
+                const l = byId[item.dataset.id];
+                hidden.value = l.id; memberHidden.value = l.user_id || '';
+                input.value = loanLabel(l);
+                results.innerHTML = '';
+                info.textContent = 'Rate ' + Number(l.interest_rate || 0).toFixed(2) + '% · Monthly payment $' +
+                  Number(l.monthly_payment || 0).toLocaleString('en-US', {minimumFractionDigits:2}) +
+                  (l.next_payment_date ? ' · Next due ' + l.next_payment_date : '');
+                info.style.display = '';
+                await loadMemberAccountsInto(document.getElementById('txnLoanFromAccount'), l.user_id);
+              });
+            });
+          } catch (e) { /* ignore */ }
+        }, 300);
+      });
+      document.addEventListener('click', (e) => { if (!input.contains(e.target) && !results.contains(e.target)) results.innerHTML = ''; });
+    })();
+
     // --- Form Submit ---
     txnForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const type = txnType.value;
       const accountId = document.getElementById('txnAccountId').value;
       const destId = document.getElementById('txnDestId').value;
+      const loanId = document.getElementById('txnLoanId').value;
 
-      if (!accountId) { alert('Please select an account from the search results.'); return; }
+      if (type === 'loan_payment') {
+        if (!loanId) { alert('Please select a loan from the search results.'); return; }
+        if (document.getElementById('txnLoanMethod').value === 'account' && !document.getElementById('txnLoanFromAccount').value) {
+          alert('Please select the member account to pay from.'); return;
+        }
+      } else if (!accountId) { alert('Please select an account from the search results.'); return; }
 
       const submitBtn = document.getElementById('txnSubmitBtn');
       submitBtn.disabled = true;
@@ -864,8 +1052,22 @@
         amount: document.getElementById('txnAmount').value,
         description: document.getElementById('txnDescription').value,
       };
+      txnDateField.attachTo(payload, 'transaction_date');
 
-      payload.account_id = accountId;
+      if (type === 'loan_payment') {
+        payload.loan_id = loanId;
+        payload.method = document.getElementById('txnLoanMethod').value;
+        if (payload.method === 'account') payload.from_account_id = document.getElementById('txnLoanFromAccount').value;
+        if (payload.method === 'cash') {
+          const drawerId = document.getElementById('txnDrawerId').value;
+          if (drawerId) {
+            payload.drawer_id = drawerId;
+            if (typeof txnDenomGridObj !== 'undefined' && txnDenomGridObj) payload.denominations = txnDenomGridObj.getValues();
+          }
+        }
+      } else {
+        payload.account_id = accountId;
+      }
 
       if (type === 'deposit') {
         payload.funding_source = document.getElementById('txnFundingSource').value;
@@ -946,10 +1148,27 @@
           }
         }
 
+        if (type === 'loan_payment' && result.data && result.data.payment) {
+          const p = result.data.payment;
+          alert('Loan payment posted: $' + Number(p.amount || 0).toFixed(2) +
+            '\nInterest: $' + Number(p.interest || 0).toFixed(2) + ' (' + (p.days_accrued || 0) + ' days)' +
+            '\nPrincipal: $' + Number(p.principal || 0).toFixed(2) +
+            '\nNew balance: $' + Number(p.new_balance || 0).toFixed(2));
+        }
+
         txnModal.classList.remove('active');
         txnForm.reset();
+        txnDateField.reset();
         document.getElementById('txnAccountId').value = '';
         document.getElementById('txnDestId').value = '';
+        document.getElementById('txnLoanId').value = '';
+        document.getElementById('txnLoanMemberId').value = '';
+        document.getElementById('txnLoanInfo').style.display = 'none';
+        document.getElementById('txnLoanGroup').style.display = 'none';
+        document.getElementById('txnLoanMethodGroup').style.display = 'none';
+        document.getElementById('txnLoanFromAccountGroup').style.display = 'none';
+        document.getElementById('txnAccountGroup').style.display = '';
+        document.getElementById('txnAccountSearch').required = true;
         document.getElementById('txnDestGroup').style.display = 'none';
         document.getElementById('txnFundingGroup').style.display = 'none';
         document.getElementById('txnDisbursementGroup').style.display = 'none';
@@ -1721,6 +1940,248 @@
       }
     }
     loadTxnCashSetup();
+
+    // ================================================================
+    // Batch (multi-line) transaction for one member
+    // ================================================================
+    (function setupBatch() {
+      const modal = document.getElementById('batchModal');
+      const form = document.getElementById('batchForm');
+      const linesBody = document.getElementById('batchLinesBody');
+      const addBtn = document.getElementById('batchAddLineBtn');
+      const submitBtn = document.getElementById('batchSubmitBtn');
+      const memberInput = document.getElementById('batchMemberSearch');
+      const memberResults = document.getElementById('batchMemberResults');
+      const memberIdEl = document.getElementById('batchMemberId');
+      const memberInfo = document.getElementById('batchMemberInfo');
+      const drawerSel = document.getElementById('batchDrawerId');
+      const fmtM = n => '$' + Number(n || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+      let member = null;       // { id, name, accounts: [], loans: [] }
+      let lines = [];          // { type, account_id, loan_id, from_account_id, amount, description }
+      let batchDenomObj = null;
+      const batchDate = SupervisorAuth.bindDateField('batchDate', 'batchDateUnlock', 'batchDateBadge',
+        'Backdating a batch requires a manager or administrator to authorize it.');
+
+      function open() {
+        reset();
+        // Mirror the teller's drawer from the single-transaction form
+        const src = document.getElementById('txnDrawerId');
+        drawerSel.innerHTML = '<option value="">No drawer movement</option>';
+        Array.from(src.options).forEach(o => { if (o.value) drawerSel.innerHTML += '<option value="' + o.value + '">' + o.textContent + '</option>'; });
+        if (drawerSel.options.length > 1) drawerSel.selectedIndex = 1;
+        buildBatchDenomGrid();
+        modal.classList.add('active');
+        setTimeout(() => memberInput.focus(), 50);
+      }
+      function close() { modal.classList.remove('active'); }
+      function reset() {
+        member = null; lines = [];
+        memberInput.value = ''; memberIdEl.value = ''; memberResults.innerHTML = ''; memberInfo.style.display = 'none';
+        document.getElementById('batchDescription').value = '';
+        document.getElementById('batchResult').style.display = 'none';
+        batchDate.reset();
+        addBtn.disabled = true; submitBtn.disabled = true;
+        renderLines();
+      }
+      document.getElementById('batchTransactionBtn').addEventListener('click', open);
+      document.getElementById('closeBatchModal').addEventListener('click', close);
+      document.getElementById('cancelBatchBtn').addEventListener('click', close);
+      modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+      function buildBatchDenomGrid() {
+        const el = document.getElementById('batchDenomGrid');
+        let html = '<table style="width:100%;border-collapse:collapse;font-size:.85rem"><thead><tr><th style="text-align:left;padding:.3rem .5rem">Denom</th><th style="padding:.3rem .5rem">Count</th><th style="text-align:right;padding:.3rem .5rem">Value</th></tr></thead><tbody>';
+        txnDenoms.forEach(d => {
+          html += '<tr><td style="padding:.3rem .5rem">' + d.label + '</td><td style="padding:.3rem .5rem;text-align:center"><input type="number" min="0" value="0" data-denom="' + d.key + '" data-face="' + d.face + '" class="batch-dg-input" style="width:65px;text-align:center;padding:.2rem;border:1px solid var(--border-color,#e2e8f0);border-radius:4px"></td><td class="batch-dg-val" data-denom="' + d.key + '" style="text-align:right;padding:.3rem .5rem">$0.00</td></tr>';
+        });
+        html += '</tbody><tfoot><tr style="font-weight:700;background:var(--bg-secondary,#f8fafc)"><td colspan="2" style="padding:.4rem .5rem">TOTAL</td><td id="batchDenomTotal" style="text-align:right;padding:.4rem .5rem">$0.00</td></tr></tfoot></table>';
+        el.innerHTML = html;
+        const update = () => {
+          let total = 0;
+          el.querySelectorAll('.batch-dg-input').forEach(inp => {
+            const v = (parseInt(inp.value) || 0) * parseFloat(inp.dataset.face);
+            total += v;
+            el.querySelector('.batch-dg-val[data-denom="' + inp.dataset.denom + '"]').textContent = fmtM(v);
+          });
+          document.getElementById('batchDenomTotal').textContent = fmtM(total);
+        };
+        el.querySelectorAll('.batch-dg-input').forEach(inp => inp.addEventListener('input', update));
+        batchDenomObj = {
+          getValues() {
+            const vals = [];
+            el.querySelectorAll('.batch-dg-input').forEach(inp => { const c = parseInt(inp.value) || 0; if (c > 0) vals.push({denomination: inp.dataset.denom, count: c}); });
+            return vals;
+          },
+        };
+      }
+      drawerSel.addEventListener('change', () => { document.getElementById('batchDenomGroup').style.display = drawerSel.value ? '' : 'none'; });
+
+      // Member search
+      let mTimeout;
+      memberInput.addEventListener('input', () => {
+        clearTimeout(mTimeout);
+        const q = memberInput.value.trim();
+        if (member) { member = null; memberIdEl.value = ''; lines = []; renderLines(); addBtn.disabled = true; submitBtn.disabled = true; memberInfo.style.display = 'none'; }
+        if (q.length < 2) { memberResults.innerHTML = ''; return; }
+        mTimeout = setTimeout(async () => {
+          try {
+            const resp = await apiFetch('/api/v1/members?search=' + encodeURIComponent(q) + '&per_page=10');
+            if (!resp.ok) return;
+            const json = await resp.json();
+            const members = (json.data || []).filter(m => m.role === 'member');
+            if (!members.length) { memberResults.innerHTML = '<div class="search-result-item" style="color:var(--text-muted)">No members found</div>'; return; }
+            const byId = {}; members.forEach(m => byId[m.id] = m);
+            memberResults.innerHTML = members.map(m =>
+              '<div class="search-result-item" data-id="' + m.id + '"><strong>' + m.first_name + ' ' + m.last_name + '</strong>' +
+              ' <span style="color:var(--text-muted);font-size:var(--text-xs)">' + (m.email || '') + (m.account_numbers ? ' · ' + m.account_numbers : '') + '</span></div>'
+            ).join('');
+            memberResults.querySelectorAll('.search-result-item[data-id]').forEach(item => item.addEventListener('click', () => selectMember(byId[item.dataset.id])));
+          } catch (e) {}
+        }, 300);
+      });
+      document.addEventListener('click', (e) => { if (!memberInput.contains(e.target) && !memberResults.contains(e.target)) memberResults.innerHTML = ''; });
+
+      async function selectMember(m) {
+        memberResults.innerHTML = '';
+        memberInput.value = m.first_name + ' ' + m.last_name;
+        memberIdEl.value = m.id;
+        memberInfo.textContent = 'Loading accounts...'; memberInfo.style.display = '';
+        try {
+          const resp = await apiFetch('/api/v1/members/' + m.id);
+          const json = await resp.json();
+          const d = json.data || {};
+          member = {
+            id: m.id, name: memberInput.value,
+            accounts: (d.accounts || []).filter(a => a.account_type !== 'loan' && a.status === 'active'),
+            loans: (d.loans || []).filter(l => PAYABLE_STATUSES.includes(l.status)),
+          };
+          memberInfo.textContent = member.accounts.length + ' account(s), ' + member.loans.length + ' payable loan(s)';
+          addBtn.disabled = false;
+          lines = [{ type: 'deposit', account_id: member.accounts[0] ? member.accounts[0].id : '', loan_id: '', from_account_id: '', amount: '', description: '' }];
+          renderLines();
+        } catch (e) { memberInfo.textContent = 'Failed to load member accounts'; }
+      }
+
+      function targetOptions(line) {
+        if (line.type === 'loan_payment') {
+          let html = '<select class="form-select bl-loan" style="min-width:220px"><option value="">Select loan...</option>';
+          member.loans.forEach(l => html += '<option value="' + l.id + '"' + (l.id === line.loan_id ? ' selected' : '') + '>' + l.loan_number + ' - ' + (l.loan_type || '') + ' (owes ' + fmtM(l.outstanding_balance) + ')</option>');
+          html += '</select>';
+          html += '<select class="form-select bl-from" style="min-width:200px;margin-top:.25rem"><option value="">Paid in cash</option>';
+          member.accounts.forEach(a => html += '<option value="' + a.id + '"' + (a.id === line.from_account_id ? ' selected' : '') + '>From ' + a.account_number + ' (' + fmtM(a.balance) + ')</option>');
+          html += '</select>';
+          return html;
+        }
+        let html = '<select class="form-select bl-account" style="min-width:220px"><option value="">Select account...</option>';
+        member.accounts.forEach(a => html += '<option value="' + a.id + '"' + (a.id === line.account_id ? ' selected' : '') + '>' + a.account_number + ' - ' + (a.name || a.account_type) + ' (' + fmtM(a.balance) + ')</option>');
+        return html + '</select>';
+      }
+
+      function renderLines() {
+        if (!member) { linesBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem">Select a member to start adding lines.</td></tr>'; updateTotals(); return; }
+        linesBody.innerHTML = lines.map((line, i) =>
+          '<tr data-i="' + i + '">' +
+          '<td><select class="form-select bl-type">' +
+            '<option value="deposit"' + (line.type === 'deposit' ? ' selected' : '') + '>Deposit</option>' +
+            '<option value="withdrawal"' + (line.type === 'withdrawal' ? ' selected' : '') + '>Withdrawal</option>' +
+            '<option value="loan_payment"' + (line.type === 'loan_payment' ? ' selected' : '') + '>Loan Payment</option>' +
+          '</select></td>' +
+          '<td>' + targetOptions(line) + '</td>' +
+          '<td><input type="number" class="form-input bl-amount" step="0.01" min="0.01" value="' + (line.amount || '') + '" placeholder="0.00"></td>' +
+          '<td><input type="text" class="form-input bl-desc" value="' + (line.description || '').replace(/"/g, '&quot;') + '" placeholder="Optional"></td>' +
+          '<td><button type="button" class="icon-btn bl-remove" title="Remove" style="color:var(--danger)"><svg style="width:14px;height:14px"><use href="#icon-x"/></svg></button></td>' +
+          '</tr>'
+        ).join('');
+        linesBody.querySelectorAll('tr').forEach(tr => {
+          const i = parseInt(tr.dataset.i);
+          tr.querySelector('.bl-type').addEventListener('change', (e) => { lines[i].type = e.target.value; if (lines[i].type === 'loan_payment') { lines[i].loan_id = member.loans[0] ? member.loans[0].id : ''; } else { lines[i].account_id = member.accounts[0] ? member.accounts[0].id : ''; } renderLines(); });
+          const acct = tr.querySelector('.bl-account'); if (acct) acct.addEventListener('change', (e) => { lines[i].account_id = e.target.value; });
+          const loan = tr.querySelector('.bl-loan'); if (loan) loan.addEventListener('change', (e) => { lines[i].loan_id = e.target.value; });
+          const from = tr.querySelector('.bl-from'); if (from) from.addEventListener('change', (e) => { lines[i].from_account_id = e.target.value; updateTotals(); });
+          tr.querySelector('.bl-amount').addEventListener('input', (e) => { lines[i].amount = e.target.value; updateTotals(); });
+          tr.querySelector('.bl-desc').addEventListener('input', (e) => { lines[i].description = e.target.value; });
+          tr.querySelector('.bl-remove').addEventListener('click', () => { lines.splice(i, 1); renderLines(); });
+        });
+        updateTotals();
+      }
+
+      function updateTotals() {
+        let cashIn = 0, cashOut = 0;
+        lines.forEach(l => {
+          const a = parseFloat(l.amount) || 0;
+          if (l.type === 'deposit') cashIn += a;
+          else if (l.type === 'withdrawal') cashOut += a;
+          else if (l.type === 'loan_payment' && !l.from_account_id) cashIn += a;
+        });
+        const net = Math.round((cashIn - cashOut) * 100) / 100;
+        document.getElementById('batchCashIn').textContent = fmtM(cashIn);
+        document.getElementById('batchCashOut').textContent = fmtM(cashOut);
+        const netEl = document.getElementById('batchNet');
+        netEl.textContent = (net < 0 ? '-' : '') + fmtM(Math.abs(net)) + (net > 0 ? ' in' : net < 0 ? ' out' : '');
+        netEl.style.color = net > 0 ? '#059669' : net < 0 ? '#dc2626' : '';
+        submitBtn.disabled = !member || !lines.length;
+      }
+
+      addBtn.addEventListener('click', () => {
+        if (!member) return;
+        lines.push({ type: 'deposit', account_id: member.accounts[0] ? member.accounts[0].id : '', loan_id: '', from_account_id: '', amount: '', description: '' });
+        renderLines();
+        const inputs = linesBody.querySelectorAll('.bl-amount');
+        if (inputs.length) inputs[inputs.length - 1].focus();
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!member || !lines.length) return;
+        for (let i = 0; i < lines.length; i++) {
+          const l = lines[i];
+          if (!(parseFloat(l.amount) > 0)) { alert('Line ' + (i + 1) + ': enter an amount.'); return; }
+          if (l.type === 'loan_payment' && !l.loan_id) { alert('Line ' + (i + 1) + ': select a loan.'); return; }
+          if (l.type !== 'loan_payment' && !l.account_id) { alert('Line ' + (i + 1) + ': select an account.'); return; }
+        }
+        const payload = {
+          member_id: member.id,
+          description: document.getElementById('batchDescription').value,
+          lines: lines.map(l => ({
+            type: l.type, amount: parseFloat(l.amount), description: l.description,
+            account_id: l.type === 'loan_payment' ? undefined : l.account_id,
+            loan_id: l.type === 'loan_payment' ? l.loan_id : undefined,
+            from_account_id: l.type === 'loan_payment' && l.from_account_id ? l.from_account_id : undefined,
+          })),
+        };
+        if (drawerSel.value) { payload.drawer_id = drawerSel.value; if (batchDenomObj) payload.denominations = batchDenomObj.getValues(); }
+        batchDate.attachTo(payload, 'transaction_date');
+
+        const summary = lines.map((l, i) => (i + 1) + '. ' + l.type.replace('_', ' ') + ' ' + fmtM(l.amount)).join('\n');
+        if (!confirm('Post this batch for ' + member.name + '?\n\n' + summary + '\n\nNet cash: ' + document.getElementById('batchNet').textContent)) return;
+
+        submitBtn.disabled = true; submitBtn.textContent = 'Posting...';
+        try {
+          const resp = await apiFetch('/api/v1/transactions/batch', { method: 'POST', body: JSON.stringify(payload) });
+          const json = await resp.json().catch(() => ({}));
+          if (!resp.ok) {
+            let msg = json.error || json.message || 'Batch failed';
+            if (json.errors) msg += '\n\n' + Object.entries(json.errors).map(([f, m]) => f + ': ' + (Array.isArray(m) ? m.join(', ') : m)).join('\n');
+            alert(msg); return;
+          }
+          const d = json.data || {};
+          const res = document.getElementById('batchResult');
+          res.innerHTML = '<strong>Batch ' + (d.batch_ref || '') + ' posted.</strong> Cash in ' + fmtM(d.cash_in) + ', cash out ' + fmtM(d.cash_out) + ', net ' + fmtM(d.net_cash) + '.' +
+            (d.backdated ? ' Dated ' + d.backdated + '.' : '') + '<ul style="margin:.5rem 0 0 1rem;padding:0">' +
+            (d.lines || []).map(l => '<li>' + l.type.replace('_', ' ') + ' ' + fmtM(l.amount) + ' — ' + (l.account || l.loan || '') + (l.reference ? ' (' + l.reference + ')' : '') +
+              (l.type === 'loan_payment' ? ' · interest ' + fmtM(l.interest) + ', principal ' + fmtM(l.principal) + ', balance ' + fmtM(l.new_balance) : '') + '</li>').join('') + '</ul>';
+          res.style.display = '';
+          lines = []; renderLines();
+          loadTransactions();
+        } catch (err) {
+          alert('Network error: ' + err.message);
+        } finally {
+          submitBtn.textContent = 'Post Batch';
+          updateTotals();
+        }
+      });
+    })();
 
     // ================================================================
     // Receipt System

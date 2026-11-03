@@ -72,7 +72,7 @@ final class TransactionService
         return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account, $metadata, $cashService) {
             $txnId   = $this->generateUuid();
             $refNo   = $this->generateReferenceNumber();
-            $now     = date('Y-m-d H:i:s');
+            $now     = $this->effectiveDate($metadata);
             $balanceAfter = (float) $account['balance'] + $amount;
             $metaJson = !empty($metadata) ? json_encode($metadata) : null;
 
@@ -143,7 +143,7 @@ final class TransactionService
         return $this->db->transaction(function () use ($accountId, $amount, $description, $userId, $account, $metadata, $cashService) {
             $txnId = $this->generateUuid();
             $refNo = $this->generateReferenceNumber();
-            $now   = date('Y-m-d H:i:s');
+            $now   = $this->effectiveDate($metadata);
             $balanceAfter = (float) $account['balance'] - $amount;
             $metaJson = !empty($metadata) ? json_encode($metadata) : null;
 
@@ -198,6 +198,7 @@ final class TransactionService
         float  $amount,
         string $description = '',
         ?string $userId = null,
+        array  $metadata = [],
     ): array {
         if ($amount <= 0) {
             throw new RuntimeException('Transfer amount must be positive.', 422);
@@ -223,13 +224,14 @@ final class TransactionService
         }
 
         return $this->db->transaction(function () use (
-            $fromAccountId, $toAccountId, $amount, $description, $userId, $fromAccount, $toAccount,
+            $fromAccountId, $toAccountId, $amount, $description, $userId, $fromAccount, $toAccount, $metadata,
         ) {
             $refNo = $this->generateReferenceNumber();
-            $now   = date('Y-m-d H:i:s');
+            $now   = $this->effectiveDate($metadata);
             $tenantId = $this->db->getTenantId();
             $fromBalanceAfter = (float) $fromAccount['balance'] - $amount;
             $toBalanceAfter   = (float) $toAccount['balance'] + $amount;
+            $metaJson = !empty($metadata) ? json_encode($metadata) : null;
 
             // Outgoing side
             $txnId = $this->generateUuid();
@@ -239,12 +241,12 @@ final class TransactionService
                 'INSERT INTO transactions
                     (id, tenant_id, account_id, related_account_id, related_transaction_id,
                      reference_number, type, status, amount, balance_after,
-                     processed_by, description, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $txnId, $tenantId, $fromAccountId, $toAccountId, $relatedTxnId,
                     $refNo, 'transfer', 'completed', $amount, $fromBalanceAfter,
-                    $userId, $description ?: "Transfer to {$toAccount['account_number']}", $now,
+                    $userId, $description ?: "Transfer to {$toAccount['account_number']}", $metaJson, $now,
                 ],
             );
 
@@ -253,12 +255,12 @@ final class TransactionService
                 'INSERT INTO transactions
                     (id, tenant_id, account_id, related_account_id, related_transaction_id,
                      reference_number, type, status, amount, balance_after,
-                     processed_by, description, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                     processed_by, description, metadata, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $relatedTxnId, $tenantId, $toAccountId, $fromAccountId, $txnId,
                     $refNo, 'transfer', 'completed', $amount, $toBalanceAfter,
-                    $userId, $description ?: "Transfer from {$fromAccount['account_number']}", $now,
+                    $userId, $description ?: "Transfer from {$fromAccount['account_number']}", $metaJson, $now,
                 ],
             );
 
@@ -668,6 +670,19 @@ final class TransactionService
         if ($account['status'] !== 'active') {
             throw new RuntimeException("Account {$account['account_number']} is not active.", 422);
         }
+    }
+
+    /**
+     * The posting datetime for a transaction: a supervisor-authorized
+     * backdate (metadata.transaction_date) when present, otherwise now.
+     */
+    private function effectiveDate(array $metadata): string
+    {
+        $d = $metadata['transaction_date'] ?? null;
+        if (is_string($d) && $d !== '') {
+            return strlen($d) === 10 ? $d . ' ' . date('H:i:s') : $d;
+        }
+        return date('Y-m-d H:i:s');
     }
 
     private function assertSufficientBalance(array $account, float $amount): void

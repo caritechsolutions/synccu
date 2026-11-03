@@ -307,25 +307,25 @@ final class CashManagementService
         });
     }
 
-    public function recordDepositCash(string $tenantId, string $drawerId, float $amount, array $denominations, string $transactionId, string $performedBy): array
+    public function recordDepositCash(string $tenantId, string $drawerId, float $amount, array $denominations, string $transactionId, string $performedBy, string $description = 'Member cash deposit'): array
     {
         $this->ensureSchema();
         $id = $this->generateUuid();
         $ref = $this->makeRef($id);
 
-        return $this->db->transaction(function () use ($id, $tenantId, $drawerId, $amount, $denominations, $transactionId, $performedBy, $ref) {
+        return $this->db->transaction(function () use ($id, $tenantId, $drawerId, $amount, $denominations, $transactionId, $performedBy, $ref, $description) {
             $this->db->execute("UPDATE fund_locations SET balance = balance + ? WHERE id = ?", [$amount, $drawerId]);
             $this->db->query(
                 "INSERT INTO cash_movements (id, tenant_id, type, to_location_id, amount, transaction_id, performed_by, reference_number, description)
-                 VALUES (?, ?, 'deposit_to_drawer', ?, ?, ?, ?, ?, 'Member cash deposit')",
-                [$id, $tenantId, $drawerId, $amount, $transactionId, $performedBy, $ref],
+                 VALUES (?, ?, 'deposit_to_drawer', ?, ?, ?, ?, ?, ?)",
+                [$id, $tenantId, $drawerId, $amount, $transactionId, $performedBy, $ref, $description],
             );
             $this->saveDenominations($tenantId, $id, $denominations);
             return ['id' => $id, 'reference' => $ref, 'amount' => $amount, 'type' => 'deposit_to_drawer'];
         });
     }
 
-    public function recordWithdrawalCash(string $tenantId, string $drawerId, float $amount, array $denominations, string $transactionId, string $performedBy): array
+    public function recordWithdrawalCash(string $tenantId, string $drawerId, float $amount, array $denominations, string $transactionId, string $performedBy, string $description = 'Member cash withdrawal'): array
     {
         $this->ensureSchema();
         $drawer = $this->getLocation($tenantId, $drawerId);
@@ -334,12 +334,12 @@ final class CashManagementService
         $id = $this->generateUuid();
         $ref = $this->makeRef($id);
 
-        return $this->db->transaction(function () use ($id, $tenantId, $drawerId, $amount, $denominations, $transactionId, $performedBy, $ref) {
+        return $this->db->transaction(function () use ($id, $tenantId, $drawerId, $amount, $denominations, $transactionId, $performedBy, $ref, $description) {
             $this->db->execute("UPDATE fund_locations SET balance = balance - ? WHERE id = ?", [$amount, $drawerId]);
             $this->db->query(
                 "INSERT INTO cash_movements (id, tenant_id, type, from_location_id, amount, transaction_id, performed_by, reference_number, description)
-                 VALUES (?, ?, 'withdrawal_from_drawer', ?, ?, ?, ?, ?, 'Member cash withdrawal')",
-                [$id, $tenantId, $drawerId, $amount, $transactionId, $performedBy, $ref],
+                 VALUES (?, ?, 'withdrawal_from_drawer', ?, ?, ?, ?, ?, ?)",
+                [$id, $tenantId, $drawerId, $amount, $transactionId, $performedBy, $ref, $description],
             );
             $this->saveDenominations($tenantId, $id, $denominations);
             return ['id' => $id, 'reference' => $ref, 'amount' => $amount, 'type' => 'withdrawal_from_drawer'];

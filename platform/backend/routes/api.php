@@ -77,6 +77,9 @@ $router->group([
 ], function ($router) {
     $router->post('/logout',          [AuthController::class, 'logout']);
     $router->post('/change-password', [AuthController::class, 'changePassword']);
+    $router->post('/verify-supervisor', [AuthController::class, 'verifySupervisor'], [
+        RBACMiddleware::class . ':admin,manager,teller',
+    ]);
 });
 
 // ------------------------------------------------------------------
@@ -124,6 +127,12 @@ $router->group([
     $router->get('/',           [TransactionController::class, 'index']);
     $router->get('/export',     [TransactionController::class, 'export']);
     $router->post('/',          [TransactionController::class, 'store']);
+    $router->post('/batch',     [TransactionController::class, 'batch'], [
+        RBACMiddleware::class . ':admin,manager,teller',
+    ]);
+    $router->post('/loan-payment', [TransactionController::class, 'loanPayment'], [
+        RBACMiddleware::class . ':admin,manager,teller',
+    ]);
     $router->post('/deposit',   [TransactionController::class, 'deposit']);
     $router->post('/withdraw',  [TransactionController::class, 'withdraw']);
     $router->post('/transfer',  [TransactionController::class, 'transfer']);
@@ -250,6 +259,7 @@ $router->group([
     $router->get('/balance-sheet',      [ReportController::class, 'balanceSheet']);
     $router->get('/member-growth',      [ReportController::class, 'memberGrowth']);
     $router->get('/delinquency',        [ReportController::class, 'delinquency']);
+    $router->get('/members-register',   [ReportController::class, 'membersRegister']);
     $router->get('/export',             [ReportController::class, 'export']);
     $router->get('/camt053',            [ReportController::class, 'camt053']);
 });

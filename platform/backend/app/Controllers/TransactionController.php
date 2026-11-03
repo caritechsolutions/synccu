@@ -8,6 +8,9 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Validator;
 use App\Services\AccountService;
+use App\Services\CashManagementService;
+use App\Services\LoanService;
+use App\Services\SupervisorAuthService;
 use App\Services\TransactionService;
 
 /**
@@ -17,11 +20,34 @@ final class TransactionController
 {
     private TransactionService $transactions;
     private AccountService $accounts;
+    private SupervisorAuthService $supervisor;
+
+    private const STAFF_ROLES = ['admin', 'super_admin', 'manager', 'teller'];
 
     public function __construct()
     {
         $this->transactions = new TransactionService();
         $this->accounts     = new AccountService();
+        $this->supervisor   = new SupervisorAuthService();
+    }
+
+    /**
+     * Resolve a supervisor-authorized backdate for staff requests and fold it
+     * into the transaction metadata. Members can never backdate.
+     *
+     * @throws \RuntimeException
+     */
+    private function applyBackdate(Request $request, array $metadata, string $field = 'transaction_date'): array
+    {
+        if (!in_array($request->getAttribute('role'), self::STAFF_ROLES, true)) {
+            return $metadata;
+        }
+        $backdate = $this->supervisor->resolveBackdate($request->all(), $field);
+        if ($backdate !== null) {
+            $metadata['transaction_date'] = $backdate['datetime'];
+            $metadata['backdate'] = $backdate;
+        }
+        return $metadata;
     }
 
     /**
@@ -111,11 +137,269 @@ final class TransactionController
         $type = $request->input('type', '');
 
         return match ($type) {
-            'deposit'    => $this->deposit($request),
-            'withdrawal' => $this->withdraw($request),
-            'transfer'   => $this->transfer($request),
-            default      => Response::error('Invalid transaction type. Use: deposit, withdrawal, or transfer', 422),
+            'deposit'      => $this->deposit($request),
+            'withdrawal'   => $this->withdraw($request),
+            'transfer'     => $this->transfer($request),
+            'loan_payment' => $this->loanPayment($request),
+            default        => Response::error('Invalid transaction type. Use: deposit, withdrawal, transfer, or loan_payment', 422),
         };
+    }
+
+    /**
+     * POST /api/v1/transactions/loan-payment  (also via store type=loan_payment)
+     *
+     * Post a loan payment from the transactions screen. Staff only.
+     */
+    public function loanPayment(Request $request): Response
+    {
+        if (!in_array($request->getAttribute('role'), self::STAFF_ROLES, true)) {
+            return Response::error('Forbidden', 403);
+        }
+
+        $validator = new Validator($request->all(), [
+            'loan_id'         => 'required|string',
+            'amount'          => 'required|numeric|positive',
+            'method'          => 'nullable|in:cash,account,check,wire,ach',
+            'from_account_id' => 'nullable|string',
+            'drawer_id'       => 'nullable|string',
+            'denominations'   => 'nullable',
+            'description'     => 'nullable|string|max:255',
+            'transaction_date' => 'nullable|string|max:19',
+        ]);
+
+        if ($validator->fails()) {
+            return Response::validationError($validator->errors());
+        }
+
+        $userId = $request->getAttribute('user_id');
+        $fromAccountId = $request->input('from_account_id') ?: null;
+        $method = $request->input('method') ?: ($fromAccountId ? 'account' : 'cash');
+        if ($method === 'account' && !$fromAccountId) {
+            return Response::error('Select the member account to pay from.', 422);
+        }
+        if ($method !== 'account') {
+            $fromAccountId = null;
+        }
+
+        try {
+            $options = [
+                'method'        => $method,
+                'description'   => $request->input('description', ''),
+                'drawer_id'     => $method === 'cash' ? ($request->input('drawer_id') ?: null) : null,
+                'denominations' => $request->input('denominations'),
+            ];
+            $backdate = $this->supervisor->resolveBackdate($request->all(), 'transaction_date');
+            if ($backdate !== null) {
+                $options['payment_date'] = $backdate['date'];
+                $options['backdate']     = $backdate;
+            }
+
+            $result = (new LoanService())->makePayment(
+                $request->input('loan_id'),
+                (float) $request->input('amount'),
+                $fromAccountId,
+                $userId,
+                $options,
+            );
+
+            $txn = $this->transactions->findById($result['payment_id']) ?? [];
+            return Response::created(array_merge($txn, ['payment' => $result]), 'Loan payment posted');
+        } catch (\RuntimeException $e) {
+            $code = (int) $e->getCode(); return Response::error($e->getMessage(), $code >= 400 ? $code : 400);
+        }
+    }
+
+    /**
+     * POST /api/v1/transactions/batch
+     *
+     * Post several transactions for one member in a single, atomic batch:
+     * e.g. take $100 cash, put $20 in savings and $80 against a loan.
+     * One net cash movement is recorded against the drawer.
+     */
+    public function batch(Request $request): Response
+    {
+        $input  = $request->all();
+        $userId = $request->getAttribute('user_id');
+        $db     = \App\Core\Database::getInstance();
+        $tenantId = $db->getTenantId();
+
+        $memberId = trim((string) ($input['member_id'] ?? ''));
+        $lines    = $input['lines'] ?? [];
+        if ($memberId === '') {
+            return Response::error('member_id is required.', 422);
+        }
+        if (!is_array($lines) || count($lines) === 0) {
+            return Response::error('Add at least one transaction line.', 422);
+        }
+        if (count($lines) > 25) {
+            return Response::error('A batch may contain at most 25 lines.', 422);
+        }
+
+        $member = $db->fetchOne(
+            "SELECT id, CONCAT(first_name, ' ', last_name) AS name FROM users WHERE id = ? AND tenant_id = ?",
+            [$memberId, $tenantId],
+        );
+        if ($member === null) {
+            return Response::error('Member not found.', 404);
+        }
+
+        // Validate every line before touching anything
+        $prepared = [];
+        foreach (array_values($lines) as $i => $line) {
+            $n = $i + 1;
+            $type = $line['type'] ?? '';
+            $amount = (float) ($line['amount'] ?? 0);
+            if (!in_array($type, ['deposit', 'withdrawal', 'loan_payment'], true)) {
+                return Response::error("Line {$n}: type must be deposit, withdrawal, or loan_payment.", 422);
+            }
+            if ($amount <= 0) {
+                return Response::error("Line {$n}: amount must be greater than zero.", 422);
+            }
+            $desc = trim((string) ($line['description'] ?? ''));
+
+            if ($type === 'loan_payment') {
+                $loan = $db->fetchOne(
+                    'SELECT id, loan_number, user_id, status FROM loans WHERE id = ? AND tenant_id = ?',
+                    [(string) ($line['loan_id'] ?? ''), $tenantId],
+                );
+                if ($loan === null || $loan['user_id'] !== $memberId) {
+                    return Response::error("Line {$n}: loan not found for this member.", 422);
+                }
+                if (!in_array($loan['status'], ['approved', 'active', 'delinquent'], true)) {
+                    return Response::error("Line {$n}: loan {$loan['loan_number']} is not payable.", 422);
+                }
+                $fromAccountId = trim((string) ($line['from_account_id'] ?? '')) ?: null;
+                if ($fromAccountId !== null) {
+                    $src = $this->accounts->findById($fromAccountId);
+                    if ($src === null || $src['user_id'] !== $memberId || $src['account_type'] === 'loan') {
+                        return Response::error("Line {$n}: source account not found for this member.", 422);
+                    }
+                }
+                $prepared[] = ['type' => $type, 'loan' => $loan, 'from_account_id' => $fromAccountId, 'amount' => $amount, 'description' => $desc];
+            } else {
+                $account = $this->accounts->findById((string) ($line['account_id'] ?? ''));
+                if ($account === null || $account['user_id'] !== $memberId) {
+                    return Response::error("Line {$n}: account not found for this member.", 422);
+                }
+                if ($account['account_type'] === 'loan') {
+                    return Response::error("Line {$n}: use a loan payment line for loan accounts.", 422);
+                }
+                $prepared[] = ['type' => $type, 'account' => $account, 'amount' => $amount, 'description' => $desc];
+            }
+        }
+
+        $drawerId = trim((string) ($input['drawer_id'] ?? '')) ?: null;
+        $denominations = is_array($input['denominations'] ?? null) ? $input['denominations'] : [];
+        $batchNote = trim((string) ($input['description'] ?? ''));
+
+        try {
+            $backdate = $this->supervisor->resolveBackdate($input, 'transaction_date');
+        } catch (\RuntimeException $e) {
+            $code = (int) $e->getCode(); return Response::error($e->getMessage(), $code >= 400 ? $code : 400);
+        }
+
+        $batchId  = $this->generateUuid();
+        $batchRef = 'BT-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
+        $loans    = new LoanService();
+
+        // Schema checks (DDL) must run before the transaction opens
+        $cash = null;
+        if ($drawerId !== null) {
+            $cash = new CashManagementService();
+            $cash->ensureSchema();
+        }
+
+        try {
+            $result = $db->transaction(function () use (
+                $prepared, $member, $memberId, $userId, $tenantId, $drawerId, $denominations,
+                $batchNote, $backdate, $batchId, $batchRef, $loans, $cash
+            ) {
+                $cashIn = 0.0;
+                $cashOut = 0.0;
+                $posted = [];
+                $firstTxnId = null;
+
+                foreach ($prepared as $i => $p) {
+                    $n = $i + 1;
+                    $desc = $p['description'] !== '' ? $p['description'] : ($batchNote !== '' ? $batchNote : '');
+                    $meta = [
+                        'batch_id'   => $batchId,
+                        'batch_ref'  => $batchRef,
+                        'batch_line' => $n,
+                    ];
+                    if ($backdate !== null) {
+                        $meta['transaction_date'] = $backdate['datetime'];
+                        $meta['backdate'] = $backdate;
+                    }
+
+                    if ($p['type'] === 'deposit') {
+                        $meta['funding_source'] = 'cash';
+                        $txn = $this->transactions->deposit($p['account']['id'], $p['amount'], $desc ?: "Batch {$batchRef} deposit", $userId, $meta);
+                        $cashIn += $p['amount'];
+                        $posted[] = ['line' => $n, 'type' => 'deposit', 'id' => $txn['id'] ?? null, 'reference' => $txn['reference_number'] ?? null, 'account' => $p['account']['account_number'], 'amount' => $p['amount']];
+                        $firstTxnId = $firstTxnId ?? ($txn['id'] ?? null);
+                    } elseif ($p['type'] === 'withdrawal') {
+                        $meta['disbursement_method'] = 'cash';
+                        $txn = $this->transactions->withdraw($p['account']['id'], $p['amount'], $desc ?: "Batch {$batchRef} withdrawal", $userId, $meta);
+                        $cashOut += $p['amount'];
+                        $posted[] = ['line' => $n, 'type' => 'withdrawal', 'id' => $txn['id'] ?? null, 'reference' => $txn['reference_number'] ?? null, 'account' => $p['account']['account_number'], 'amount' => $p['amount']];
+                        $firstTxnId = $firstTxnId ?? ($txn['id'] ?? null);
+                    } else {
+                        $opts = [
+                            'method'      => $p['from_account_id'] ? 'account' : 'cash',
+                            'skip_cash'   => true,
+                            'batch_id'    => $batchId,
+                            'description' => $desc,
+                        ];
+                        if ($backdate !== null) {
+                            $opts['payment_date'] = $backdate['date'];
+                            $opts['backdate']     = $backdate;
+                        }
+                        $pay = $loans->makePayment($p['loan']['id'], $p['amount'], $p['from_account_id'], $userId, $opts);
+                        if (!$p['from_account_id']) {
+                            $cashIn += (float) $pay['amount'];
+                        }
+                        $posted[] = ['line' => $n, 'type' => 'loan_payment', 'id' => $pay['payment_id'], 'reference' => $pay['reference'], 'loan' => $p['loan']['loan_number'], 'amount' => (float) $pay['amount'], 'principal' => $pay['principal'], 'interest' => $pay['interest'], 'new_balance' => $pay['new_balance']];
+                        $firstTxnId = $firstTxnId ?? $pay['payment_id'];
+                    }
+                }
+
+                $net = round($cashIn - $cashOut, 2);
+                $movement = null;
+                if ($cash !== null && abs($net) >= 0.01) {
+                    $label = "Batch {$batchRef} — {$member['name']}";
+                    if ($net > 0) {
+                        $movement = $cash->recordDepositCash($tenantId, $drawerId, $net, $denominations, (string) $firstTxnId, $userId ?? '', $label);
+                    } else {
+                        $movement = $cash->recordWithdrawalCash($tenantId, $drawerId, -$net, $denominations, (string) $firstTxnId, $userId ?? '', $label);
+                    }
+                }
+
+                return [
+                    'batch_id'   => $batchId,
+                    'batch_ref'  => $batchRef,
+                    'member'     => $member['name'],
+                    'cash_in'    => round($cashIn, 2),
+                    'cash_out'   => round($cashOut, 2),
+                    'net_cash'   => $net,
+                    'drawer_movement' => $movement,
+                    'lines'      => $posted,
+                    'backdated'  => $backdate !== null ? $backdate['date'] : null,
+                ];
+            });
+
+            return Response::created($result, 'Batch posted');
+        } catch (\RuntimeException $e) {
+            $code = (int) $e->getCode(); return Response::error($e->getMessage(), $code >= 400 ? $code : 400);
+        }
+    }
+
+    private function generateUuid(): string
+    {
+        $data = random_bytes(16);
+        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
     /**
@@ -187,6 +471,8 @@ final class TransactionController
                 ];
             }
 
+            $metadata = $this->applyBackdate($request, $metadata);
+
             $result = $this->transactions->deposit(
                 $request->input('account_id'),
                 (float) $request->input('amount'),
@@ -248,6 +534,8 @@ final class TransactionController
                 'end_to_end_id'       => $request->input('end_to_end_id'),
             ]);
 
+            $metadata = $this->applyBackdate($request, $metadata);
+
             $result = $this->transactions->withdraw(
                 $request->input('account_id'),
                 (float) $request->input('amount'),
@@ -289,12 +577,14 @@ final class TransactionController
         }
 
         try {
+            $metadata = $this->applyBackdate($request, []);
             $result = $this->transactions->transfer(
                 $request->input('from_account_id'),
                 $request->input('to_account_id'),
                 (float) $request->input('amount'),
                 $request->input('description', ''),
                 $userId,
+                $metadata,
             );
 
             return Response::created($result, 'Transfer successful');

@@ -50,6 +50,28 @@ final class AuthController
     }
 
     /**
+     * POST /api/v1/auth/verify-supervisor
+     *
+     * Verify that the supplied credentials belong to a user of authority
+     * (admin/manager). Used by the UI to unlock protected fields such as
+     * backdated transaction dates. The override is re-verified server-side
+     * on the actual write, so this is a convenience check only.
+     */
+    public function verifySupervisor(Request $request): Response
+    {
+        try {
+            $supervisor = (new \App\Services\SupervisorAuthService())->verify(
+                $request->input('email'),
+                $request->input('password'),
+            );
+            return Response::ok($supervisor, 'Authorized');
+        } catch (\RuntimeException $e) {
+            $code = (int) $e->getCode();
+            return Response::error($e->getMessage(), $code >= 400 ? $code : 403);
+        }
+    }
+
+    /**
      * POST /api/auth/register
      */
     public function register(Request $request): Response
