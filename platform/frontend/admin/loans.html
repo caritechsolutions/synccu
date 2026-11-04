@@ -188,13 +188,14 @@
                 <th>Amount</th>
                 <th>Rate</th>
                 <th>Term</th>
+                <th>Loan Date</th>
                 <th>Outstanding</th>
                 <th>Status</th>
                 <th style="text-align:right">Actions</th>
               </tr>
             </thead>
             <tbody id="loansTableBody">
-              <tr><td colspan="9" style="text-align:center;padding:2rem">Loading loans...</td></tr>
+              <tr><td colspan="10" style="text-align:center;padding:2rem">Loading loans...</td></tr>
             </tbody>
           </table>
         </div>
@@ -317,16 +318,43 @@
           <dl class="detail-list detail-list-grid">
             <dt>Loan Number</dt><dd id="detailLoanNum">-</dd>
             <dt>Member</dt><dd id="detailLoanMember">-</dd>
+            <dt>Loan Account</dt><dd id="detailLoanAccount">-</dd>
             <dt>Type</dt><dd id="detailLoanType">-</dd>
             <dt>Status</dt><dd id="detailLoanStatus">-</dd>
-            <dt>Original Amount</dt><dd id="detailLoanAmount">-</dd>
-            <dt>Interest Rate</dt><dd id="detailLoanRate">-</dd>
-            <dt>Term</dt><dd id="detailLoanTerm">-</dd>
-            <dt>Monthly Payment</dt><dd id="detailLoanPayment">-</dd>
-            <dt>Outstanding Balance</dt><dd id="detailLoanBalance">-</dd>
-            <dt>Next Payment Due</dt><dd id="detailLoanNextDue">-</dd>
             <dt>Purpose</dt><dd id="detailLoanPurpose">-</dd>
           </dl>
+
+          <h4 style="margin:1rem 0 .4rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Terms</h4>
+          <dl class="detail-list detail-list-grid">
+            <dt>Amount Loaned</dt><dd id="detailLoanAmount">-</dd>
+            <dt>Interest Rate (APR)</dt><dd id="detailLoanRate">-</dd>
+            <dt>Term</dt><dd id="detailLoanTerm">-</dd>
+            <dt>Installment</dt><dd id="detailLoanPayment">-</dd>
+            <dt>Interest Basis</dt><dd>Daily: balance × APR ÷ 365 × days since last payment</dd>
+          </dl>
+
+          <h4 style="margin:1rem 0 .4rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Dates</h4>
+          <dl class="detail-list detail-list-grid">
+            <dt>Application Date</dt><dd id="detailLoanApplied">-</dd>
+            <dt>Approved</dt><dd id="detailLoanApproved">-</dd>
+            <dt>Loan Date (Disbursed)</dt><dd id="detailLoanDisbursed">-</dd>
+            <dt>Disbursed Via</dt><dd id="detailLoanDisbursedVia">-</dd>
+            <dt>First Payment Due</dt><dd id="detailLoanFirstDue">-</dd>
+            <dt>Next Payment Due</dt><dd id="detailLoanNextDue">-</dd>
+            <dt>Maturity Date</dt><dd id="detailLoanMaturity">-</dd>
+            <dt>Last Payment Made</dt><dd id="detailLoanLastPaid">-</dd>
+          </dl>
+
+          <h4 style="margin:1rem 0 .4rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Position</h4>
+          <dl class="detail-list detail-list-grid">
+            <dt>Outstanding Balance</dt><dd id="detailLoanBalance" style="font-weight:700">-</dd>
+            <dt>Total Paid</dt><dd id="detailLoanTotalPaid">-</dd>
+            <dt>Principal Paid</dt><dd id="detailLoanPrincipalPaid">-</dd>
+            <dt>Interest Paid (Total)</dt><dd id="detailLoanInterestPaid">-</dd>
+            <dt>Interest Paid (YTD)</dt><dd id="detailLoanInterestYtd">-</dd>
+            <dt>Payments Made / Left</dt><dd id="detailLoanPaymentsCount">-</dd>
+          </dl>
+          <div id="detailLoanImportNote" style="display:none;margin-top:.5rem;font-size:.75rem;color:var(--text-muted)"></div>
 
           <!-- Live Accrued Interest (shown for active/delinquent loans) -->
           <div id="accruedInterestBox" style="display:none;margin-top:1rem;padding:1rem;background:linear-gradient(135deg,#fef3c7,#fde68a);border-left:4px solid #f59e0b;border-radius:8px">
@@ -845,7 +873,7 @@
     function renderLoans(loans, meta) {
       const tbody = document.getElementById('loansTableBody');
       if (!loans.length) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem">No loans found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:2rem">No loans found.</td></tr>';
         document.getElementById('paginationInfo').textContent = '';
         document.getElementById('paginationControls').innerHTML = '';
         return;
@@ -859,6 +887,7 @@
           <td>$${Number(l.principal_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
           <td>${Number(l.interest_rate || 0).toFixed(2)}%</td>
           <td>${l.term_months || '-'} mo</td>
+          <td>${l.disbursed_at ? String(l.disbursed_at).slice(0, 10) : (l.created_at ? String(l.created_at).slice(0, 10) + ' <span style="color:var(--text-muted);font-size:.7rem">(applied)</span>' : '-')}</td>
           <td>$${Number(l.outstanding_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
           <td><span class="badge ${statusClasses[l.status] || 'badge-muted'}">${l.status ? l.status.replace('_',' ').replace(/\b\w/g, c => c.toUpperCase()) : '-'}</span></td>
           <td style="text-align:right"><button class="icon-btn" title="View Details" data-loan="${l.id}"><svg><use href="#icon-eye"/></svg></button></td>
@@ -946,10 +975,47 @@
       document.getElementById('detailLoanAmount').textContent = '$' + Number(l.principal_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
       document.getElementById('detailLoanRate').textContent = Number(l.interest_rate || 0).toFixed(2) + '%';
       document.getElementById('detailLoanTerm').textContent = (l.term_months || '-') + ' months';
-      document.getElementById('detailLoanPayment').textContent = '$' + Number(l.monthly_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+      document.getElementById('detailLoanPayment').textContent = '$' + Number(l.monthly_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' monthly';
       document.getElementById('detailLoanBalance').textContent = '$' + Number(l.outstanding_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
       document.getElementById('detailLoanNextDue').textContent = l.next_payment_date || '-';
       document.getElementById('detailLoanPurpose').textContent = l.purpose || '-';
+
+      // Extended summary (dates, totals, counts)
+      const s = l.summary || {};
+      const money = n => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+      const dateOnly = d => d ? String(d).slice(0, 10) : '-';
+      if (s.member_name) document.getElementById('detailLoanMember').textContent = s.member_name + (s.member_number ? ' (#' + s.member_number + ')' : '');
+      document.getElementById('detailLoanAccount').textContent = s.loan_account_number ? s.loan_account_number + (s.loan_account_status === 'closed' ? ' (closed)' : '') : '-';
+      document.getElementById('detailLoanApplied').textContent = dateOnly(l.created_at);
+      document.getElementById('detailLoanApproved').textContent = l.approved_at ? dateOnly(l.approved_at) + (s.approved_by_name ? ' by ' + s.approved_by_name : '') : (l.status === 'application' ? 'Pending' : '-');
+      document.getElementById('detailLoanDisbursed').textContent = l.disbursed_at ? dateOnly(l.disbursed_at) + (l.disbursed_amount && Number(l.disbursed_amount) !== Number(l.principal_amount) ? ' (' + money(l.disbursed_amount) + ')' : '') : (['application', 'approved'].includes(l.status) ? 'Not yet disbursed' : '-');
+      const viaLabels = { account: 'Deposit to account', cash: 'Cash', check: 'Check', wire: 'Wire', ach: 'ACH' };
+      let via = '-';
+      if (s.disbursement_method) {
+        via = viaLabels[s.disbursement_method] || s.disbursement_method;
+        if (s.disbursement_target) via += ' ' + s.disbursement_target;
+        if (s.disbursement_check) via += ' #' + s.disbursement_check;
+        via += s.disbursement_historical ? ' (historical, no fund movement)' : (s.disbursement_source ? ' from ' + s.disbursement_source : '');
+        if (s.disbursed_by_name) via += ' · ' + s.disbursed_by_name;
+      } else if (s.imported) {
+        via = 'Legacy system (imported)';
+      }
+      document.getElementById('detailLoanDisbursedVia').textContent = via;
+      document.getElementById('detailLoanFirstDue').textContent = s.first_payment_due || s.legacy_first_payment || '-';
+      document.getElementById('detailLoanMaturity').textContent = l.maturity_date || s.schedule_end || '-';
+      document.getElementById('detailLoanLastPaid').textContent = s.last_payment_made || (s.import_as_of ? s.import_as_of + ' (import as-of)' : '-');
+      document.getElementById('detailLoanTotalPaid').textContent = money(l.total_paid);
+      document.getElementById('detailLoanPrincipalPaid').textContent = s.principal_paid != null ? money(s.principal_paid) : '-';
+      document.getElementById('detailLoanInterestPaid').textContent = s.interest_paid != null ? money(s.interest_paid) : '-';
+      document.getElementById('detailLoanInterestYtd').textContent = s.interest_paid_ytd != null ? money(s.interest_paid_ytd) : '-';
+      document.getElementById('detailLoanPaymentsCount').textContent = (s.payments_made != null ? s.payments_made : '-') + ' / ' + (s.payments_left != null ? s.payments_left : '-') + (l.term_months ? ' of ' + l.term_months : '');
+      const importNote = document.getElementById('detailLoanImportNote');
+      if (s.imported) {
+        importNote.textContent = 'Imported from the legacy system. Totals above reflect payments recorded in this system' + (s.import_as_of ? '; balance was current as of ' + s.import_as_of : '') + '.';
+        importNote.style.display = '';
+      } else {
+        importNote.style.display = 'none';
+      }
 
       // Accrued interest display — always show for active/delinquent loans
       const ai = l.accrued_interest || {};

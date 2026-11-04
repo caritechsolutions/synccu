@@ -206,6 +206,14 @@ final class LoanController
             $loan['accrued_interest'] = $this->loans->getAccruedInterest($loanId);
         }
 
+        // Summary figures for the overview (member, dates, totals, counts)
+        try {
+            $loan['summary'] = $this->buildLoanSummary($loan);
+        } catch (\Throwable $e) {
+            error_log('Loan summary failed for ' . $loanId . ': ' . $e->getMessage());
+            $loan['summary'] = [];
+        }
+
         // Include member's non-loan accounts for disbursement/payment UI
         if (in_array($loan['status'], ['approved', 'active', 'delinquent'], true)) {
             $db = \App\Core\Database::getInstance();
@@ -237,6 +245,117 @@ final class LoanController
         }
 
         return Response::ok($loan);
+    }
+
+    /**
+     * Everything the overview needs beyond the raw loan row: who the member is,
+     * the loan account, who approved it, how it was disbursed, payment counts,
+     * interest paid (total and year-to-date), first/last payment dates.
+     */
+    private function buildLoanSummary(array $loan): array
+    {
+        $db = \App\Core\Database::getInstance();
+        $tenantId = $db->getTenantId();
+        $s = [];
+
+        $member = $db->fetchOne(
+            "SELECT CONCAT(first_name, ' ', last_name) AS name, member_number, email, phone FROM users WHERE id = ? AND tenant_id = ?",
+            [$loan['user_id'], $tenantId],
+        );
+        $s['member_name']   = $member['name'] ?? null;
+        $s['member_number'] = $member['member_number'] ?? null;
+        $s['member_email']  = $member['email'] ?? null;
+        $s['member_phone']  = $member['phone'] ?? null;
+
+        if (!empty($loan['approved_by'])) {
+            $s['approved_by_name'] = $db->fetchColumn(
+                "SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = ?",
+                [$loan['approved_by']],
+            ) ?: null;
+        }
+
+        if (!empty($loan['account_id'])) {
+            $acct = $db->fetchOne('SELECT account_number, status FROM accounts WHERE id = ?', [$loan['account_id']]);
+            $s['loan_account_number'] = $acct['account_number'] ?? null;
+            $s['loan_account_status'] = $acct['status'] ?? null;
+
+            // Disbursement details
+            $disb = $db->fetchOne(
+                "SELECT created_at, amount, metadata, processed_by FROM transactions
+                 WHERE tenant_id = ? AND account_id = ? AND type = 'loan_disbursement' ORDER BY created_at ASC LIMIT 1",
+                [$tenantId, $loan['account_id']],
+            );
+            if ($disb) {
+                $dm = json_decode((string) ($disb['metadata'] ?? ''), true) ?: [];
+                $s['disbursed_on']        = $disb['created_at'];
+                $s['disbursement_method'] = $dm['disbursement_method'] ?? null;
+                $s['disbursement_check']  = $dm['check_number'] ?? null;
+                $s['disbursement_historical'] = !empty($dm['historical']);
+                if (!empty($dm['source_location_id'])) {
+                    try {
+                        $s['disbursement_source'] = $db->fetchColumn('SELECT name FROM fund_locations WHERE id = ?', [$dm['source_location_id']]) ?: null;
+                    } catch (\Throwable) {
+                        $s['disbursement_source'] = null;
+                    }
+                }
+                if (!empty($dm['target_account_id'])) {
+                    $s['disbursement_target'] = $db->fetchColumn('SELECT account_number FROM accounts WHERE id = ?', [$dm['target_account_id']]) ?: null;
+                }
+                if (!empty($disb['processed_by'])) {
+                    $s['disbursed_by_name'] = $db->fetchColumn("SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = ?", [$disb['processed_by']]) ?: null;
+                }
+            }
+
+            // Payment totals
+            $payments = $db->fetchAll(
+                "SELECT amount, metadata, created_at FROM transactions
+                 WHERE tenant_id = ? AND account_id = ? AND type = 'loan_payment' AND status = 'completed'
+                 ORDER BY created_at ASC",
+                [$tenantId, $loan['account_id']],
+            );
+            $interestTotal = 0.0; $principalTotal = 0.0; $interestYtd = 0.0; $paidTotal = 0.0;
+            $year = date('Y');
+            foreach ($payments as $p) {
+                $m = json_decode((string) ($p['metadata'] ?? ''), true) ?: [];
+                $i = (float) ($m['interest'] ?? 0);
+                $interestTotal += $i;
+                $principalTotal += (float) ($m['principal'] ?? ((float) $p['amount'] - $i));
+                $paidTotal += (float) $p['amount'];
+                if (substr((string) $p['created_at'], 0, 4) === $year) {
+                    $interestYtd += $i;
+                }
+            }
+            $s['payments_made']     = count($payments);
+            $s['interest_paid']     = round($interestTotal, 2);
+            $s['interest_paid_ytd'] = round($interestYtd, 2);
+            $s['principal_paid']    = round($principalTotal, 2);
+            $s['paid_in_system']    = round($paidTotal, 2);
+            $s['first_payment_made'] = $payments ? substr((string) $payments[0]['created_at'], 0, 10) : null;
+            $s['last_payment_made']  = $payments ? substr((string) end($payments)['created_at'], 0, 10) : null;
+        }
+
+        // Schedule position
+        $sched = $db->fetchOne(
+            "SELECT MIN(due_date) AS first_due,
+                    SUM(status = 'paid') AS paid_rows,
+                    SUM(status IN ('upcoming','due','overdue','partial')) AS left_rows,
+                    MAX(due_date) AS last_due
+             FROM loan_schedules WHERE loan_id = ?",
+            [$loan['id']],
+        );
+        $s['first_payment_due'] = $sched['first_due'] ?? null;
+        $s['payments_left']     = isset($sched['left_rows']) ? (int) $sched['left_rows'] : null;
+        $s['schedule_end']      = $sched['last_due'] ?? null;
+
+        // Legacy import context
+        $meta = json_decode((string) ($loan['metadata'] ?? ''), true) ?: [];
+        if (($meta['source'] ?? '') === 'legacy_import') {
+            $s['imported']          = true;
+            $s['import_as_of']      = $meta['last_payment_date'] ?? null;
+            $s['legacy_first_payment'] = $meta['first_payment_date'] ?? null;
+        }
+
+        return $s;
     }
 
     /**
