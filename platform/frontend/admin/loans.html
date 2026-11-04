@@ -100,6 +100,7 @@
         </div>
         <div style="display:flex;gap:.5rem">
           <button class="btn btn-secondary" id="exportLoansBtn">Export CSV</button>
+          <button class="btn btn-secondary" id="loanQuoteBtn" title="Run what-if scenarios without creating a loan">Loan Quote</button>
           <button class="btn btn-primary" id="newLoanBtn">
             <svg><use href="#icon-plus"/></svg> New Loan Application
           </button>
@@ -208,6 +209,61 @@
   </div>
 
   <!-- New Loan Modal -->
+  <!-- Loan Quote / Scenario Calculator -->
+  <div class="modal-overlay" id="quoteModal">
+    <div class="modal" style="max-width:1100px;width:96%">
+      <div class="modal-header">
+        <h3>Loan Quote — Compare Scenarios</h3>
+        <button class="icon-btn modal-close" id="closeQuoteModal"><svg><use href="#icon-x"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 .75rem 0">
+          Change the amount, rate, term or payment frequency in each column to see the installment, total interest and payoff date. Nothing is saved until you start an application.
+        </p>
+        <div class="form-row" style="align-items:flex-end;gap:.75rem;flex-wrap:wrap">
+          <div class="form-group" style="margin:0;min-width:180px">
+            <label for="quoteMemberName" style="font-size:.75rem">Member (optional, for the printout)</label>
+            <input type="text" id="quoteMemberName" class="form-input" placeholder="Member name">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label for="quoteStartDate" style="font-size:.75rem">Start Date</label>
+            <input type="date" id="quoteStartDate" class="form-input">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label for="quoteLoanType" style="font-size:.75rem">Loan Type (for the application)</label>
+            <select id="quoteLoanType" class="form-select"><option value="">Select later...</option></select>
+          </div>
+          <div style="flex:1"></div>
+          <button type="button" class="btn btn-secondary btn-sm" id="quoteAddScenarioBtn">+ Add Scenario</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="quotePrintBtn">Print Quote</button>
+        </div>
+
+        <div class="table-responsive" style="margin-top:.75rem">
+          <table class="data-table data-table-sm" id="quoteTable" style="min-width:640px">
+            <tbody id="quoteBody"></tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+          <h4 style="margin:0;font-size:.9rem">Payment schedule — <span id="quoteScheduleTitle">Scenario A</span></h4>
+          <div style="display:flex;gap:.35rem" id="quoteScheduleTabs"></div>
+        </div>
+        <div class="table-responsive" style="max-height:320px;overflow-y:auto;margin-top:.5rem">
+          <table class="data-table data-table-sm">
+            <thead><tr><th>#</th><th>Due Date</th><th style="text-align:right">Payment</th><th style="text-align:right">Principal</th><th style="text-align:right">Interest</th><th style="text-align:right">Balance</th></tr></thead>
+            <tbody id="quoteScheduleBody"></tbody>
+          </table>
+        </div>
+        <p style="font-size:.72rem;color:var(--text-muted);margin:.5rem 0 0 0">
+          Quotes use standard amortisation at the period rate (APR ÷ periods per year). Actual interest charged on payments is daily on the outstanding balance (APR ÷ 365 × days), so posted figures vary slightly with the exact payment dates.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="cancelQuoteBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="loanModal">
     <div class="modal">
       <div class="modal-header">
@@ -1357,6 +1413,175 @@
         loadLoans(currentLoanPage);
       } catch (e) { alert('Error: ' + e.message); }
     });
+
+    // === LOAN QUOTE / SCENARIO CALCULATOR ===
+    (function setupQuote() {
+      const modal = document.getElementById('quoteModal');
+      const body = document.getElementById('quoteBody');
+      const FREQ = { monthly: { per: 12, label: 'Monthly', step: (d, i) => addMonths(d, i) }, biweekly: { per: 26, label: 'Bi-weekly', step: (d, i) => addDays(d, 14 * i) }, weekly: { per: 52, label: 'Weekly', step: (d, i) => addDays(d, 7 * i) } };
+      const LETTERS = 'ABCDEF';
+      let scenarios = [];
+      let activeIdx = 0;
+      const money = n => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const todayStr = () => SupervisorAuth.today();
+      function addMonths(d, n) { const x = new Date(d.getTime()); const day = x.getDate(); x.setMonth(x.getMonth() + n); if (x.getDate() !== day) x.setDate(0); return x; }
+      function addDays(d, n) { const x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
+      const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
+      function newScenario(base) {
+        return Object.assign({ amount: 5000, apr: 12, term: 24, freq: 'monthly', extra: 0 }, base || {});
+      }
+
+      // Standard amortisation at the period rate; optional extra per payment shortens the term
+      function compute(sc) {
+        const f = FREQ[sc.freq] || FREQ.monthly;
+        const n = Math.max(1, parseInt(sc.term, 10) || 1);              // term expressed in payments
+        const P = Math.max(0, parseFloat(sc.amount) || 0);
+        const r = (parseFloat(sc.apr) || 0) / 100 / f.per;
+        const extra = Math.max(0, parseFloat(sc.extra) || 0);
+        let pay = r > 0 ? P * r / (1 - Math.pow(1 + r, -n)) : P / n;
+        pay = Math.round(pay * 100) / 100;
+        const start = new Date((document.getElementById('quoteStartDate').value || todayStr()) + 'T00:00:00');
+        let bal = P, rows = [], totInt = 0, i = 0;
+        while (bal > 0.005 && i < 1200) {
+          i++;
+          const interest = Math.round(bal * r * 100) / 100;
+          let payment = pay + extra;
+          let principal = Math.round((payment - interest) * 100) / 100;
+          if (principal >= bal || i === n && extra === 0) { principal = Math.round(bal * 100) / 100; payment = Math.round((principal + interest) * 100) / 100; }
+          if (principal <= 0 && r > 0) { // payment does not cover interest
+            rows = []; totInt = NaN; break;
+          }
+          bal = Math.round((bal - principal) * 100) / 100;
+          totInt += interest;
+          rows.push({ n: i, due: iso(f.step(start, i)), payment, principal, interest, balance: Math.max(0, bal) });
+        }
+        return { payment: pay, extra, rows, totalInterest: totInt, totalPaid: isNaN(totInt) ? NaN : P + totInt, count: rows.length, payoff: rows.length ? rows[rows.length - 1].due : '-', perYear: f.per, label: f.label, principal: P };
+      }
+
+      function render() {
+        if (!scenarios.length) scenarios = [newScenario()];
+        if (activeIdx >= scenarios.length) activeIdx = 0;
+        const results = scenarios.map(compute);
+        const cols = scenarios.length;
+        const th = (label) => '<th style="text-align:left;width:170px;white-space:nowrap">' + label + '</th>';
+        const inputRow = (label, key, type, attrs) => '<tr>' + th(label) + scenarios.map((sc, i) =>
+          '<td>' + (type === 'select'
+            ? '<select class="form-select q-in" data-i="' + i + '" data-k="' + key + '">' + Object.entries(FREQ).map(([k, v]) => '<option value="' + k + '"' + (sc.freq === k ? ' selected' : '') + '>' + v.label + '</option>').join('') + '</select>'
+            : '<input type="number" class="form-input q-in" data-i="' + i + '" data-k="' + key + '" value="' + sc[key] + '" ' + (attrs || '') + '>') + '</td>').join('') + '</tr>';
+        const outRow = (label, fn, bold) => '<tr>' + th(label) + results.map((res, i) => '<td style="' + (bold ? 'font-weight:700;' : '') + (i === activeIdx ? 'background:var(--bg-secondary)' : '') + '">' + fn(res, i) + '</td>').join('') + '</tr>';
+
+        let html = '<tr><th></th>' + scenarios.map((sc, i) =>
+          '<th style="text-align:left"><span style="cursor:pointer;' + (i === activeIdx ? 'color:var(--primary)' : '') + '" class="q-pick" data-i="' + i + '">Scenario ' + LETTERS[i] + '</span>' +
+          (cols > 1 ? ' <button type="button" class="icon-btn q-del" data-i="' + i + '" title="Remove" style="padding:0 .25rem;color:var(--danger)">&times;</button>' : '') + '</th>').join('') + '</tr>';
+        html += inputRow('Amount', 'amount', 'number', 'min="1" step="0.01"');
+        html += inputRow('APR (%)', 'apr', 'number', 'min="0" step="0.01"');
+        html += inputRow('Term (number of payments)', 'term', 'number', 'min="1" step="1"');
+        html += inputRow('Frequency', 'freq', 'select');
+        html += inputRow('Extra per payment', 'extra', 'number', 'min="0" step="0.01"');
+        html += '<tr><td colspan="' + (cols + 1) + '" style="border-top:2px solid var(--border);padding:0"></td></tr>';
+        html += outRow('Installment', r => money(r.payment) + (r.extra ? ' + ' + money(r.extra) + ' extra' : '') + ' <span style="color:var(--text-muted);font-size:.72rem">' + r.label.toLowerCase() + '</span>', true);
+        html += outRow('Number of payments', r => isNaN(r.totalInterest) ? '<span style="color:#dc2626">Payment does not cover interest</span>' : r.count + (r.count !== parseInt(scenarios[results.indexOf(r)].term, 10) ? ' <span style="color:var(--text-muted);font-size:.72rem">(term ' + scenarios[results.indexOf(r)].term + ')</span>' : ''));
+        html += outRow('Total interest', r => isNaN(r.totalInterest) ? '-' : money(r.totalInterest), true);
+        html += outRow('Total repaid', r => isNaN(r.totalPaid) ? '-' : money(r.totalPaid));
+        html += outRow('Payoff date', r => r.payoff);
+        html += outRow('Per year', r => isNaN(r.totalInterest) ? '-' : money(r.payment * r.perYear) + ' / yr');
+        html += '<tr>' + th('') + scenarios.map((sc, i) => '<td><button type="button" class="btn btn-primary btn-sm q-apply" data-i="' + i + '">Start application</button></td>').join('') + '</tr>';
+        body.innerHTML = html;
+
+        body.querySelectorAll('.q-in').forEach(el => el.addEventListener('change', e => { const i = +e.target.dataset.i, k = e.target.dataset.k; scenarios[i][k] = e.target.value; render(); }));
+        body.querySelectorAll('.q-pick').forEach(el => el.addEventListener('click', e => { activeIdx = +e.target.dataset.i; render(); }));
+        body.querySelectorAll('.q-del').forEach(el => el.addEventListener('click', e => { scenarios.splice(+e.currentTarget.dataset.i, 1); render(); }));
+        body.querySelectorAll('.q-apply').forEach(el => el.addEventListener('click', e => applyScenario(+e.currentTarget.dataset.i)));
+
+        // Schedule tabs + table for the active scenario
+        document.getElementById('quoteScheduleTabs').innerHTML = scenarios.map((sc, i) => '<button type="button" class="btn btn-sm ' + (i === activeIdx ? 'btn-primary' : 'btn-secondary') + ' q-tab" data-i="' + i + '">' + LETTERS[i] + '</button>').join('');
+        document.querySelectorAll('.q-tab').forEach(el => el.addEventListener('click', e => { activeIdx = +e.currentTarget.dataset.i; render(); }));
+        document.getElementById('quoteScheduleTitle').textContent = 'Scenario ' + LETTERS[activeIdx];
+        const res = results[activeIdx];
+        document.getElementById('quoteScheduleBody').innerHTML = res.rows.length
+          ? res.rows.map(r => '<tr><td>' + r.n + '</td><td>' + r.due + '</td><td style="text-align:right">' + money(r.payment) + '</td><td style="text-align:right">' + money(r.principal) + '</td><td style="text-align:right">' + money(r.interest) + '</td><td style="text-align:right">' + money(r.balance) + '</td></tr>').join('')
+          : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1rem">No schedule — check the inputs.</td></tr>';
+        window.__quoteResults = results;
+      }
+
+      function applyScenario(i) {
+        const sc = scenarios[i];
+        if (sc.freq !== 'monthly') {
+          if (!confirm('Applications are set up with monthly terms. The term will be converted to the nearest number of months. Continue?')) return;
+        }
+        const months = sc.freq === 'monthly' ? parseInt(sc.term, 10) : Math.max(1, Math.round(parseInt(sc.term, 10) / FREQ[sc.freq].per * 12));
+        modal.classList.remove('active');
+        openLoanModal();
+        document.getElementById('loanAmount').value = Number(sc.amount).toFixed(2);
+        document.getElementById('loanRate').value = Number(sc.apr).toFixed(2);
+        const termSel = document.getElementById('loanTerm');
+        if (!Array.from(termSel.options).some(o => o.value === String(months))) {
+          const opt = document.createElement('option'); opt.value = String(months); opt.textContent = months + ' months'; termSel.appendChild(opt);
+        }
+        termSel.value = String(months);
+        const qt = document.getElementById('quoteLoanType').value;
+        if (qt) document.getElementById('loanType').value = qt;
+        const name = document.getElementById('quoteMemberName').value.trim();
+        if (name) { loanMemberInput.value = name; loanMemberInput.dispatchEvent(new Event('input')); }
+      }
+
+      function openQuote(prefill) {
+        document.getElementById('quoteStartDate').value = todayStr();
+        // Mirror loan types from the application form
+        const src = document.getElementById('loanType');
+        const dst = document.getElementById('quoteLoanType');
+        dst.innerHTML = '<option value="">Select later...</option>' + Array.from(src.options).filter(o => o.value).map(o => '<option value="' + o.value + '">' + o.textContent + '</option>').join('');
+        scenarios = [newScenario(prefill)];
+        activeIdx = 0;
+        render();
+        modal.classList.add('active');
+      }
+      window.openLoanQuote = openQuote;
+
+      document.getElementById('loanQuoteBtn').addEventListener('click', () => openQuote());
+      document.getElementById('closeQuoteModal').addEventListener('click', () => modal.classList.remove('active'));
+      document.getElementById('cancelQuoteBtn').addEventListener('click', () => modal.classList.remove('active'));
+      modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+      document.getElementById('quoteStartDate').addEventListener('change', render);
+      document.getElementById('quoteAddScenarioBtn').addEventListener('click', () => {
+        if (scenarios.length >= 6) return;
+        const last = scenarios[scenarios.length - 1];
+        scenarios.push(newScenario({ amount: last.amount, apr: last.apr, term: last.term, freq: last.freq, extra: last.extra }));
+        activeIdx = scenarios.length - 1;
+        render();
+      });
+
+      document.getElementById('quotePrintBtn').addEventListener('click', () => {
+        const results = window.__quoteResults || scenarios.map(compute);
+        let cu = 'SyncCU';
+        try { cu = (JSON.parse(localStorage.getItem('synccu-branding') || '{}').name) || cu; } catch (e) {}
+        const member = document.getElementById('quoteMemberName').value.trim();
+        const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        const sumRows = [
+          ['Amount', (sc) => money(sc.amount)], ['APR', (sc) => Number(sc.apr).toFixed(2) + '%'],
+          ['Term', (sc, r) => sc.term + ' ' + r.label.toLowerCase() + ' payments'],
+          ['Installment', (sc, r) => money(r.payment) + (r.extra ? ' + ' + money(r.extra) + ' extra' : '')],
+          ['Number of payments', (sc, r) => isNaN(r.totalInterest) ? '-' : r.count],
+          ['Total interest', (sc, r) => isNaN(r.totalInterest) ? '-' : money(r.totalInterest)],
+          ['Total repaid', (sc, r) => isNaN(r.totalPaid) ? '-' : money(r.totalPaid)],
+          ['Payoff date', (sc, r) => r.payoff],
+        ];
+        let html = '<html><head><title>Loan Quote</title><style>body{font-family:Arial,sans-serif;font-size:11pt;color:#000;margin:14mm}h1{font-size:16pt;margin:0}h2{font-size:12pt;margin:14pt 0 6pt}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:3px 6px;font-size:9.5pt}th{background:#eee;text-align:left}td.r,th.r{text-align:right}.sub{color:#444;font-size:9pt}@page{margin:12mm}</style></head><body>';
+        html += '<h1>' + esc(cu) + '</h1><div class="sub">Loan Quotation' + (member ? ' for ' + esc(member) : '') + ' · prepared ' + new Date().toLocaleString() + ' · start date ' + esc(document.getElementById('quoteStartDate').value) + '</div>';
+        html += '<h2>Scenarios</h2><table><tr><th></th>' + scenarios.map((s, i) => '<th>Scenario ' + LETTERS[i] + '</th>').join('') + '</tr>';
+        sumRows.forEach(([label, fn]) => { html += '<tr><th>' + label + '</th>' + scenarios.map((sc, i) => '<td>' + fn(sc, results[i]) + '</td>').join('') + '</tr>'; });
+        html += '</table>';
+        const r = results[activeIdx];
+        html += '<h2>Payment schedule — Scenario ' + LETTERS[activeIdx] + '</h2><table><tr><th>#</th><th>Due</th><th class="r">Payment</th><th class="r">Principal</th><th class="r">Interest</th><th class="r">Balance</th></tr>';
+        r.rows.forEach(x => { html += '<tr><td>' + x.n + '</td><td>' + x.due + '</td><td class="r">' + money(x.payment) + '</td><td class="r">' + money(x.principal) + '</td><td class="r">' + money(x.interest) + '</td><td class="r">' + money(x.balance) + '</td></tr>'; });
+        html += '</table><p class="sub">This quotation is an estimate based on standard amortisation at the stated APR and is not a commitment to lend. Interest on an actual loan is charged daily on the outstanding balance, so posted figures depend on the exact payment dates.</p></body></html>';
+        const w = window.open('', '_blank', 'width=900,height=700');
+        if (!w) { alert('Allow pop-ups to print the quote.'); return; }
+        w.document.open(); w.document.write(html); w.document.close();
+        w.focus(); setTimeout(() => w.print(), 300);
+      });
+    })();
 
     // === RECALCULATE PAYMENT HISTORY (replay) ===
     document.getElementById('replayHistoryBtn').addEventListener('click', async () => {
