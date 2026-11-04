@@ -610,6 +610,9 @@ final class AdminController
         $tenantId = $this->db->getTenantId();
         $from     = $request->query('from', date('Y-m-01'));
         $to       = $request->query('to', date('Y-m-d'));
+        if (strlen($to) === 10) {
+            $to .= ' 23:59:59';   // include the whole last day
+        }
 
         $report = match ($type) {
             'summary'       => $this->summaryReport($tenantId, $from, $to),
@@ -698,10 +701,10 @@ final class AdminController
         return $this->db->fetchAll(
             'SELECT type, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total_amount
              FROM transactions
-             WHERE tenant_id = ? AND created_at BETWEEN ? AND ?
+             WHERE tenant_id = ? AND status = ? AND created_at BETWEEN ? AND ?
              GROUP BY type
              ORDER BY total_amount DESC',
-            [$tenantId, $from, $to],
+            [$tenantId, 'completed', $from, $to],
         );
     }
 

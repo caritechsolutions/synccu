@@ -244,7 +244,10 @@
 
       const fromLabel = new Date(from + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
       const toLabel = new Date(to + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-      document.getElementById('reportDateRange').textContent = fromLabel + ' - ' + toLabel;
+      const POINT_IN_TIME = ['balance-sheet', 'delinquency', 'members-register'];
+      document.getElementById('reportDateRange').textContent = POINT_IN_TIME.includes(currentReport)
+        ? 'As of ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        : fromLabel + ' - ' + toLabel;
 
       try {
         switch (currentReport) {
@@ -252,7 +255,7 @@
           case 'balance-sheet':    await renderBalanceSheet(); break;
           case 'general-ledger':   await renderGeneralLedger(from, to); break;
           case 'transactions':     await renderTransactions(from, to); break;
-          case 'loan-portfolio':   await renderLoanPortfolio(); break;
+          case 'loan-portfolio':   await renderLoanPortfolio(from, to); break;
           case 'delinquency':      await renderDelinquency(); break;
           case 'member-growth':      await renderMemberGrowth(from, to); break;
           case 'members-register':   await renderMembersRegister(); break;
@@ -305,6 +308,8 @@
       html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Expenses</strong></td><td style="text-align:right"><strong>${fmt(d.total_expenses)}</strong></td></tr>
               <tr style="border-top:3px double var(--border)"><td><strong>Net Income</strong></td><td style="text-align:right"><strong>${fmt(d.net_income)}</strong></td></tr>
             </tbody></table></div>`;
+      const ctx = d.context || {};
+      html += `<p style="font-size:.75rem;color:var(--text-muted);margin-top:.75rem">Loan interest income is the interest portion of ${ctx.loan_payments || 0} loan payment(s) posted in the period (principal collected ${fmt(ctx.principal_collected)} is not income). Interest is earned on a daily basis: balance × APR ÷ 365 × days.</p>`;
       el.innerHTML = html;
     }
 
@@ -316,43 +321,41 @@
       const d = json.data;
       const el = document.getElementById('reportContent');
 
+      const hasPlug = (d.equity || []).some(a => a.plug);
       let html = `
         <div class="report-summary-grid">
           <div class="report-summary-card report-summary-blue">
             <span class="report-summary-label">Total Assets</span>
             <span class="report-summary-value">${fmt(d.total_assets)}</span>
+            <span class="report-summary-sub">Cash ${fmt(d.total_cash)}</span>
           </div>
           <div class="report-summary-card report-summary-red">
-            <span class="report-summary-label">Total Liabilities</span>
+            <span class="report-summary-label">Member Deposits (Liabilities)</span>
             <span class="report-summary-value">${fmt(d.total_liabilities)}</span>
           </div>
           <div class="report-summary-card report-summary-green">
-            <span class="report-summary-label">Equity</span>
+            <span class="report-summary-label">Shares &amp; Equity</span>
             <span class="report-summary-value">${fmt(d.total_equity)}</span>
-            <span class="report-summary-sub">${d.balanced ? 'Balanced' : 'NOT BALANCED'}</span>
+            <span class="report-summary-sub">${hasPlug ? 'Includes ' + fmt(d.difference) + ' unreconciled' : 'Fully reconciled'}</span>
           </div>
         </div>
         <div class="table-responsive" style="margin-top:1.5rem">
           <table class="data-table">
-            <thead><tr><th>Category</th><th style="text-align:right">Balance</th></tr></thead>
+            <thead><tr><th>Category</th><th style="text-align:right">Balance</th><th style="color:var(--text-muted);font-weight:400">Note</th></tr></thead>
             <tbody>
-              <tr><td colspan="2"><strong>Assets</strong></td></tr>`;
-      (d.assets || []).forEach(a => {
-        html += `<tr><td style="padding-left:2rem">${a.name}</td><td style="text-align:right">${fmt(a.balance)}</td></tr>`;
-      });
-      html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Assets</strong></td><td style="text-align:right"><strong>${fmt(d.total_assets)}</strong></td></tr>
-              <tr><td colspan="2"><strong>Liabilities</strong></td></tr>`;
-      (d.liabilities || []).forEach(a => {
-        html += `<tr><td style="padding-left:2rem">${a.name}</td><td style="text-align:right">${fmt(a.balance)}</td></tr>`;
-      });
-      html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Liabilities</strong></td><td style="text-align:right"><strong>${fmt(d.total_liabilities)}</strong></td></tr>
-              <tr><td colspan="2"><strong>Equity</strong></td></tr>`;
-      (d.equity || []).forEach(a => {
-        html += `<tr><td style="padding-left:2rem">${a.name}</td><td style="text-align:right">${fmt(a.balance)}</td></tr>`;
-      });
-      html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Equity</strong></td><td style="text-align:right"><strong>${fmt(d.total_equity)}</strong></td></tr>
-              <tr style="border-top:3px double var(--border)"><td><strong>Liabilities + Equity</strong></td><td style="text-align:right"><strong>${fmt(d.total_liabilities + d.total_equity)}</strong></td></tr>
+              <tr><td colspan="3"><strong>Assets</strong></td></tr>`;
+      const row = (a, plug) => `<tr${plug ? ' style="color:#b45309"' : ''}><td style="padding-left:2rem">${a.name}</td><td style="text-align:right">${fmt(a.balance)}</td><td style="font-size:.75rem;color:var(--text-muted)">${a.note || ''}</td></tr>`;
+      (d.assets || []).forEach(a => { html += row(a); });
+      html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Assets</strong></td><td style="text-align:right"><strong>${fmt(d.total_assets)}</strong></td><td></td></tr>
+              <tr><td colspan="3"><strong>Liabilities</strong></td></tr>`;
+      (d.liabilities || []).forEach(a => { html += row(a); });
+      html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Liabilities</strong></td><td style="text-align:right"><strong>${fmt(d.total_liabilities)}</strong></td><td></td></tr>
+              <tr><td colspan="3"><strong>Member Shares &amp; Equity</strong></td></tr>`;
+      (d.equity || []).forEach(a => { html += row(a, a.plug); });
+      html += `<tr style="border-top:2px solid var(--border)"><td><strong>Total Shares &amp; Equity</strong></td><td style="text-align:right"><strong>${fmt(d.total_equity)}</strong></td><td></td></tr>
+              <tr style="border-top:3px double var(--border)"><td><strong>Liabilities + Equity</strong></td><td style="text-align:right"><strong>${fmt(d.total_liabilities + d.total_equity)}</strong></td><td></td></tr>
             </tbody></table></div>`;
+      html += `<p style="font-size:.75rem;color:var(--text-muted);margin-top:.75rem">Cash is what Cash Management holds (vault, drawers, bank). Loans receivable is unpaid principal on disbursed loans. Member savings and checking are owed back to members; shares are member equity. ${hasPlug ? 'The unreconciled line is the gap between recorded assets and what the ledger explains, usually opening balances loaded at go-live; it shrinks as history is keyed in.' : ''}</p>`;
       el.innerHTML = html;
     }
 
@@ -409,67 +412,115 @@
       const el = document.getElementById('reportContent');
       if (!report.length) { el.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--text-muted)">No transactions found for this period.</p>'; return; }
 
+      const DIRECTION = {
+        deposit: 'in', loan_payment: 'in', fee: 'in', late_fee: 'in',
+        withdrawal: 'out', loan_disbursement: 'out', expense: 'out', external_transfer: 'out', network_transfer: 'out', interest: 'out',
+        transfer: 'internal', adjustment: 'internal', payment: 'internal',
+      };
+      const LABELS = { in: 'Money In', out: 'Money Out', internal: 'Internal / Other' };
       const totalCount = report.reduce((s, r) => s + Number(r.count), 0);
-      const totalAmount = report.reduce((s, r) => s + Number(r.total_amount), 0);
+      const sums = { in: 0, out: 0, internal: 0 };
+      report.forEach(r => { sums[DIRECTION[r.type] || 'internal'] += Number(r.total_amount); });
 
       let html = `<div class="report-summary-grid">
         <div class="report-summary-card report-summary-blue">
-          <span class="report-summary-label">Total Transactions</span>
+          <span class="report-summary-label">Transactions</span>
           <span class="report-summary-value">${totalCount}</span>
         </div>
         <div class="report-summary-card report-summary-green">
-          <span class="report-summary-label">Total Volume</span>
-          <span class="report-summary-value">${fmt(totalAmount)}</span>
+          <span class="report-summary-label">Money In</span>
+          <span class="report-summary-value">${fmt(sums.in)}</span>
+          <span class="report-summary-sub">deposits, loan payments, fees</span>
+        </div>
+        <div class="report-summary-card report-summary-red">
+          <span class="report-summary-label">Money Out</span>
+          <span class="report-summary-value">${fmt(sums.out)}</span>
+          <span class="report-summary-sub">withdrawals, disbursements, expenses</span>
+        </div>
+        <div class="report-summary-card ${sums.in - sums.out >= 0 ? 'report-summary-blue' : 'report-summary-red'}">
+          <span class="report-summary-label">Net Cash Flow</span>
+          <span class="report-summary-value">${fmt(sums.in - sums.out)}</span>
         </div>
       </div>
       <div class="table-responsive" style="margin-top:1.5rem">
         <table class="data-table">
-          <thead><tr><th>Transaction Type</th><th style="text-align:right">Count</th><th style="text-align:right">Total Amount</th><th style="text-align:right">% of Volume</th></tr></thead>
+          <thead><tr><th>Transaction Type</th><th>Direction</th><th style="text-align:right">Count</th><th style="text-align:right">Total Amount</th><th style="text-align:right">% of Count</th></tr></thead>
           <tbody>`;
-      report.forEach(r => {
-        const pct = totalAmount > 0 ? ((Number(r.total_amount) / totalAmount) * 100).toFixed(1) : '0.0';
-        html += `<tr><td>${r.type.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</td><td style="text-align:right">${r.count}</td><td style="text-align:right">${fmt(r.total_amount)}</td><td style="text-align:right">${pct}%</td></tr>`;
+      ['in', 'out', 'internal'].forEach(dir => {
+        const rows = report.filter(r => (DIRECTION[r.type] || 'internal') === dir);
+        if (!rows.length) return;
+        rows.forEach(r => {
+          const pct = totalCount > 0 ? ((Number(r.count) / totalCount) * 100).toFixed(1) : '0.0';
+          html += `<tr><td>${r.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</td><td><span class="badge ${dir === 'in' ? 'badge-success' : dir === 'out' ? 'badge-danger' : 'badge-muted'}">${LABELS[dir]}</span></td><td style="text-align:right">${r.count}</td><td style="text-align:right">${fmt(r.total_amount)}</td><td style="text-align:right">${pct}%</td></tr>`;
+        });
+        html += `<tr style="background:var(--bg-secondary);font-weight:600"><td colspan="3">${LABELS[dir]} subtotal</td><td style="text-align:right">${fmt(sums[dir])}</td><td></td></tr>`;
       });
-      html += `<tr style="border-top:3px double var(--border);font-weight:700"><td>Total</td><td style="text-align:right">${totalCount}</td><td style="text-align:right">${fmt(totalAmount)}</td><td style="text-align:right">100%</td></tr></tbody></table></div>`;
+      html += `<tr style="border-top:3px double var(--border);font-weight:700"><td colspan="2">Total</td><td style="text-align:right">${totalCount}</td><td style="text-align:right">${fmt(sums.in + sums.out + sums.internal)}</td><td style="text-align:right">100%</td></tr></tbody></table></div>
+      <p style="font-size:.75rem;color:var(--text-muted);margin-top:.75rem">Completed transactions only. Internal transfers move money between member accounts and are counted once per side, so they are shown separately from cash in and out.</p>`;
       el.innerHTML = html;
     }
 
     // === LOAN PORTFOLIO ===
-    async function renderLoanPortfolio() {
-      const resp = await apiFetch('/api/v1/admin/reports?type=loans');
+    async function renderLoanPortfolio(from, to) {
+      const resp = await apiFetch('/api/v1/reports/loan-portfolio?from=' + from + '&to=' + to);
       const json = await resp.json();
-      if (!resp.ok) throw new Error(json.message || 'Failed');
-      const report = (json.data && json.data.report) || [];
+      if (!resp.ok) throw new Error(json.error || json.message || 'Failed');
+      const d = json.data || {};
+      const byStatus = d.by_status || [];
+      const byType = d.by_type || [];
+      const active = d.active || {};
+      const period = d.period || {};
       const el = document.getElementById('reportContent');
 
-      const totalCount = report.reduce((s, r) => s + Number(r.count), 0);
-      const totalOriginal = report.reduce((s, r) => s + Number(r.total_amount), 0);
-      const totalOutstanding = report.reduce((s, r) => s + Number(r.total_remaining), 0);
+      const totalCount = byStatus.reduce((s, r) => s + Number(r.count), 0);
+      const totalOriginal = byStatus.reduce((s, r) => s + Number(r.total_amount), 0);
 
       let html = `<div class="report-summary-grid">
         <div class="report-summary-card report-summary-blue">
-          <span class="report-summary-label">Total Loans</span>
-          <span class="report-summary-value">${totalCount}</span>
-        </div>
-        <div class="report-summary-card report-summary-green">
-          <span class="report-summary-label">Total Originated</span>
-          <span class="report-summary-value">${fmt(totalOriginal)}</span>
+          <span class="report-summary-label">Active Loans</span>
+          <span class="report-summary-value">${active.count || 0}</span>
+          <span class="report-summary-sub">${totalCount} loans on file</span>
         </div>
         <div class="report-summary-card report-summary-red">
-          <span class="report-summary-label">Outstanding Balance</span>
-          <span class="report-summary-value">${fmt(totalOutstanding)}</span>
+          <span class="report-summary-label">Outstanding Principal</span>
+          <span class="report-summary-value">${fmt(active.outstanding)}</span>
+          <span class="report-summary-sub">avg rate ${Number(active.avg_rate || 0).toFixed(2)}% · ${fmt(active.monthly_due)} due monthly</span>
+        </div>
+        <div class="report-summary-card report-summary-green">
+          <span class="report-summary-label">Collected this period</span>
+          <span class="report-summary-value">${fmt(period.payments_total)}</span>
+          <span class="report-summary-sub">${period.payments_count || 0} payment(s) · interest ${fmt(period.interest_collected)}</span>
+        </div>
+        <div class="report-summary-card report-summary-blue">
+          <span class="report-summary-label">Disbursed this period</span>
+          <span class="report-summary-value">${fmt(period.disbursed_total)}</span>
+          <span class="report-summary-sub">${period.disbursed_count || 0} loan(s)</span>
         </div>
       </div>
-      <div class="table-responsive" style="margin-top:1.5rem">
+      <h4 style="margin:1.5rem 0 .5rem">By Status</h4>
+      <div class="table-responsive">
         <table class="data-table">
           <thead><tr><th>Status</th><th style="text-align:right">Count</th><th style="text-align:right">Originated</th><th style="text-align:right">Outstanding</th></tr></thead>
           <tbody>`;
       const statusClasses = { application:'badge-warning', approved:'badge-info', active:'badge-success', delinquent:'badge-danger', default:'badge-danger', paid_off:'badge-muted', cancelled:'badge-muted', denied:'badge-danger' };
-      report.forEach(r => {
+      byStatus.forEach(r => {
         const label = r.status.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
-        html += `<tr><td><span class="badge ${statusClasses[r.status] || 'badge-muted'}">${label}</span></td><td style="text-align:right">${r.count}</td><td style="text-align:right">${fmt(r.total_amount)}</td><td style="text-align:right">${fmt(r.total_remaining)}</td></tr>`;
+        const outstanding = ['active', 'delinquent', 'default'].includes(r.status) ? fmt(r.total_remaining) : '<span style="color:var(--text-muted)">—</span>';
+        html += `<tr><td><span class="badge ${statusClasses[r.status] || 'badge-muted'}">${label}</span></td><td style="text-align:right">${r.count}</td><td style="text-align:right">${fmt(r.total_amount)}</td><td style="text-align:right">${outstanding}</td></tr>`;
       });
-      html += `<tr style="border-top:3px double var(--border);font-weight:700"><td>Total</td><td style="text-align:right">${totalCount}</td><td style="text-align:right">${fmt(totalOriginal)}</td><td style="text-align:right">${fmt(totalOutstanding)}</td></tr></tbody></table></div>`;
+      html += `<tr style="border-top:3px double var(--border);font-weight:700"><td>Total</td><td style="text-align:right">${totalCount}</td><td style="text-align:right">${fmt(totalOriginal)}</td><td style="text-align:right">${fmt(active.outstanding)}</td></tr></tbody></table></div>`;
+
+      if (byType.length) {
+        html += `<h4 style="margin:1.5rem 0 .5rem">By Loan Type</h4>
+        <div class="table-responsive"><table class="data-table">
+          <thead><tr><th>Type</th><th>Category</th><th style="text-align:right">Loans</th><th style="text-align:right">Active</th><th style="text-align:right">Originated</th><th style="text-align:right">Outstanding</th><th style="text-align:right">% of Outstanding</th></tr></thead><tbody>`;
+        byType.forEach(t => {
+          const pct = Number(active.outstanding) > 0 ? ((Number(t.total_remaining) / Number(active.outstanding)) * 100).toFixed(1) : '0.0';
+          html += `<tr><td>${t.code ? t.code + ' — ' : ''}${t.description || t.category}</td><td>${(t.category || '').replace('_', ' ')}</td><td style="text-align:right">${t.count}</td><td style="text-align:right">${t.active_count}</td><td style="text-align:right">${fmt(t.total_amount)}</td><td style="text-align:right">${fmt(t.total_remaining)}</td><td style="text-align:right">${pct}%</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+      }
+      html += `<p style="font-size:.75rem;color:var(--text-muted);margin-top:.75rem">Outstanding is unpaid principal on disbursed loans (approved-but-undisbursed loans are not yet receivable). Period figures use the date range above.</p>`;
       el.innerHTML = html;
     }
 
@@ -482,29 +533,38 @@
       const loans = d.loans || [];
       const el = document.getElementById('reportContent');
 
+      const b = d.buckets || {};
       let html = `<div class="report-summary-grid">
         <div class="report-summary-card report-summary-red">
-          <span class="report-summary-label">Delinquent Loans</span>
+          <span class="report-summary-label">Past Due Loans</span>
           <span class="report-summary-value">${d.total_count || 0}</span>
+          <span class="report-summary-sub">${d.beyond_grace_count || 0} beyond grace period</span>
         </div>
         <div class="report-summary-card report-summary-red">
-          <span class="report-summary-label">Total Overdue Balance</span>
+          <span class="report-summary-label">Balance at Risk</span>
           <span class="report-summary-value">${fmt(d.total_overdue_balance)}</span>
+          <span class="report-summary-sub">${fmt(d.beyond_grace_balance)} beyond grace</span>
+        </div>
+        <div class="report-summary-card report-summary-blue">
+          <span class="report-summary-label">Ageing</span>
+          <span class="report-summary-value" style="font-size:1rem">1-30: ${b['1-30'] || 0} · 31-60: ${b['31-60'] || 0} · 61-90: ${b['61-90'] || 0} · 90+: ${b['90+'] || 0}</span>
         </div>
       </div>`;
 
       if (!loans.length) {
-        html += '<p style="text-align:center;padding:2rem;color:#16a34a;font-weight:600">No delinquent loans found.</p>';
+        html += '<p style="text-align:center;padding:2rem;color:#16a34a;font-weight:600">No past-due loans.</p>';
       } else {
         html += `<div class="table-responsive" style="margin-top:1.5rem">
           <table class="data-table">
-            <thead><tr><th>Loan #</th><th>Member</th><th>Type</th><th style="text-align:right">Outstanding</th><th style="text-align:right">Monthly Pmt</th><th>Next Due</th><th style="text-align:right;color:#dc2626">Days Past Due</th></tr></thead>
+            <thead><tr><th>Loan #</th><th>Member</th><th>Contact</th><th>Type</th><th style="text-align:right">Outstanding</th><th style="text-align:right">Installment</th><th style="text-align:right">Accrued Interest</th><th>Next Due</th><th style="text-align:right;color:#dc2626">Days Past Due</th><th>Grace</th></tr></thead>
             <tbody>`;
         loans.forEach(l => {
           const severity = l.days_past_due > 90 ? '#dc2626' : l.days_past_due > 30 ? '#ea580c' : '#ca8a04';
-          html += `<tr><td class="font-mono">${l.loan_number || '-'}</td><td>${l.member_name || '-'}</td><td>${l.loan_type}</td><td style="text-align:right">${fmt(l.outstanding_balance)}</td><td style="text-align:right">${fmt(l.monthly_payment)}</td><td>${l.next_payment_date || '-'}</td><td style="text-align:right;font-weight:700;color:${severity}">${l.days_past_due}</td></tr>`;
+          const contact = [l.phone, l.email].filter(Boolean).join('<br>');
+          html += `<tr><td class="font-mono">${l.loan_number || '-'}${l.member_number ? '<br><span style="color:var(--text-muted);font-size:.7rem">#' + l.member_number + '</span>' : ''}</td><td>${l.member_name || '-'}</td><td style="font-size:.75rem">${contact || '-'}</td><td>${l.loan_type_code ? l.loan_type_code + ' ' : ''}${l.loan_type}</td><td style="text-align:right">${fmt(l.outstanding_balance)}</td><td style="text-align:right">${fmt(l.monthly_payment)}</td><td style="text-align:right">${fmt(l.accrued_interest)}</td><td>${l.next_payment_date || '-'}</td><td style="text-align:right;font-weight:700;color:${severity}">${l.days_past_due}</td><td>${l.within_grace ? '<span class="badge badge-warning">within ' + (l.grace_period_days || 0) + 'd</span>' : '<span class="badge badge-danger">exceeded</span>'}</td></tr>`;
         });
         html += '</tbody></table></div>';
+        html += `<p style="font-size:.75rem;color:var(--text-muted);margin-top:.75rem">A loan is listed once its next due date has passed. Accrued interest is what has built up since the last payment (balance × APR ÷ 365 × days). Each loan's grace period is set on the loan (default 15 days).</p>`;
       }
       el.innerHTML = html;
     }
@@ -519,12 +579,22 @@
 
       let html = `<div class="report-summary-grid">
         <div class="report-summary-card report-summary-blue">
-          <span class="report-summary-label">Total Members</span>
+          <span class="report-summary-label">Members</span>
           <span class="report-summary-value">${d.total_members || 0}</span>
+          <span class="report-summary-sub">${d.active_members || 0} active</span>
         </div>
         <div class="report-summary-card report-summary-green">
-          <span class="report-summary-label">Total Accounts</span>
+          <span class="report-summary-label">New Members in Period</span>
+          <span class="report-summary-value">${d.new_members_period || 0}</span>
+        </div>
+        <div class="report-summary-card report-summary-blue">
+          <span class="report-summary-label">Open Accounts</span>
           <span class="report-summary-value">${d.total_accounts || 0}</span>
+          <span class="report-summary-sub">excluding loan accounts</span>
+        </div>
+        <div class="report-summary-card report-summary-green">
+          <span class="report-summary-label">New Accounts in Period</span>
+          <span class="report-summary-value">${d.new_accounts_period || 0}</span>
         </div>
       </div>`;
 
@@ -545,7 +615,7 @@
           <div class="table-responsive"><table class="data-table">
             <thead><tr><th>Month</th><th>Account Type</th><th style="text-align:right">New Accounts</th></tr></thead><tbody>`;
         accounts.forEach(a => {
-          html += `<tr><td>${a.month}</td><td>${a.account_type}</td><td style="text-align:right">${a.new_accounts}</td></tr>`;
+          html += `<tr><td>${a.month}</td><td>${String(a.account_type || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</td><td style="text-align:right">${a.new_accounts}</td></tr>`;
         });
         html += '</tbody></table></div>';
       }

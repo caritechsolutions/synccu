@@ -107,6 +107,25 @@ final class ReportController
                     $lines[] = ['account' => $cat . ' Expense', 'debit' => $amount, 'credit' => 0];
                     $lines[] = ['account' => 'Cash & Deposits', 'debit' => 0, 'credit' => $amount];
                     break;
+                case 'interest':
+                    // Interest / dividends credited to a member account
+                    $lines[] = ['account' => 'Interest & Dividends Paid', 'debit' => $amount, 'credit' => 0];
+                    $lines[] = ['account' => 'Member Deposits', 'debit' => 0, 'credit' => $amount];
+                    break;
+                case 'external_transfer':
+                case 'network_transfer':
+                    $lines[] = ['account' => 'Member Deposits', 'debit' => $amount, 'credit' => 0];
+                    $lines[] = ['account' => 'Cash & Deposits', 'debit' => 0, 'credit' => $amount];
+                    break;
+                case 'adjustment':
+                    if ($amount >= 0) {
+                        $lines[] = ['account' => 'Adjustments / Suspense', 'debit' => $amount, 'credit' => 0];
+                        $lines[] = ['account' => 'Member Deposits', 'debit' => 0, 'credit' => $amount];
+                    } else {
+                        $lines[] = ['account' => 'Member Deposits', 'debit' => -$amount, 'credit' => 0];
+                        $lines[] = ['account' => 'Adjustments / Suspense', 'debit' => 0, 'credit' => -$amount];
+                    }
+                    break;
                 default:
                     $lines[] = ['account' => 'Other', 'debit' => $amount, 'credit' => 0];
                     $lines[] = ['account' => 'Other', 'debit' => 0, 'credit' => $amount];
@@ -192,7 +211,26 @@ final class ReportController
                 'amount' => round((float) $row['amount'], 2),
             ];
         }
+
+        // Interest / dividends credited to member accounts are a cost of funds
+        $memberInterest = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount), 0) FROM transactions
+             WHERE tenant_id = ? AND type = 'interest' AND status = 'completed'
+               AND created_at BETWEEN ? AND ?",
+            [$tenantId, $from, $to],
+        ) ?? 0);
+        if ($memberInterest > 0) {
+            $expenses[] = ['name' => 'Interest & Dividends Paid to Members', 'amount' => round($memberInterest, 2)];
+        }
         $totalExpenses = array_sum(array_column($expenses, 'amount'));
+
+        // Activity context for the period
+        $loanPaymentCount = count($loanPayments);
+        $principalCollected = 0.0;
+        foreach ($loanPayments as $lp) {
+            $meta = json_decode($lp['metadata'] ?? '{}', true);
+            $principalCollected += (float) ($meta['principal'] ?? 0);
+        }
 
         return Response::ok([
             'revenue'        => $revenue,
@@ -200,6 +238,10 @@ final class ReportController
             'total_revenue'  => round($totalRevenue, 2),
             'total_expenses' => round($totalExpenses, 2),
             'net_income'     => round($totalRevenue - $totalExpenses, 2),
+            'context'        => [
+                'loan_payments'       => $loanPaymentCount,
+                'principal_collected' => round($principalCollected, 2),
+            ],
         ]);
     }
 
@@ -210,81 +252,218 @@ final class ReportController
      */
     public function balanceSheet(Request $request): Response
     {
+        return Response::ok($this->buildBalanceSheet());
+    }
+
+    /**
+     * Assets = cash held in fund locations (vault, drawers, bank) + loans
+     * receivable. Liabilities = member deposits (savings/checking). Equity =
+     * member shares + retained earnings. Any difference (typically opening
+     * balances loaded at go-live) is shown explicitly rather than hidden.
+     */
+    private function buildBalanceSheet(): array
+    {
         $tenantId = $this->db->getTenantId();
 
-        // --- Assets ---
-        // Cash & equivalents: total deposits held (sum of all account balances)
-        $cashOnHand = (float) ($this->db->fetchColumn(
-            "SELECT COALESCE(SUM(balance), 0) FROM accounts
-             WHERE tenant_id = ? AND status = 'active'",
-            [$tenantId],
-        ) ?? 0);
+        // --- Assets: cash by location ---
+        $cashByType = ['vault' => 0.0, 'drawer' => 0.0, 'bank_account' => 0.0];
+        $cashCounts = ['vault' => 0, 'drawer' => 0, 'bank_account' => 0];
+        try {
+            $rows = $this->db->fetchAll(
+                "SELECT type, COALESCE(SUM(balance), 0) AS total, COUNT(*) AS n
+                 FROM fund_locations WHERE tenant_id = ? AND status = 'active' GROUP BY type",
+                [$tenantId],
+            );
+            foreach ($rows as $r) {
+                $cashByType[$r['type']] = (float) $r['total'];
+                $cashCounts[$r['type']] = (int) $r['n'];
+            }
+        } catch (\Throwable) {
+            // Cash management not set up yet
+        }
+        $cashOnHand = array_sum($cashByType);
 
-        // Loan receivables: outstanding loan balances
+        // Loans receivable: disbursed, unpaid principal
         $loanReceivables = (float) ($this->db->fetchColumn(
             "SELECT COALESCE(SUM(outstanding_balance), 0) FROM loans
-             WHERE tenant_id = ? AND status IN ('active', 'delinquent', 'approved')",
+             WHERE tenant_id = ? AND status IN ('active', 'delinquent', 'default')",
             [$tenantId],
         ) ?? 0);
+        $loanCount = (int) $this->db->fetchColumn(
+            "SELECT COUNT(*) FROM loans WHERE tenant_id = ? AND status IN ('active', 'delinquent', 'default')",
+            [$tenantId],
+        );
 
         $assets = [
-            ['name' => 'Cash & Deposits', 'balance' => round($cashOnHand, 2)],
-            ['name' => 'Loan Receivables', 'balance' => round($loanReceivables, 2)],
+            ['name' => 'Cash — Vault / Safe',     'balance' => round($cashByType['vault'], 2),        'note' => $cashCounts['vault'] . ' location(s)', 'group' => 'Cash'],
+            ['name' => 'Cash — Teller Drawers',   'balance' => round($cashByType['drawer'], 2),       'note' => $cashCounts['drawer'] . ' drawer(s)', 'group' => 'Cash'],
+            ['name' => 'Cash — Bank Accounts',    'balance' => round($cashByType['bank_account'], 2), 'note' => $cashCounts['bank_account'] . ' account(s)', 'group' => 'Cash'],
+            ['name' => 'Loans Receivable',        'balance' => round($loanReceivables, 2),            'note' => $loanCount . ' active loan(s)', 'group' => 'Loans'],
         ];
         $totalAssets = round($cashOnHand + $loanReceivables, 2);
 
-        // --- Liabilities ---
-        // Member deposits: money owed back to members
-        $memberDeposits = $cashOnHand; // same as cash — member balances are our liability
-
-        $liabilities = [
-            ['name' => 'Member Deposits', 'balance' => round($memberDeposits, 2)],
-        ];
-        $totalLiabilities = round($memberDeposits, 2);
-
-        // --- Equity ---
-        // Retained earnings: cumulative net income (all-time revenue - expenses)
-        $allTimeRevenue = 0.0;
-
-        // Interest income from loan payments
-        $loanPayments = $this->db->fetchAll(
-            "SELECT metadata FROM transactions
-             WHERE tenant_id = ? AND type = 'loan_payment' AND status = 'completed'",
+        // --- Liabilities: member deposits ---
+        $byType = [];
+        $rows = $this->db->fetchAll(
+            "SELECT account_type, COALESCE(SUM(balance), 0) AS total, COUNT(*) AS n
+             FROM accounts WHERE tenant_id = ? AND status <> 'closed' AND account_type <> 'loan'
+             GROUP BY account_type",
             [$tenantId],
         );
+        foreach ($rows as $r) {
+            $byType[$r['account_type']] = ['total' => (float) $r['total'], 'n' => (int) $r['n']];
+        }
+        $get = fn(string $t) => $byType[$t]['total'] ?? 0.0;
+        $cnt = fn(string $t) => $byType[$t]['n'] ?? 0;
+
+        $liabilities = [
+            ['name' => 'Member Savings Deposits',  'balance' => round($get('savings'), 2),  'note' => $cnt('savings') . ' account(s)'],
+            ['name' => 'Member Checking Deposits', 'balance' => round($get('checking'), 2), 'note' => $cnt('checking') . ' account(s)'],
+        ];
+        $totalLiabilities = round($get('savings') + $get('checking'), 2);
+
+        // --- Equity: member shares + retained earnings ---
+        $loanPayments = $this->db->fetchAll(
+            "SELECT metadata FROM transactions WHERE tenant_id = ? AND type = 'loan_payment' AND status = 'completed'",
+            [$tenantId],
+        );
+        $interestIncome = 0.0;
         foreach ($loanPayments as $lp) {
             $meta = json_decode($lp['metadata'] ?? '{}', true);
-            $allTimeRevenue += (float) ($meta['interest'] ?? 0);
+            $interestIncome += (float) ($meta['interest'] ?? 0);
+        }
+        $feeIncome = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE tenant_id = ? AND type IN ('fee', 'late_fee') AND status = 'completed'",
+            [$tenantId],
+        ) ?? 0);
+        $expenses = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE tenant_id = ? AND type = 'expense' AND status = 'completed'",
+            [$tenantId],
+        ) ?? 0);
+        $memberInterest = (float) ($this->db->fetchColumn(
+            "SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE tenant_id = ? AND type = 'interest' AND status = 'completed'",
+            [$tenantId],
+        ) ?? 0);
+        $retainedEarnings = round($interestIncome + $feeIncome - $expenses - $memberInterest, 2);
+
+        $permShares = $get('permanent_shares');
+        $regShares  = $get('regular_shares');
+        $equity = [
+            ['name' => 'Permanent Shares',  'balance' => round($permShares, 2), 'note' => $cnt('permanent_shares') . ' account(s)'],
+            ['name' => 'Regular Shares',    'balance' => round($regShares, 2),  'note' => $cnt('regular_shares') . ' account(s)'],
+            ['name' => 'Retained Earnings', 'balance' => $retainedEarnings,     'note' => 'all-time interest + fees − expenses'],
+        ];
+        $explained = round($totalLiabilities + $permShares + $regShares + $retainedEarnings, 2);
+        $difference = round($totalAssets - $explained, 2);
+        if (abs($difference) >= 0.01) {
+            $equity[] = [
+                'name'    => 'Opening Balances / Unreconciled',
+                'balance' => $difference,
+                'note'    => 'assets not explained by the ledger (e.g. balances loaded at go-live)',
+                'plug'    => true,
+            ];
+        }
+        $totalEquity = round($permShares + $regShares + $retainedEarnings + $difference, 2);
+
+        return [
+            'as_of'             => date('Y-m-d'),
+            'assets'            => $assets,
+            'liabilities'       => $liabilities,
+            'equity'            => $equity,
+            'total_cash'        => round($cashOnHand, 2),
+            'total_assets'      => $totalAssets,
+            'total_liabilities' => $totalLiabilities,
+            'total_equity'      => $totalEquity,
+            'difference'        => $difference,
+            'balanced'          => abs($difference) < 0.01,
+        ];
+    }
+
+    /**
+     * GET /api/v1/reports/loan-portfolio
+     *
+     * Portfolio by status and by loan type, plus period activity.
+     */
+    public function loanPortfolio(Request $request): Response
+    {
+        $tenantId = $this->db->getTenantId();
+        $from = $request->query('from', date('Y-m-01'));
+        $to = $this->normalizeToDate($request->query('to', date('Y-m-d')));
+        try { new \App\Services\LoanService(); } catch (\Throwable) {}
+
+        $byStatus = $this->db->fetchAll(
+            "SELECT status, COUNT(*) AS count,
+                    COALESCE(SUM(principal_amount), 0) AS total_amount,
+                    COALESCE(SUM(outstanding_balance), 0) AS total_remaining
+             FROM loans WHERE tenant_id = ?
+             GROUP BY status
+             ORDER BY FIELD(status, 'application','approved','active','delinquent','default','paid_off','cancelled')",
+            [$tenantId],
+        );
+
+        $byType = $this->db->fetchAll(
+            "SELECT COALESCE(l.loan_type_code, '') AS code,
+                    COALESCE(lt.description, l.loan_type) AS description,
+                    l.loan_type AS category,
+                    COUNT(*) AS count,
+                    SUM(l.status IN ('active','delinquent','default')) AS active_count,
+                    COALESCE(SUM(l.principal_amount), 0) AS total_amount,
+                    COALESCE(SUM(CASE WHEN l.status IN ('active','delinquent','default') THEN l.outstanding_balance ELSE 0 END), 0) AS total_remaining
+             FROM loans l
+             LEFT JOIN loan_types lt ON lt.tenant_id = l.tenant_id AND lt.code = l.loan_type_code
+             WHERE l.tenant_id = ?
+             GROUP BY code, description, category
+             ORDER BY total_remaining DESC",
+            [$tenantId],
+        );
+
+        $active = $this->db->fetchOne(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(outstanding_balance), 0) AS outstanding,
+                    COALESCE(SUM(outstanding_balance * interest_rate), 0) AS weighted,
+                    COALESCE(SUM(monthly_payment), 0) AS monthly_due
+             FROM loans WHERE tenant_id = ? AND status IN ('active','delinquent','default')",
+            [$tenantId],
+        );
+        $avgRate = (float) $active['outstanding'] > 0 ? round((float) $active['weighted'] / (float) $active['outstanding'], 2) : 0;
+
+        $disbursed = $this->db->fetchOne(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM transactions
+             WHERE tenant_id = ? AND type = 'loan_disbursement' AND status = 'completed' AND created_at BETWEEN ? AND ?",
+            [$tenantId, $from, $to],
+        );
+        $payRows = $this->db->fetchAll(
+            "SELECT amount, metadata FROM transactions
+             WHERE tenant_id = ? AND type = 'loan_payment' AND status = 'completed' AND created_at BETWEEN ? AND ?",
+            [$tenantId, $from, $to],
+        );
+        $paid = 0.0; $interest = 0.0; $principal = 0.0;
+        foreach ($payRows as $p) {
+            $m = json_decode($p['metadata'] ?? '{}', true) ?: [];
+            $paid += (float) $p['amount'];
+            $interest += (float) ($m['interest'] ?? 0);
+            $principal += (float) ($m['principal'] ?? 0);
         }
 
-        // Fee + late fee income
-        $allTimeRevenue += (float) ($this->db->fetchColumn(
-            "SELECT COALESCE(SUM(amount), 0) FROM transactions
-             WHERE tenant_id = ? AND type IN ('fee', 'late_fee') AND status = 'completed'",
-            [$tenantId],
-        ) ?? 0);
-
-        $allTimeExpenses = (float) ($this->db->fetchColumn(
-            "SELECT COALESCE(SUM(amount), 0) FROM transactions
-             WHERE tenant_id = ? AND type = 'expense' AND status = 'completed'",
-            [$tenantId],
-        ) ?? 0);
-
-        $retainedEarnings = round($allTimeRevenue - $allTimeExpenses, 2);
-
-        $equity = [
-            ['name' => 'Retained Earnings', 'balance' => $retainedEarnings],
-        ];
-        $totalEquity = $retainedEarnings;
-
         return Response::ok([
-            'assets'           => $assets,
-            'liabilities'      => $liabilities,
-            'equity'           => $equity,
-            'total_assets'     => $totalAssets,
-            'total_liabilities' => $totalLiabilities,
-            'total_equity'     => $totalEquity,
-            'balanced'         => abs($totalAssets - ($totalLiabilities + $totalEquity)) < 0.01,
+            'as_of'     => date('Y-m-d'),
+            'by_status' => $byStatus,
+            'by_type'   => $byType,
+            'active'    => [
+                'count'        => (int) $active['n'],
+                'outstanding'  => round((float) $active['outstanding'], 2),
+                'avg_rate'     => $avgRate,
+                'monthly_due'  => round((float) $active['monthly_due'], 2),
+            ],
+            'period'    => [
+                'from'               => $from,
+                'to'                 => substr($to, 0, 10),
+                'disbursed_count'    => (int) $disbursed['n'],
+                'disbursed_total'    => round((float) $disbursed['total'], 2),
+                'payments_count'     => count($payRows),
+                'payments_total'     => round($paid, 2),
+                'interest_collected' => round($interest, 2),
+                'principal_collected' => round($principal, 2),
+            ],
         ]);
     }
 
@@ -307,7 +486,7 @@ final class ReportController
             "SELECT DATE_FORMAT(created_at, '%Y-%m') AS month,
                     COUNT(*) AS new_members
              FROM users
-             WHERE tenant_id = ? AND created_at BETWEEN ? AND ?
+             WHERE tenant_id = ? AND role = 'member' AND created_at BETWEEN ? AND ?
              GROUP BY DATE_FORMAT(created_at, '%Y-%m')
              ORDER BY month",
             [$tenantId, $from, $to]
@@ -318,27 +497,36 @@ final class ReportController
                     account_type,
                     COUNT(*) AS new_accounts
              FROM accounts
-             WHERE tenant_id = ? AND created_at BETWEEN ? AND ?
+             WHERE tenant_id = ? AND account_type <> 'loan' AND created_at BETWEEN ? AND ?
              GROUP BY DATE_FORMAT(created_at, '%Y-%m'), account_type
              ORDER BY month",
             [$tenantId, $from, $to]
         );
 
         $totalMembers = (int) $this->db->fetchColumn(
-            'SELECT COUNT(*) FROM users WHERE tenant_id = ?',
+            "SELECT COUNT(*) FROM users WHERE tenant_id = ? AND role = 'member'",
             [$tenantId]
         );
+        $activeMembers = (int) $this->db->fetchColumn(
+            "SELECT COUNT(*) FROM users WHERE tenant_id = ? AND role = 'member' AND status = 'active'",
+            [$tenantId]
+        );
+        $newMembersPeriod = (int) array_sum(array_column($members, 'new_members'));
 
         $totalAccounts = (int) $this->db->fetchColumn(
-            'SELECT COUNT(*) FROM accounts WHERE tenant_id = ?',
+            "SELECT COUNT(*) FROM accounts WHERE tenant_id = ? AND account_type <> 'loan' AND status <> 'closed'",
             [$tenantId]
         );
+        $newAccountsPeriod = (int) array_sum(array_column($accounts, 'new_accounts'));
 
         return Response::ok([
-            'member_trend' => $members,
-            'account_trend' => $accounts,
-            'total_members' => $totalMembers,
-            'total_accounts' => $totalAccounts,
+            'member_trend'        => $members,
+            'account_trend'       => $accounts,
+            'total_members'       => $totalMembers,
+            'active_members'      => $activeMembers,
+            'new_members_period'  => $newMembersPeriod,
+            'total_accounts'      => $totalAccounts,
+            'new_accounts_period' => $newAccountsPeriod,
         ]);
     }
 
@@ -352,24 +540,44 @@ final class ReportController
         $tenantId = $this->db->getTenantId();
 
         $loans = $this->db->fetchAll(
-            "SELECT l.id, l.loan_number, l.loan_type, l.principal_amount, l.outstanding_balance,
-                    l.interest_rate, l.next_payment_date, l.monthly_payment,
+            "SELECT l.id, l.loan_number, l.loan_type, l.loan_type_code, l.status, l.principal_amount, l.outstanding_balance,
+                    l.interest_rate, l.next_payment_date, l.monthly_payment, l.grace_period_days,
                     DATEDIFF(CURDATE(), l.next_payment_date) AS days_past_due,
-                    CONCAT(u.first_name, ' ', u.last_name) AS member_name, u.email
+                    CONCAT(u.first_name, ' ', u.last_name) AS member_name, u.email, u.phone, u.member_number
              FROM loans l
              JOIN users u ON u.id = l.user_id AND u.tenant_id = l.tenant_id
-             WHERE l.tenant_id = ? AND l.status IN ('active', 'delinquent')
+             WHERE l.tenant_id = ? AND l.status IN ('active', 'delinquent', 'default')
                AND l.next_payment_date < CURDATE()
              ORDER BY days_past_due DESC",
             [$tenantId]
         );
 
-        $totalOverdue = array_sum(array_column($loans, 'outstanding_balance'));
+        $totalOverdue = 0.0; $beyondGrace = 0; $beyondGraceBalance = 0.0;
+        $buckets = ['1-30' => 0, '31-60' => 0, '61-90' => 0, '90+' => 0];
+        foreach ($loans as &$l) {
+            $days = (int) $l['days_past_due'];
+            $grace = (int) ($l['grace_period_days'] ?? 0);
+            $l['within_grace'] = $days <= $grace;
+            // Accrued interest since last payment, same basis as the ledger
+            $l['accrued_interest'] = round((float) $l['outstanding_balance'] * ((float) $l['interest_rate'] / 100 / 365) * max(0, $days), 2);
+            $totalOverdue += (float) $l['outstanding_balance'];
+            if (!$l['within_grace']) {
+                $beyondGrace++;
+                $beyondGraceBalance += (float) $l['outstanding_balance'];
+            }
+            $bucket = $days > 90 ? '90+' : ($days > 60 ? '61-90' : ($days > 30 ? '31-60' : '1-30'));
+            $buckets[$bucket]++;
+        }
+        unset($l);
 
         return Response::ok([
+            'as_of' => date('Y-m-d'),
             'loans' => $loans,
             'total_count' => count($loans),
-            'total_overdue_balance' => round((float) $totalOverdue, 2),
+            'total_overdue_balance' => round($totalOverdue, 2),
+            'beyond_grace_count' => $beyondGrace,
+            'beyond_grace_balance' => round($beyondGraceBalance, 2),
+            'buckets' => $buckets,
         ]);
     }
 
@@ -595,16 +803,15 @@ final class ReportController
                 break;
 
             case 'balance-sheet':
-                $csv = "Category,Type,Balance\n";
-                $cash = (float) ($this->db->fetchColumn(
-                    "SELECT COALESCE(SUM(balance),0) FROM accounts WHERE tenant_id=? AND status='active'", [$tenantId]) ?? 0);
-                $loanRec = (float) ($this->db->fetchColumn(
-                    "SELECT COALESCE(SUM(outstanding_balance),0) FROM loans WHERE tenant_id=? AND status IN ('active','delinquent','approved')", [$tenantId]) ?? 0);
-                $csv .= "Cash & Deposits,Asset," . round($cash, 2) . "\n";
-                $csv .= "Loan Receivables,Asset," . round($loanRec, 2) . "\n";
-                $csv .= "Member Deposits,Liability," . round($cash, 2) . "\n";
-                $csv .= "Total Assets,," . round($cash + $loanRec, 2) . "\n";
-                $csv .= "Total Liabilities,," . round($cash, 2) . "\n";
+                $bs = $this->buildBalanceSheet();
+                $csv = "Category,Type,Balance,Note\n";
+                foreach ($bs['assets'] as $a) { $csv .= '"' . $a['name'] . '",Asset,' . $a['balance'] . ',"' . ($a['note'] ?? '') . "\"\n"; }
+                $csv .= "Total Assets,," . $bs['total_assets'] . ",\n";
+                foreach ($bs['liabilities'] as $a) { $csv .= '"' . $a['name'] . '",Liability,' . $a['balance'] . ',"' . ($a['note'] ?? '') . "\"\n"; }
+                $csv .= "Total Liabilities,," . $bs['total_liabilities'] . ",\n";
+                foreach ($bs['equity'] as $a) { $csv .= '"' . $a['name'] . '",Equity,' . $a['balance'] . ',"' . ($a['note'] ?? '') . "\"\n"; }
+                $csv .= "Total Equity,," . $bs['total_equity'] . ",\n";
+                $csv .= "Liabilities + Equity,," . round($bs['total_liabilities'] + $bs['total_equity'], 2) . ",\n";
                 break;
 
             case 'transactions':
@@ -650,22 +857,23 @@ final class ReportController
 
             case 'delinquency':
                 $rows = $this->db->fetchAll(
-                    "SELECT l.loan_number, l.loan_type, l.outstanding_balance, l.monthly_payment,
+                    "SELECT l.loan_number, l.loan_type, l.outstanding_balance, l.monthly_payment, l.grace_period_days,
                             l.next_payment_date, DATEDIFF(CURDATE(), l.next_payment_date) AS days_past_due,
-                            CONCAT(u.first_name, ' ', u.last_name) AS member_name, u.email
+                            CONCAT(u.first_name, ' ', u.last_name) AS member_name, u.email, u.phone
                      FROM loans l
                      JOIN users u ON u.id = l.user_id AND u.tenant_id = l.tenant_id
-                     WHERE l.tenant_id = ? AND l.status IN ('active', 'delinquent')
+                     WHERE l.tenant_id = ? AND l.status IN ('active', 'delinquent', 'default')
                        AND l.next_payment_date < CURDATE()
                      ORDER BY days_past_due DESC",
                     [$tenantId]
                 );
-                $csv = "Loan #,Member,Email,Type,Outstanding,Monthly Payment,Next Payment Due,Days Past Due\n";
+                $csv = "Loan #,Member,Email,Phone,Type,Outstanding,Monthly Payment,Next Payment Due,Days Past Due,Within Grace\n";
                 foreach ($rows as $r) {
                     $csv .= implode(',', [
                         $r['loan_number'], '"' . str_replace('"', '""', $r['member_name']) . '"',
-                        $r['email'], $r['loan_type'], $r['outstanding_balance'],
-                        $r['monthly_payment'], $r['next_payment_date'], $r['days_past_due']
+                        $r['email'], $r['phone'] ?? '', $r['loan_type'], $r['outstanding_balance'],
+                        $r['monthly_payment'], $r['next_payment_date'], $r['days_past_due'],
+                        ((int) $r['days_past_due'] <= (int) ($r['grace_period_days'] ?? 0)) ? 'yes' : 'no',
                     ]) . "\n";
                 }
                 break;
@@ -673,7 +881,7 @@ final class ReportController
             case 'member-growth':
                 $rows = $this->db->fetchAll(
                     "SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS new_members
-                     FROM users WHERE tenant_id = ? AND created_at BETWEEN ? AND ?
+                     FROM users WHERE tenant_id = ? AND role = 'member' AND created_at BETWEEN ? AND ?
                      GROUP BY DATE_FORMAT(created_at, '%Y-%m') ORDER BY month",
                     [$tenantId, $from, $to]
                 );
