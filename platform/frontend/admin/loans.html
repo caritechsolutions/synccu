@@ -454,6 +454,7 @@
             </form>
             <div style="margin-top:.75rem">
               <button type="button" class="btn btn-secondary" id="payoffQuoteBtn">Get Payoff Quote</button>
+              <button type="button" class="btn btn-secondary" id="replayHistoryBtn" title="Re-run every payment from the loan start and recompute interest, principal, balance and schedule">Recalculate Payment History</button>
               <span id="payoffQuoteResult" style="margin-left:.75rem;font-weight:600"></span>
             </div>
           </div>
@@ -1286,6 +1287,22 @@
         const keepDate = paymentDateField.isBackdated();
         document.getElementById('paymentForm').reset();
         if (!keepDate) paymentDateField.reset();
+        await openLoanDetail(currentLoan.id);
+        loadLoans(currentLoanPage);
+      } catch (e) { alert('Error: ' + e.message); }
+    });
+
+    // === RECALCULATE PAYMENT HISTORY (replay) ===
+    document.getElementById('replayHistoryBtn').addEventListener('click', async () => {
+      if (!currentLoan) return;
+      if (!confirm('Recalculate the full payment history for loan ' + currentLoan.loan_number + '?\n\nEvery payment is re-run in date order from the loan start: interest = balance × rate ÷ 365 × days since the previous payment. Splits, balances and the schedule are rewritten. The payment amounts themselves do not change.')) return;
+      try {
+        const resp = await apiFetch('/api/v1/loans/' + currentLoan.id + '/replay', { method: 'POST' });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) { alert('Error: ' + (json.error || json.message || 'Recalculation failed')); return; }
+        const d = json.data || {};
+        const lines = (d.payments || []).map(p => p.payment_date + '  ' + Number(p.amount).toFixed(2) + '  days ' + p.days_accrued + '  int ' + Number(p.interest).toFixed(2) + '  prin ' + Number(p.principal).toFixed(2) + '  bal ' + Number(p.balance_after).toFixed(2));
+        alert('Recalculated from ' + d.base_date + ' (starting balance $' + Number(d.base_balance || 0).toFixed(2) + ')\n\n' + (lines.join('\n') || 'No payments') + '\n\nOutstanding now: $' + Number(d.outstanding_balance || 0).toFixed(2));
         await openLoanDetail(currentLoan.id);
         loadLoans(currentLoanPage);
       } catch (e) { alert('Error: ' + e.message); }

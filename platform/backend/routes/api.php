@@ -192,6 +192,9 @@ $router->group([
     $router->post('/{id}/disburse', [LoanController::class, 'disburse'], [
         RBACMiddleware::class . ':admin,manager',
     ]);
+    $router->post('/{id}/replay', [LoanController::class, 'replay'], [
+        RBACMiddleware::class . ':admin,manager',
+    ]);
     $router->put('/{id}/deny', [LoanController::class, 'deny'], [
         RBACMiddleware::class . ':admin,manager',
     ]);

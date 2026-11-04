@@ -586,6 +586,7 @@ final class LoanService
                         'drawer_id'       => $options['drawer_id'] ?? null,
                         'batch_id'        => $options['batch_id'] ?? null,
                         'backdate'        => $backdate,
+                        'provisional'     => $outOfOrder,
                     ]),
                     $now,
                 ],
@@ -693,10 +694,14 @@ final class LoanService
             );
         }
         $paidAmount = 0.0;
-        $paidPrincipal = 0.0;
+        $paidPrincipal = 0.0;   // principal already taken off outstanding_balance
         foreach ($payments as $p) {
             $paidAmount += (float) $p['amount'];
-            $m = json_decode((string) ($p['metadata'] ?? ''), true);
+            $m = json_decode((string) ($p['metadata'] ?? ''), true) ?: [];
+            // A payment inserted out of sequence has not touched the balance yet
+            if (!empty($m['provisional'])) {
+                continue;
+            }
             $paidPrincipal += isset($m['principal']) ? (float) $m['principal'] : (float) $p['amount'];
         }
 
@@ -707,20 +712,30 @@ final class LoanService
             [$tenantId, $loan['account_id']],
         ) : null;
 
+        $meta = is_array($loan['metadata'] ?? null) ? $loan['metadata'] : (json_decode((string) ($loan['metadata'] ?? ''), true) ?: []);
+        $baseTotalPaid = 0.0;
+
         if ($disb) {
+            // Disbursed in this system: history starts at the principal on the disbursement date
             $balance = (float) ($loan['disbursed_amount'] ?: $loan['principal_amount']);
             $date = (string) $disb['created_at'];
-        } else {
-            // Imported: reconstruct the as-of balance from what has been paid since
+        } elseif (!empty($meta['last_payment_date'])) {
+            // Imported with an as-of date: the file balance is the starting point on that
+            // date, reconstructed from what has been paid since
             $balance = round((float) $loan['outstanding_balance'] + $paidPrincipal, 2);
-            $meta = is_array($loan['metadata'] ?? null) ? $loan['metadata'] : (json_decode((string) ($loan['metadata'] ?? ''), true) ?: []);
-            $date = (string) ($meta['last_payment_date'] ?? $loan['disbursed_at'] ?? $loan['approved_at'] ?? $loan['created_at']);
+            $date = (string) $meta['last_payment_date'];
+            $baseTotalPaid = max(0.0, round((float) ($loan['total_paid'] ?? 0) - $paidAmount, 2));
+        } else {
+            // Imported without an as-of date: the history is being re-keyed from the
+            // loan date, so start from the original principal on that date
+            $balance = (float) ($loan['disbursed_amount'] ?: $loan['principal_amount']);
+            $date = (string) ($loan['disbursed_at'] ?? $loan['approved_at'] ?? $loan['created_at']);
         }
 
         return [
             'date'            => $date,
             'balance'         => $balance,
-            'base_total_paid' => max(0.0, round((float) ($loan['total_paid'] ?? 0) - $paidAmount, 2)),
+            'base_total_paid' => $baseTotalPaid,
             'payments'        => $payments,
         ];
     }
@@ -772,6 +787,7 @@ final class LoanService
                 'payment_date' => $pDate->format('Y-m-d'),
                 'overpayment'  => $overpayment,
                 'replayed_at'  => $replayedAt,
+                'provisional'  => false,
             ]);
             $this->db->query(
                 'UPDATE transactions SET balance_after = ?, metadata = ? WHERE id = ?',

@@ -302,6 +302,25 @@ final class LoanController
     }
 
     /**
+     * POST /api/v1/loans/{id}/replay
+     *
+     * Re-run the loan's payment history from its starting point, recomputing
+     * every interest/principal split, the balance and the schedule.
+     * Admin/manager only.
+     */
+    public function replay(Request $request): Response
+    {
+        $loanId = $request->param('id');
+        try {
+            $result = $this->loans->replayPayments($loanId);
+            $result['loan'] = $this->loans->findById($loanId);
+            return Response::ok($result, 'Payment history recalculated');
+        } catch (\RuntimeException $e) {
+            return Response::error($e->getMessage(), $e->getCode() >= 400 ? $e->getCode() : 400);
+        }
+    }
+
+    /**
      * PUT /api/loans/{id}/deny
      *
      * Deny a loan application (admin/manager only).
