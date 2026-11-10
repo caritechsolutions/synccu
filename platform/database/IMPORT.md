@@ -68,6 +68,32 @@ current to. Interest on imported loans accrues from that date, and the
 amortisation schedule is generated from it the first time the loan is viewed or
 paid. Without it, the platform would count interest from the original loan date.
 
+## Loading a single loan's full ledger (payment history)
+
+`import_loan_ledger.php` takes the legacy "Loan Ledger" print-out for one
+loan, resets the loan to its note terms, posts every payment at its date and
+replays the history through the platform's interest engine (balance × APR ÷
+365 × days since the previous payment, interest first). It prints a row-by-row
+comparison against the ledger's own interest/principal/balance columns and only
+writes with `--commit`.
+
+```bash
+# ledger file: one line per printed row (date first, then the numbers)
+php platform/database/import_loan_ledger.php --member=1011 --loan=1011A --ledger=/root/1011A.txt \
+    --principal=25995.99 --rate=12 --term=96 --payment=425.68 \
+    --loan-date=2024-08-08 --first-payment=2024-09-30 --type=A \
+    --refinanced-balance=20435.99 --refinanced-last-payment=2024-07-30 \
+    --pledged=8578.68 --pledged-account=1011            # dry run
+php platform/database/import_loan_ledger.php ... --commit
+```
+
+When the note refinanced an older one, the legacy system carries the interest
+accrued on the old balance (from its last payment to the loan date) into the
+first payment; `--refinanced-balance` / `--refinanced-last-payment` reproduce
+that (or set `--opening-interest` directly). Payments already posted in this
+system for the loan are replaced; the script refuses if any were paid from a
+member account, since those moved money.
+
 ## Wiping test data before a clean re-import
 
 To empty all member/client data (keeping staff logins) and re-import from

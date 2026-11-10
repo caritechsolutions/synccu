@@ -478,7 +478,7 @@ final class LoanService
                 $lastDate = new \DateTimeImmutable($lastActivityDate);
                 $payDate  = new \DateTimeImmutable($paymentDate);
                 $daysSince = max(0, (int) $payDate->diff($lastDate)->days);
-                $accruedInterest = round($outstandingBalance * $dailyRate * $daysSince, 2);
+                $accruedInterest = round($outstandingBalance * $dailyRate * $daysSince + $this->openingInterestDue($loanId, $loan), 2);
 
                 // Total owed = principal balance + accrued interest
                 $totalOwed = $outstandingBalance + $accruedInterest;
@@ -674,6 +674,31 @@ final class LoanService
     }
 
     /**
+     * Interest carried into this loan at its start (e.g. accrued on a note it
+     * refinanced), stored as metadata.opening_interest. Collected with the
+     * first payment.
+     */
+    private function openingInterest(array $loan): float
+    {
+        $meta = is_array($loan['metadata'] ?? null) ? $loan['metadata'] : (json_decode((string) ($loan['metadata'] ?? ''), true) ?: []);
+        return round((float) ($meta['opening_interest'] ?? 0), 2);
+    }
+
+    /** The opening interest if it has not been collected yet (no payment posted so far). */
+    private function openingInterestDue(string $loanId, array $loan): float
+    {
+        $carry = $this->openingInterest($loan);
+        if ($carry <= 0 || empty($loan['account_id'])) {
+            return 0.0;
+        }
+        $paid = (int) $this->db->fetchColumn(
+            "SELECT COUNT(*) FROM transactions WHERE tenant_id = ? AND account_id = ? AND type = 'loan_payment' AND status = 'completed'",
+            [$loan['tenant_id'], $loan['account_id']],
+        );
+        return $paid > 0 ? 0.0 : $carry;
+    }
+
+    /**
      * Where the payment history starts: the disbursement (balance = principal)
      * or, for imported loans, the as-of date whose balance was loaded from the
      * legacy file (balance = current outstanding + principal paid since).
@@ -767,6 +792,10 @@ final class LoanService
             $pDate = new \DateTimeImmutable(substr((string) $p['created_at'], 0, 10));
             $days = $pDate < $lastDate ? 0 : (int) $pDate->diff($lastDate)->days;
             $interest = $balance > 0 ? round($balance * $dailyRate * $days, 2) : 0.0;
+            if ($i === 0) {
+                // Interest carried over from a refinanced note is collected with the first payment
+                $interest = round($interest + $this->openingInterest($loan), 2);
+            }
             $amount = (float) $p['amount'];
             $interestPortion = round(min($interest, $amount), 2);
             $principalPortion = round($amount - $interestPortion, 2);
@@ -1129,7 +1158,7 @@ final class LoanService
         $today = new \DateTimeImmutable('today');
         $daysSince = max(0, (int) $today->diff($lastDate)->days);
 
-        $accrued = round($outstanding * $dailyRate * $daysSince, 2);
+        $accrued = round($outstanding * $dailyRate * $daysSince + $this->openingInterestDue($loanId, $loan), 2);
 
         return [
             'accrued_interest'        => $accrued,
@@ -1210,7 +1239,7 @@ final class LoanService
         $today     = new \DateTimeImmutable('today');
         $daysSince = max(0, (int) $today->diff($lastDate)->days);
 
-        $accruedInterest = round($outstandingBalance * $dailyRate * $daysSince, 2);
+        $accruedInterest = round($outstandingBalance * $dailyRate * $daysSince + $this->openingInterestDue($loanId, $loan), 2);
         $dailyInterest   = round($outstandingBalance * $dailyRate, 2);
         $payoffAmount    = round($outstandingBalance + $accruedInterest, 2);
 
