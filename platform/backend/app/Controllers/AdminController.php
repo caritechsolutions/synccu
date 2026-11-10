@@ -33,150 +33,143 @@ final class AdminController
     public function dashboard(Request $request): Response
     {
         $tenantId = $this->db->getTenantId();
-
-        $totalMembers = (int) $this->db->fetchColumn(
-            'SELECT COUNT(*) FROM users WHERE tenant_id = ? AND status = ?',
-            [$tenantId, 'active'],
-        );
-
-        $totalAccounts = (int) $this->db->fetchColumn(
-            'SELECT COUNT(*) FROM accounts WHERE tenant_id = ? AND status = ?',
-            [$tenantId, 'active'],
-        );
-
-        $totalDeposits = (float) ($this->db->fetchColumn(
-            'SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE tenant_id = ? AND status = ?',
-            [$tenantId, 'active'],
-        ) ?? 0);
-
-        $totalLoans = (int) $this->db->fetchColumn(
-            'SELECT COUNT(*) FROM loans WHERE tenant_id = ? AND status IN (?, ?)',
-            [$tenantId, 'approved', 'active'],
-        );
-
-        $totalLoanBalance = (float) ($this->db->fetchColumn(
-            'SELECT COALESCE(SUM(outstanding_balance), 0) FROM loans WHERE tenant_id = ? AND status IN (?, ?)',
-            [$tenantId, 'approved', 'active'],
-        ) ?? 0);
-
-        $pendingLoans = (int) $this->db->fetchColumn(
-            'SELECT COUNT(*) FROM loans WHERE tenant_id = ? AND status = ?',
-            [$tenantId, 'application'],
-        );
-
-        $recentTransactions = $this->db->fetchAll(
-            'SELECT id, reference_number, type, amount, status, created_at
-             FROM transactions WHERE tenant_id = ?
-             ORDER BY created_at DESC LIMIT 10',
-            [$tenantId],
-        );
-
-        $delinquentLoans = (int) $this->db->fetchColumn(
-            'SELECT COUNT(*) FROM loans WHERE tenant_id = ? AND status = ?',
-            [$tenantId, 'delinquent'],
-        );
-
-        // Transaction volume by day (last 30 days) — for line/area chart
-        $transactionTrend = $this->db->fetchAll(
-            'SELECT DATE(created_at) AS date, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total
-             FROM transactions
-             WHERE tenant_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-             GROUP BY DATE(created_at)
-             ORDER BY date',
-            [$tenantId],
-        );
-
-        // Deposits vs Withdrawals this month — for comparison
-        $depositVsWithdrawal = $this->db->fetchAll(
-            "SELECT type, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total
-             FROM transactions
-             WHERE tenant_id = ? AND type IN ('deposit', 'withdrawal')
-               AND created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
-             GROUP BY type",
-            [$tenantId],
-        );
-
-        // Account types breakdown — for donut chart
-        $accountTypes = $this->db->fetchAll(
-            "SELECT account_type, COUNT(*) AS count, COALESCE(SUM(balance), 0) AS total_balance
-             FROM accounts
-             WHERE tenant_id = ? AND status = 'active'
-             GROUP BY account_type",
-            [$tenantId],
-        );
-
-        // Loan status breakdown — for donut chart
-        $loanStatus = $this->db->fetchAll(
-            'SELECT status, COUNT(*) AS count, COALESCE(SUM(outstanding_balance), 0) AS total
-             FROM loans
-             WHERE tenant_id = ?
-             GROUP BY status',
-            [$tenantId],
-        );
-
-        // Today's stats
         $todayDate = date('Y-m-d');
+        $monthStart = date('Y-m-01');
+        $yearStart = date('Y-01-01');
+        $col = fn(string $sql, array $p) => (float) ($this->db->fetchColumn($sql, $p) ?? 0);
+        $cnt = fn(string $sql, array $p) => (int) $this->db->fetchColumn($sql, $p);
 
-        $todayDeposits = (float) ($this->db->fetchColumn(
-            "SELECT COALESCE(SUM(amount), 0) FROM transactions
-             WHERE tenant_id = ? AND type = 'deposit' AND DATE(created_at) = ?",
-            [$tenantId, $todayDate],
-        ) ?? 0);
+        // --- Members (role = member only; staff logins are not members) ---
+        $totalMembers    = $cnt("SELECT COUNT(*) FROM users WHERE tenant_id = ? AND role = 'member' AND status = 'active'", [$tenantId]);
+        $allMembers      = $cnt("SELECT COUNT(*) FROM users WHERE tenant_id = ? AND role = 'member'", [$tenantId]);
+        $newMembersMonth = $cnt("SELECT COUNT(*) FROM users WHERE tenant_id = ? AND role = 'member' AND created_at >= ?", [$tenantId, $monthStart]);
 
-        $todayWithdrawals = (float) ($this->db->fetchColumn(
-            "SELECT COALESCE(SUM(amount), 0) FROM transactions
-             WHERE tenant_id = ? AND type = 'withdrawal' AND DATE(created_at) = ?",
-            [$tenantId, $todayDate],
-        ) ?? 0);
+        // --- Member funds (loan tracking accounts are NOT deposits) ---
+        $totalAccounts = $cnt("SELECT COUNT(*) FROM accounts WHERE tenant_id = ? AND status = 'active' AND account_type <> 'loan'", [$tenantId]);
+        $totalDeposits = $col("SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE tenant_id = ? AND status <> 'closed' AND account_type IN ('savings','checking')", [$tenantId]);
+        $totalShares   = $col("SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE tenant_id = ? AND status <> 'closed' AND account_type IN ('permanent_shares','regular_shares')", [$tenantId]);
+        $memberFunds   = round($totalDeposits + $totalShares, 2);
 
-        $todayTransactions = (int) $this->db->fetchColumn(
-            'SELECT COUNT(*) FROM transactions
-             WHERE tenant_id = ? AND DATE(created_at) = ?',
-            [$tenantId, $todayDate],
-        );
+        // --- Loan book (disbursed loans only) ---
+        $active = $this->db->fetchOne(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(outstanding_balance), 0) AS balance, COALESCE(SUM(monthly_payment), 0) AS installments
+             FROM loans WHERE tenant_id = ? AND status IN ('active','delinquent','default')", [$tenantId]);
+        $totalLoans = (int) $active['n'];
+        $totalLoanBalance = (float) $active['balance'];
+        $pendingLoans = $cnt("SELECT COUNT(*) FROM loans WHERE tenant_id = ? AND status = 'application'", [$tenantId]);
+        $approved = $this->db->fetchOne("SELECT COUNT(*) AS n, COALESCE(SUM(principal_amount), 0) AS amount FROM loans WHERE tenant_id = ? AND status = 'approved'", [$tenantId]);
 
-        $newMembersToday = (int) $this->db->fetchColumn(
-            "SELECT COUNT(*) FROM users
-             WHERE tenant_id = ? AND role = 'member' AND DATE(created_at) = ?",
-            [$tenantId, $todayDate],
-        );
+        // Past due: next due date has passed. "Beyond grace" uses each loan's grace period.
+        $pastDueRows = $this->db->fetchAll(
+            "SELECT outstanding_balance, DATEDIFF(CURDATE(), next_payment_date) AS days, COALESCE(grace_period_days, 0) AS grace
+             FROM loans WHERE tenant_id = ? AND status IN ('active','delinquent','default') AND next_payment_date < CURDATE()", [$tenantId]);
+        $pastDue = ['count' => count($pastDueRows), 'balance' => 0.0, 'beyond_grace_count' => 0, 'beyond_grace_balance' => 0.0, 'over_90_count' => 0];
+        foreach ($pastDueRows as $r) {
+            $pastDue['balance'] += (float) $r['outstanding_balance'];
+            if ((int) $r['days'] > (int) $r['grace']) { $pastDue['beyond_grace_count']++; $pastDue['beyond_grace_balance'] += (float) $r['outstanding_balance']; }
+            if ((int) $r['days'] > 90) $pastDue['over_90_count']++;
+        }
+        $pastDue['balance'] = round($pastDue['balance'], 2);
+        $pastDue['beyond_grace_balance'] = round($pastDue['beyond_grace_balance'], 2);
+        $dueSoon = $this->db->fetchOne(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(monthly_payment), 0) AS amount FROM loans
+             WHERE tenant_id = ? AND status IN ('active','delinquent','default') AND next_payment_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)", [$tenantId]);
 
-        $todayStats = [
-            'today_deposits'      => round($todayDeposits, 2),
-            'today_withdrawals'   => round($todayWithdrawals, 2),
-            'today_transactions'  => $todayTransactions,
-            'new_members_today'   => $newMembersToday,
-        ];
+        // Loan activity this month / year
+        $disbMonth = $this->db->fetchOne(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM transactions
+             WHERE tenant_id = ? AND type = 'loan_disbursement' AND status = 'completed' AND created_at >= ?", [$tenantId, $monthStart]);
+        $payRows = $this->db->fetchAll(
+            "SELECT amount, metadata, created_at FROM transactions
+             WHERE tenant_id = ? AND type = 'loan_payment' AND status = 'completed' AND created_at >= ?", [$tenantId, $yearStart]);
+        $loanMonth = ['payments_count' => 0, 'payments_total' => 0.0, 'interest' => 0.0, 'principal' => 0.0];
+        $interestYtd = 0.0;
+        foreach ($payRows as $p) {
+            $m = json_decode((string) ($p['metadata'] ?? ''), true) ?: [];
+            $i = (float) ($m['interest'] ?? 0);
+            $interestYtd += $i;
+            if (substr((string) $p['created_at'], 0, 10) >= $monthStart) {
+                $loanMonth['payments_count']++;
+                $loanMonth['payments_total'] += (float) $p['amount'];
+                $loanMonth['interest'] += $i;
+                $loanMonth['principal'] += (float) ($m['principal'] ?? ((float) $p['amount'] - $i));
+            }
+        }
+        foreach (['payments_total', 'interest', 'principal'] as $k) $loanMonth[$k] = round($loanMonth[$k], 2);
+        $loanMonth['disbursed_count'] = (int) $disbMonth['n'];
+        $loanMonth['disbursed_total'] = round((float) $disbMonth['total'], 2);
+        $loanMonth['installments_due'] = round((float) $active['installments'], 2);
+        $loanMonth['collection_rate'] = $loanMonth['installments_due'] > 0 ? round($loanMonth['payments_total'] / $loanMonth['installments_due'] * 100, 1) : null;
 
-        // Cash position (fund_locations table may not exist)
-        $cashPosition = [];
+        // --- Cash position ---
+        $cashPosition = []; $cashTotal = 0.0;
         try {
             $cashPosition = $this->db->fetchAll(
-                "SELECT type, COALESCE(SUM(balance), 0) AS total
-                 FROM fund_locations
-                 WHERE tenant_id = ? AND status = 'active'
-                 GROUP BY type",
-                [$tenantId],
-            );
+                "SELECT type, COALESCE(SUM(balance), 0) AS total, COUNT(*) AS n FROM fund_locations WHERE tenant_id = ? AND status = 'active' GROUP BY type", [$tenantId]);
+            foreach ($cashPosition as $c) $cashTotal += (float) $c['total'];
         } catch (\Throwable) {
-            // Table may not exist — return empty array
+            // Cash management not set up yet
         }
+
+        // --- Money in / out this month and today (completed only) ---
+        $monthFlow = $this->db->fetchAll(
+            "SELECT type, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total FROM transactions
+             WHERE tenant_id = ? AND status = 'completed' AND type IN ('deposit','withdrawal') AND created_at >= ?
+             GROUP BY type", [$tenantId, $monthStart]);
+        $monthDeposits = 0.0; $monthWithdrawals = 0.0;
+        foreach ($monthFlow as $f) { if ($f['type'] === 'deposit') $monthDeposits = (float) $f['total']; else $monthWithdrawals = (float) $f['total']; }
+
+        $todayStats = [
+            'today_deposits'     => $col("SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE tenant_id = ? AND type = 'deposit' AND status = 'completed' AND DATE(created_at) = ?", [$tenantId, $todayDate]),
+            'today_withdrawals'  => $col("SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE tenant_id = ? AND type = 'withdrawal' AND status = 'completed' AND DATE(created_at) = ?", [$tenantId, $todayDate]),
+            'today_loan_payments' => $col("SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE tenant_id = ? AND type = 'loan_payment' AND status = 'completed' AND DATE(created_at) = ?", [$tenantId, $todayDate]),
+            'today_transactions' => $cnt("SELECT COUNT(*) FROM transactions WHERE tenant_id = ? AND status = 'completed' AND DATE(created_at) = ?", [$tenantId, $todayDate]),
+            'new_members_today'  => $cnt("SELECT COUNT(*) FROM users WHERE tenant_id = ? AND role = 'member' AND DATE(created_at) = ?", [$tenantId, $todayDate]),
+        ];
+
+        // --- Charts ---
+        $recentTransactions = $this->db->fetchAll(
+            "SELECT t.id, t.reference_number, t.type, t.amount, t.status, t.created_at, a.account_number
+             FROM transactions t LEFT JOIN accounts a ON a.id = t.account_id
+             WHERE t.tenant_id = ? ORDER BY t.created_at DESC LIMIT 10", [$tenantId]);
+        $transactionTrend = $this->db->fetchAll(
+            "SELECT DATE(created_at) AS date, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total
+             FROM transactions WHERE tenant_id = ? AND status = 'completed' AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+             GROUP BY DATE(created_at) ORDER BY date", [$tenantId]);
+        $accountTypes = $this->db->fetchAll(
+            "SELECT account_type, COUNT(*) AS count, COALESCE(SUM(balance), 0) AS total_balance
+             FROM accounts WHERE tenant_id = ? AND status <> 'closed' AND account_type <> 'loan' GROUP BY account_type", [$tenantId]);
+        $loanStatus = $this->db->fetchAll(
+            "SELECT status, COUNT(*) AS count, COALESCE(SUM(outstanding_balance), 0) AS total FROM loans WHERE tenant_id = ? GROUP BY status", [$tenantId]);
 
         return Response::ok([
             'members'                => $totalMembers,
+            'members_total'          => $allMembers,
+            'members_new_month'      => $newMembersMonth,
             'active_accounts'        => $totalAccounts,
             'total_deposits'         => round($totalDeposits, 2),
+            'total_shares'           => round($totalShares, 2),
+            'member_funds'           => $memberFunds,
             'active_loans'           => $totalLoans,
             'total_loan_balance'     => round($totalLoanBalance, 2),
+            'loans_to_funds_pct'     => $memberFunds > 0 ? round($totalLoanBalance / $memberFunds * 100, 1) : null,
             'pending_loan_apps'      => $pendingLoans,
-            'delinquent_loans'       => $delinquentLoans,
+            'approved_undisbursed'   => ['count' => (int) $approved['n'], 'amount' => round((float) $approved['amount'], 2)],
+            'past_due'               => $pastDue,
+            'delinquent_loans'       => $pastDue['beyond_grace_count'],
+            'due_next_7_days'        => ['count' => (int) $dueSoon['n'], 'amount' => round((float) $dueSoon['amount'], 2)],
+            'loan_month'             => $loanMonth,
+            'interest_ytd'           => round($interestYtd, 2),
+            'month'                  => ['deposits' => round($monthDeposits, 2), 'withdrawals' => round($monthWithdrawals, 2), 'net' => round($monthDeposits - $monthWithdrawals, 2)],
+            'cash_total'             => round($cashTotal, 2),
+            'cash_position'          => $cashPosition,
             'recent_transactions'    => $recentTransactions,
             'transaction_trend'      => $transactionTrend,
-            'deposit_vs_withdrawal'  => $depositVsWithdrawal,
+            'deposit_vs_withdrawal'  => $monthFlow,
             'account_types'          => $accountTypes,
             'loan_status'            => $loanStatus,
             'today'                  => $todayStats,
-            'cash_position'          => $cashPosition,
+            'as_of'                  => $todayDate,
         ]);
     }
 

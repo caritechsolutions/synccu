@@ -226,32 +226,57 @@ function populateStats(d) {
   const todayTxnEl = el('statTodayTxn');
   const todayDepEl = el('statTodayDep');
 
+  const money = v => '$' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const setText = (id, text) => { const e = el(id); if (e) e.textContent = text; };
+
   if (memEl) animateValue(memEl, d.members || 0, '', 1000);
-  if (depEl) animateDollar(depEl, d.total_deposits || 0, 1200);
+  setText('statMembersSub', (d.members_total || 0) + ' on file · ' + (d.members_new_month || 0) + ' new this month');
+  if (depEl) animateDollar(depEl, d.member_funds != null ? d.member_funds : (d.total_deposits || 0), 1200);
+  setText('statDepositsSub', 'Deposits ' + fmt$(d.total_deposits) + ' · Shares ' + fmt$(d.total_shares));
   if (loanEl) animateValue(loanEl, d.active_loans || 0, '', 800);
+  const appr = d.approved_undisbursed || {};
+  setText('statLoansSub', appr.count ? appr.count + ' approved awaiting disbursement (' + fmt$(appr.amount) + ')' : 'disbursed and owing');
   if (loanBalEl) animateDollar(loanBalEl, d.total_loan_balance || 0, 1200);
+  setText('statLoanBalSub', (d.loans_to_funds_pct != null ? d.loans_to_funds_pct + '% of member funds' : '') + (d.interest_ytd ? ' · interest YTD ' + fmt$(d.interest_ytd) : ''));
 
   const today = d.today || {};
   if (todayTxnEl) animateValue(todayTxnEl, today.today_transactions || 0, '', 800);
+  setText('statTodayTxnSub', 'Loan payments today ' + fmt$(today.today_loan_payments));
   if (todayDepEl) animateDollar(todayDepEl, today.today_deposits || 0, 1000);
+  const mo = d.month || {};
+  setText('statTodayDepSub', 'This month: in ' + fmt$(mo.deposits) + ' · out ' + fmt$(mo.withdrawals));
 
-  const pendEl = el('pendingLoans');
-  if (pendEl) pendEl.textContent = fmtN(d.pending_loan_apps);
-  const delEl = el('delinquentLoans');
-  if (delEl) delEl.textContent = fmtN(d.delinquent_loans);
-  const acctEl = el('activeAccounts');
-  if (acctEl) acctEl.textContent = fmtN(d.active_accounts);
-  const newMemEl = el('newMembersToday');
-  if (newMemEl) newMemEl.textContent = fmtN(today.new_members_today);
-  const todayWithEl = el('todayWithdrawals');
-  if (todayWithEl) todayWithEl.textContent = fmt$(today.today_withdrawals);
+  setText('pendingLoans', fmtN(d.pending_loan_apps));
+  setText('delinquentLoans', fmtN(d.delinquent_loans));
+  setText('activeAccounts', fmtN(d.active_accounts));
+  setText('newMembersToday', fmtN(today.new_members_today));
+  setText('todayWithdrawals', fmt$(today.today_withdrawals));
 
-  const alertDel = el('alertDelinquent');
-  if (alertDel) alertDel.textContent = fmtN(d.delinquent_loans);
-  const alertPend = el('alertPending');
-  if (alertPend) alertPend.textContent = fmtN(d.pending_loan_apps);
-  const alertAcct = el('alertAccounts');
-  if (alertAcct) alertAcct.textContent = fmtN(d.active_accounts);
+  const pd = d.past_due || {};
+  const due = d.due_next_7_days || {};
+  setText('alertDelinquent', fmtN(pd.beyond_grace_count != null ? pd.beyond_grace_count : d.delinquent_loans));
+  setText('alertOver90', fmtN(pd.over_90_count));
+  setText('alertPending', fmtN(d.pending_loan_apps));
+  setText('alertApproved', fmtN(appr.count));
+  setText('alertDueSoon', fmtN(due.count));
+  setText('alertAccounts', fmtN(d.active_accounts));
+
+  // Loan portfolio tiles
+  const pc = el('portfolioCards');
+  if (pc) {
+    const lm = d.loan_month || {};
+    const tile = (color, icon, label, value, sub) =>
+      '<div class="cash-pos-card cash-pos-' + color + '"><div class="cash-pos-icon"><svg><use href="' + icon + '"/></svg></div>' +
+      '<div class="cash-pos-info"><span class="cash-pos-label">' + label + '</span><span class="cash-pos-value">' + value + '</span>' +
+      (sub ? '<span class="cash-pos-sub">' + sub + '</span>' : '') + '</div></div>';
+    pc.innerHTML =
+      tile('green', '#icon-arrow-down', 'Collected this month', money(lm.payments_total), (lm.payments_count || 0) + ' payment(s) · interest ' + money(lm.interest) + ' · principal ' + money(lm.principal)) +
+      tile('blue', '#icon-credit-card', 'Installments due this month', money(lm.installments_due), lm.collection_rate != null ? lm.collection_rate + '% collected so far' : '') +
+      tile('purple', '#icon-arrow-up', 'Disbursed this month', money(lm.disbursed_total), (lm.disbursed_count || 0) + ' loan(s)') +
+      tile('red', '#icon-bell', 'Past due balance', money(pd.balance), (pd.count || 0) + ' loan(s) · ' + (pd.beyond_grace_count || 0) + ' beyond grace (' + money(pd.beyond_grace_balance) + ')') +
+      tile('orange', '#icon-send', 'Due in next 7 days', money(due.amount), (due.count || 0) + ' installment(s)') +
+      tile('cyan', '#icon-key', 'Cash on hand', money(d.cash_total), 'vault + drawers + bank');
+  }
 }
 
 function populateCashPosition(data) {

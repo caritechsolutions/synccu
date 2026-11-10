@@ -48,6 +48,11 @@
 
     .stat-value-lg { font-size: 28px; font-weight: 700; color: var(--text-primary, #111); line-height: 1.2; }
     .stat-label-sm { font-size: 13px; color: var(--text-muted, #6b7280); margin-top: 4px; display: block; }
+    .stat-sub { font-size: 12px; color: var(--text-muted, #6b7280); display: block; margin-top: 2px; min-height: 14px; }
+    .cash-pos-orange .cash-pos-icon { background: rgba(245,158,11,0.1); color: #f59e0b; }
+    .cash-pos-red .cash-pos-icon { background: rgba(239,68,68,0.1); color: #ef4444; }
+    .cash-pos-cyan .cash-pos-icon { background: rgba(6,182,212,0.1); color: #06b6d4; }
+    .cash-pos-sub { font-size: 11px; color: var(--text-muted, #6b7280); display: block; }
 
     .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
     .chart-wrap { height: 300px; position: relative; max-width: 100%; }
@@ -269,32 +274,38 @@
         <div class="dash-card stat-card-modern grad-blue">
           <div class="stat-icon-wrap bg-blue"><svg><use href="#icon-users"/></svg></div>
           <span class="stat-value-lg" id="statMembers">0</span>
-          <span class="stat-label-sm">Total Members</span>
+          <span class="stat-label-sm">Active Members</span>
+          <span class="stat-sub" id="statMembersSub"></span>
         </div>
         <div class="dash-card stat-card-modern grad-green">
           <div class="stat-icon-wrap bg-green"><svg><use href="#icon-dollar"/></svg></div>
           <span class="stat-value-lg" id="statDeposits">$0</span>
-          <span class="stat-label-sm">Total Deposits</span>
+          <span class="stat-label-sm">Member Funds (Deposits + Shares)</span>
+          <span class="stat-sub" id="statDepositsSub"></span>
         </div>
         <div class="dash-card stat-card-modern grad-orange">
           <div class="stat-icon-wrap bg-orange"><svg><use href="#icon-credit-card"/></svg></div>
           <span class="stat-value-lg" id="statLoans">0</span>
           <span class="stat-label-sm">Active Loans</span>
+          <span class="stat-sub" id="statLoansSub"></span>
         </div>
         <div class="dash-card stat-card-modern grad-purple">
           <div class="stat-icon-wrap bg-purple"><svg><use href="#icon-chart"/></svg></div>
           <span class="stat-value-lg" id="statLoanBal">$0</span>
-          <span class="stat-label-sm">Loan Balance</span>
+          <span class="stat-label-sm">Loans Outstanding</span>
+          <span class="stat-sub" id="statLoanBalSub"></span>
         </div>
         <div class="dash-card stat-card-modern grad-cyan">
           <div class="stat-icon-wrap bg-cyan"><svg><use href="#icon-send"/></svg></div>
           <span class="stat-value-lg" id="statTodayTxn">0</span>
           <span class="stat-label-sm">Today's Transactions</span>
+          <span class="stat-sub" id="statTodayTxnSub"></span>
         </div>
         <div class="dash-card stat-card-modern grad-pink">
           <div class="stat-icon-wrap bg-pink"><svg><use href="#icon-arrow-up"/></svg></div>
           <span class="stat-value-lg" id="statTodayDep">$0</span>
           <span class="stat-label-sm">Today's Deposits</span>
+          <span class="stat-sub" id="statTodayDepSub"></span>
         </div>
       </div>
 
@@ -302,7 +313,7 @@
       <div class="today-strip">
         <div class="today-item">
           <span class="today-val" id="activeAccounts">0</span>
-          <span class="today-lbl">Active Accounts</span>
+          <span class="today-lbl">Open Accounts</span>
         </div>
         <div class="today-item">
           <span class="today-val" id="pendingLoans">0</span>
@@ -310,7 +321,7 @@
         </div>
         <div class="today-item">
           <span class="today-val" id="delinquentLoans">0</span>
-          <span class="today-lbl">Delinquent Loans</span>
+          <span class="today-lbl">Past Due (Beyond Grace)</span>
         </div>
         <div class="today-item">
           <span class="today-val" id="newMembersToday">0</span>
@@ -319,6 +330,17 @@
         <div class="today-item">
           <span class="today-val" id="todayWithdrawals">$0</span>
           <span class="today-lbl">Today's Withdrawals</span>
+        </div>
+      </div>
+
+      <!-- Loan Portfolio Health -->
+      <div class="dash-card" style="margin-bottom:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div class="chart-title" style="margin-bottom:0">Loan Portfolio — This Month</div>
+          <a href="reports.html" style="font-size:13px;color:#3b82f6;text-decoration:none;font-weight:500">Delinquency report</a>
+        </div>
+        <div class="cash-pos-grid" id="portfolioCards">
+          <p style="color:var(--text-muted);text-align:center;padding:24px">Loading...</p>
         </div>
       </div>
 
@@ -385,9 +407,11 @@
           <div style="margin-top:20px">
             <div class="chart-title">Alerts</div>
             <ul class="alerts-list">
-              <li><span class="alert-dot dot-red"></span>Delinquent Loans<span class="alert-count cnt-red" id="alertDelinquent">0</span></li>
-              <li><span class="alert-dot dot-orange"></span>Pending Applications<span class="alert-count cnt-orange" id="alertPending">0</span></li>
-              <li><span class="alert-dot dot-blue"></span>Active Accounts<span class="alert-count cnt-blue" id="alertAccounts">0</span></li>
+              <li><span class="alert-dot dot-red"></span>Past due beyond grace<span class="alert-count cnt-red" id="alertDelinquent">0</span></li>
+              <li><span class="alert-dot dot-red"></span>Past due over 90 days<span class="alert-count cnt-red" id="alertOver90">0</span></li>
+              <li><span class="alert-dot dot-orange"></span>Pending applications<span class="alert-count cnt-orange" id="alertPending">0</span></li>
+              <li><span class="alert-dot dot-orange"></span>Approved, awaiting disbursement<span class="alert-count cnt-orange" id="alertApproved">0</span></li>
+              <li><span class="alert-dot dot-blue"></span>Installments due in next 7 days<span class="alert-count cnt-blue" id="alertDueSoon">0</span></li>
             </ul>
           </div>
         </div>
