@@ -877,6 +877,23 @@ final class LoanService
     }
 
     /**
+     * Rebuild the upcoming schedule rows from the current balance, keeping any
+     * 'paid' rows. Used by the legacy register importer after it writes history.
+     */
+    public function regenerateUpcoming(string $loanId, ?string $fromDate = null): void
+    {
+        $loan = $this->findById($loanId);
+        if ($loan === null) {
+            return;
+        }
+        if ((float) $loan['outstanding_balance'] > 0.01) {
+            $this->recalculateSchedule($loanId, $loan, $fromDate);
+        } else {
+            $this->db->query("DELETE FROM loan_schedules WHERE loan_id = ? AND status IN ('upcoming', 'due')", [$loanId]);
+        }
+    }
+
+    /**
      * Imported / legacy loans may be active with no schedule rows. Build one
      * from the current balance so payments and the Schedule tab work.
      */

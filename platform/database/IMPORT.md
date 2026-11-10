@@ -94,6 +94,33 @@ that (or set `--opening-interest` directly). Payments already posted in this
 system for the loan are replaced; the script refuses if any were paid from a
 member account, since those moved money.
 
+## Loading the accountant's Loan Register & Transaction History (all loans)
+
+`import_loan_register.php` reads the "LOAN REGISTER & TRANSACTION HISTORY"
+report (as text) and loads every loan with a balance owing: the latest note's
+terms from the header line, and every payment from the journal **as posted**
+(the register's own principal/interest split and balance), so the platform
+matches the accountant's position to the cent. Reversals are netted out,
+same-day principal/interest rows are merged, the schedule is rebuilt, and each
+loan is its own transaction. Dry run by default.
+
+```bash
+apt-get install -y poppler-utils                       # once, for pdftotext
+mkdir -p /root/register && cd /root/register           # copy the PDFs here (scp)
+for f in *.pdf; do pdftotext -layout "$f" "${f%.pdf}.txt"; done
+cat *.txt > all.txt
+cd /var/www/synccu
+php platform/database/import_loan_register.php --text=/root/register/all.txt            # dry run
+php platform/database/import_loan_register.php --text=/root/register/all.txt --commit
+```
+
+Options: `--only=1212B,1263A`, `--skip=...`, `--include-paid-off` (also load the
+closed loans' history), `--parse-only` (no database). Members must already
+exist (`users.member_number`); loans are created when missing. The "Formula"
+column says whether the platform's daily-interest formula would have produced
+the same figures; loans marked "diff" carry manual allocations from the legacy
+system and are loaded exactly as the register shows them.
+
 ## Wiping test data before a clean re-import
 
 To empty all member/client data (keeping staff logins) and re-import from
